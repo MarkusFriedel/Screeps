@@ -22,7 +22,8 @@ export class SourceInfo implements SourceInfoInterface {
     harvestingSpots: number;
     containerId: string;
 
-    constructor(id:string) {
+    constructor(id: string) {
+        
         this.id = id;
         let source = <Source>Game.getObjectById(id);
         if (source != null) {
@@ -31,8 +32,8 @@ export class SourceInfo implements SourceInfoInterface {
             if (Memory['sources'] == null)
                 Memory['sources'] = {};
 
-            if (Memory['source'][id] == null)
-                Memory['source'][id] = {};
+            if (Memory['sources'][id] == null)
+                Memory['sources'][id] = {};
             this.roomName = source.room.name;
             this.containerId = Memory['sources'][id].containerId;
             this.energy = source.energy;

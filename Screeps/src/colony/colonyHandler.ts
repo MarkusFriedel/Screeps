@@ -29,7 +29,7 @@ export class ColonyHandler {
             console.log('ColonyHandler.tick');
 
 
-        debugger;
+        
         this.spawnRoomNames = _.uniq(_.map(Game.spawns, (s) => s.room.name ));
 
         for (let i = 0; i < this.spawnRoomNames.length; i++) {
