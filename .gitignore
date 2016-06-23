@@ -250,3 +250,10 @@ paket-files/
 # JetBrains Rider
 .idea/
 *.sln.iml
+
+Screeps/dist
+Screeps/node_modules
+Screeps/secrets.js
+Screeps/typings
+Screeps/.idea
+.idea

@@ -1,0 +1,20 @@
+{
+  "name": "markus-screeps",
+  "version": "0.0.0",
+  "description": "",
+  "main": "gulpfile.js",
+  "scripts": {
+    "postinstall": "./node_modules/.bin/tsd install",
+    "start": "./node_modules/.bin/gulp build"
+  },
+  "author": "",
+  "license": "BSD-2-Clause",
+  "devDependencies": {
+    "gulp": "~3.9.0",
+    "tsproject": "~1.2.0-rc.6",
+    "tsd": "~0.6.5"
+  },
+  "dependencies": {
+    "screeps-typescript-declarations": "^1.1.1"
+  }
+}
