@@ -860,7 +860,7 @@ var SpawnManager = (function () {
     };
     SpawnManager.prototype.AddToQueue = function (body, memory, count) {
         if (count === void 0) { count = 1; }
-        if (Memory['verbose'] || this.memory.verbose)
+        if (Memory['verbose'] || this.memory.verbose && count > 0)
             console.log('[' + this.mainRoom.name + '] ' + 'SpawnManager.AddToQueue(): ' + memory['role'] + ': ' + count);
         for (var i = 0; i < count; i++)
             this.queue.push({ body: body, memory: memory });
@@ -1191,8 +1191,8 @@ var HarvestingManager = (function () {
         if (maxWorkParts >= partsRequired)
             return { body: HarvesterDefinition.getDefinition(this.mainRoom.maxSpawnEnergy, sourceInfo.memory.containerId != null, partsRequired), count: 1 };
         else {
-            var creepCount = Math.max(Math.ceil(partsRequired / maxWorkParts), sourceInfo.memory.harvestingSpots);
-            partsRequired = Math.max(Math.ceil(partsRequired / creepCount), maxWorkParts);
+            var creepCount = Math.min(Math.ceil(partsRequired / maxWorkParts), sourceInfo.memory.harvestingSpots);
+            partsRequired = Math.min(Math.ceil(partsRequired / creepCount), maxWorkParts);
             return { body: HarvesterDefinition.getDefinition(this.mainRoom.maxSpawnEnergy, sourceInfo.memory.containerId != null, partsRequired), count: creepCount };
         }
     };
@@ -1243,12 +1243,12 @@ var HarvestingManager = (function () {
             if (Memory['verbose'] || this.memory.verbose)
                 console.log('HarvestingManager.checkCreeps(): Add harvester to queue');
             var requirements = this.getHarvesterBodyAndCount(sourceInfo);
-            this.mainRoom.spawnManager.AddToQueue(requirements.body.getBody(), { role: 'harvester', sourceId: sourceInfo.id }, Math.min((requirements.count - harvesters.length), sourceInfo.memory.harvestingSpots) + (sourceInfo.memory.containerId == null ? 1 : 0));
+            this.mainRoom.spawnManager.AddToQueue(requirements.body.getBody(), { role: 'harvester', sourceId: sourceInfo.id }, Math.min(requirements.count, sourceInfo.memory.harvestingSpots + (sourceInfo.memory.containerId == null ? 1 : 0)) - harvesters.length);
             //}
             if (sourceInfo.memory.containerId && this.mainRoom.mainContainer && sourceInfo.memory.containerId != this.mainRoom.mainContainer.id) {
                 var sourceCarriers = _.filter(this.sourceCarrierCreeps, function (c) { return c.memory.sourceId == sourceInfo.id; });
                 var requirements_1 = this.getSourceCarrierBodyAndCount(sourceInfo);
-                this.mainRoom.spawnManager.AddToQueue(requirements_1.body.getBody(), { role: 'sourceCarrier', sourceId: sourceInfo.id }, requirements_1.count - sourceCarriers.length);
+                this.mainRoom.spawnManager.AddToQueue(requirements_1.body.getBody(), { role: 'sourceCarrier', sourceId: sourceInfo.id }, Math.min(requirements_1.count, 2) - sourceCarriers.length);
             }
         }
     };

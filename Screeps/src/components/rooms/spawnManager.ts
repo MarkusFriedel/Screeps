@@ -31,7 +31,7 @@ export class SpawnManager {
     }
 
     public AddToQueue(body: string[], memory: any, count: number = 1) {
-        if (Memory['verbose'] || this.memory.verbose)
+        if (Memory['verbose'] || this.memory.verbose &&count>0)
             console.log('[' + this.mainRoom.name + '] ' + 'SpawnManager.AddToQueue(): ' + memory['role'] + ': ' + count);
         for (let i = 0; i < count; i++)
             this.queue.push({body:body,memory:memory});

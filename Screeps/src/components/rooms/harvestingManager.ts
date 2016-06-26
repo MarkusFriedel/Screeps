@@ -63,8 +63,8 @@ export class HarvestingManager {
         if (maxWorkParts >= partsRequired)
             return { body: HarvesterDefinition.getDefinition(this.mainRoom.maxSpawnEnergy, sourceInfo.memory.containerId != null, partsRequired), count: 1 };
         else {
-            let creepCount = Math.max(Math.ceil(partsRequired / maxWorkParts), sourceInfo.memory.harvestingSpots);
-            partsRequired = Math.max(Math.ceil(partsRequired / creepCount), maxWorkParts);
+            let creepCount = Math.min(Math.ceil(partsRequired / maxWorkParts), sourceInfo.memory.harvestingSpots);
+            partsRequired = Math.min(Math.ceil(partsRequired / creepCount), maxWorkParts);
             return { body: HarvesterDefinition.getDefinition(this.mainRoom.maxSpawnEnergy, sourceInfo.memory.containerId != null, partsRequired), count: creepCount };
         }
     }
@@ -125,13 +125,13 @@ export class HarvestingManager {
             if (Memory['verbose'] || this.memory.verbose)
                     console.log('HarvestingManager.checkCreeps(): Add harvester to queue');
             let requirements = this.getHarvesterBodyAndCount(sourceInfo);
-            this.mainRoom.spawnManager.AddToQueue(requirements.body.getBody(), { role: 'harvester', sourceId: sourceInfo.id }, Math.min((requirements.count - harvesters.length), sourceInfo.memory.harvestingSpots) + (sourceInfo.memory.containerId == null ? 1 : 0));
+            this.mainRoom.spawnManager.AddToQueue(requirements.body.getBody(), { role: 'harvester', sourceId: sourceInfo.id }, Math.min(requirements.count, sourceInfo.memory.harvestingSpots + (sourceInfo.memory.containerId==null ? 1 : 0)) - harvesters.length);
             //}
 
             if (sourceInfo.memory.containerId && this.mainRoom.mainContainer && sourceInfo.memory.containerId != this.mainRoom.mainContainer.id) {
                 var sourceCarriers = _.filter(this.sourceCarrierCreeps, (c) => (<SourceCarrierMemory>c.memory).sourceId == sourceInfo.id);
                 let requirements = this.getSourceCarrierBodyAndCount(sourceInfo);
-                this.mainRoom.spawnManager.AddToQueue(requirements.body.getBody(), { role: 'sourceCarrier', sourceId: sourceInfo.id }, requirements.count - sourceCarriers.length);
+                this.mainRoom.spawnManager.AddToQueue(requirements.body.getBody(), { role: 'sourceCarrier', sourceId: sourceInfo.id }, Math.min(requirements.count,2) - sourceCarriers.length);
             }
         }
     }

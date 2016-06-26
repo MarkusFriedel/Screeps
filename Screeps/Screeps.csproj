@@ -2592,6 +2592,7 @@
     <TypeScriptCompile Include="node_modules\tsproject\node_modules\typescript\lib\typescriptServices.d.ts" />
     <TypeScriptCompile Include="node_modules\tsproject\tsproject.d.ts" />
     <TypeScriptCompile Include="src\boot\main.ts" />
+    <TypeScriptCompile Include="src\colony\claimingManager.ts" />
     <TypeScriptCompile Include="src\colony\colony.ts" />
     <TypeScriptCompile Include="src\components\creeps\body.ts" />
     <TypeScriptCompile Include="src\components\creeps\constructor\constructor.ts" />
