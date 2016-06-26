@@ -9,8 +9,8 @@ export namespace ConstructorDefinition {
         body.carry = 1;
         body.move = 1;
 
-
-        var remaining = maxEnergy - 200;
+        let remainingEnergy = Math.min(maxEnergy, 1500);
+        var remaining = remainingEnergy - 200;
 
         while (remaining >= 100) {
             if (remaining >= 150) {

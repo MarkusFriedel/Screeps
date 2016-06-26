@@ -1,5 +1,5 @@
 import {Config} from "./config/config";
-import {ColonyHandler} from "./colony/colonyHandler";
+import {Colony} from "./colony/colony";
 
 /**
  * Singleton object.
@@ -16,25 +16,46 @@ export namespace GameManager {
         // Use this bootstrap wisely. You can cache some of your stuff to save CPU
         // You should extend prototypes before game loop in here.
 
+        if (Memory['reset'] == true) {
+            Memory['reset'] = false;
+            Memory['colony'] = {};
+            Colony.mainRooms = null;
+            Colony.rooms = null;
+        }
 
-        
+        console.log('Global reset');
+        let startCpu = Game.cpu.getUsed();
+        if (!Memory['colony'])
+            Memory['colony'] = {};
+
+        var colonyMemory = <ColonyMemory>Memory['colony'];
+
+        Colony.initialize(colonyMemory);
+
+        let endCpu = Game.cpu.getUsed();
+        console.log('Booting: ' + (endCpu - startCpu).toFixed(2));
     }
 
     export function loop() {
         // Loop code starts here
         // This is executed every tick
 
+        
+
+
+        let startCpu = Game.cpu.getUsed();
         for (var name in Memory.creeps) {
             if (!Game.creeps[name]) {
                 delete Memory.creeps[name];
             }
         }
 
-
         if (Memory['verbose'])
             console.log('MainLoop');
 
-        new ColonyHandler().tick();
+        Colony.tick();
+        let endCpu = Game.cpu.getUsed();
+        console.log('Time: ' + Game.time + ' CPU: ' + (endCpu - startCpu).toFixed(2) + ' Bucket: ' + Game.cpu.bucket);
     }
 
 }

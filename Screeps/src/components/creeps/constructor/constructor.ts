@@ -1,32 +1,33 @@
-﻿import {SpawnRoomHandler} from "../../rooms/spawnRoomHandler";
+﻿import {MainRoom} from "../../rooms/mainRoom";
 
 export class Constructor {
 
     creep: Creep;
-    targetId: string;
     target: ConstructionSite;
     targetPosition: RoomPosition;
-    spawnRoomHandler: SpawnRoomHandler;
+    mainRoom: MainRoom;
+    memory: ConstructorMemory;
 
-    constructor(creep: Creep, spawnRoomHandler: SpawnRoomHandler) {
+    constructor(creep: Creep, mainRoom: MainRoom) {
         this.creep = creep;
+        this.memory = <ConstructorMemory>this.creep.memory;
 
-        this.targetId = creep.memory.targetId;
-        this.spawnRoomHandler = spawnRoomHandler;
+        this.mainRoom = mainRoom;
 
-        this.target = Game.getObjectById<ConstructionSite>(this.targetId);
+        this.target = Game.getObjectById<ConstructionSite>(this.memory.targetId);
         if (this.target != null) {
             this.creep.memory.targetPosition = this.target.pos;
             this.targetPosition = this.target.pos;
+            this.memory.targetPosition = this.targetPosition;
         }
         else if (this.creep.memory.targetId != null) {
-            this.targetPosition = new RoomPosition(creep.memory.targetPosition.x, creep.memory.targetPosition.y, creep.memory.targetPosition.roomName);
+            this.targetPosition = new RoomPosition(this.memory.targetPosition.x, this.memory.targetPosition.y, this.memory.targetPosition.roomName);
             if (Game.rooms[this.targetPosition.roomName] != null) {
                 this.targetPosition = null;
                 this.target = null;
-                this.targetId = null;
-                this.creep.memory.targetId = null;
-                this.creep.memory.targetPosition = null;
+                this.memory.targetId = null;
+                this.memory.targetId = null;
+                this.memory.targetPosition = null;
             }
         }
 
@@ -48,6 +49,7 @@ export class Constructor {
     }
 
     public tick() {
+        this.memory = <ConstructorMemory>this.creep.memory;
 
         if (this.creep.carry.energy > 0) {
             if (this.targetPosition != null)
@@ -56,16 +58,20 @@ export class Constructor {
                 this.upgrade();
         }
         else {
-            var mainContainer = this.spawnRoomHandler.mainContainer;
+            if (this.mainRoom == null)
+                return;
+            var mainContainer;
+            this.mainRoom.mainContainer && (mainContainer = Game.getObjectById<Storage | Container>(this.mainRoom.mainContainer.id));
             if (mainContainer != null) {
                 if (mainContainer.store.energy > 100)
                     if (mainContainer.transfer(this.creep, RESOURCE_ENERGY) == ERR_NOT_IN_RANGE)
                         this.creep.moveTo(mainContainer);
             }
             else {
-                if (this.spawnRoomHandler.spawnManager.isIdle) {
+                if (this.mainRoom.spawnManager.queue.length==0) {
                     for (var spawnName in Game.spawns) {
                         var spawn = Game.spawns[spawnName];
+                        break;
                     }
 
                     if (spawn.transferEnergy(this.creep) == ERR_NOT_IN_RANGE)

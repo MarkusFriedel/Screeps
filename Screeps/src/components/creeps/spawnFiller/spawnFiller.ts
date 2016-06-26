@@ -1,18 +1,20 @@
-﻿import {SourceInfo} from "../../sources/sourceInfo";
-import {SpawnRoomHandler} from "../../rooms/spawnRoomHandler";
+﻿import {MySource} from "../../sources/mySource";
+import {MainRoom} from "../../rooms/mainRoom";
 
 export class SpawnFiller {
 
     creep: Creep;
-    spawnRoomHandler: SpawnRoomHandler;
+    mainRoom: MainRoom;
 
-    constructor(creep: Creep, spawnRoomHandler: SpawnRoomHandler) {
+    constructor(creep: Creep, mainRoom: MainRoom) {
         this.creep = creep;
-        this.spawnRoomHandler = spawnRoomHandler;
+        this.mainRoom = mainRoom;
     }
 
     refill() {
-        let mainContainer = this.spawnRoomHandler.mainContainer;
+        if (!this.mainRoom)
+            return;
+        let mainContainer = this.mainRoom.mainContainer;
         if (mainContainer != null) {
             if (mainContainer.transfer(this.creep, RESOURCE_ENERGY) == ERR_NOT_IN_RANGE)
                 this.creep.moveTo(mainContainer);
@@ -26,13 +28,6 @@ export class SpawnFiller {
         }
 
         else {
-
-            //var targets: Array<Spawn | Extension> = this.spawnRoomHandler.room.find<Spawn | Extension>(FIND_MY_STRUCTURES, {
-            //    filter: (s: Spawn | Extension) => s.structureType == STRUCTURE_SPAWN || s.structureType == STRUCTURE_EXTENSION && s.energy < s.energyCapacity);
-
-            //if (targets.length == 0)
-            //    this.refill();
-            //else {
             var target = this.creep.pos.findClosestByPath<Spawn | Extension>(FIND_MY_STRUCTURES, { filter: (s: Spawn | Extension) => (s.structureType == STRUCTURE_SPAWN || s.structureType == STRUCTURE_EXTENSION) && s.energy < s.energyCapacity });
 
             if (target == null)

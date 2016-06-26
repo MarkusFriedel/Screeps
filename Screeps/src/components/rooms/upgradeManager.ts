@@ -1,25 +1,31 @@
-﻿import {SpawnRoomHandler} from "./spawnRoomHandler";
+﻿import {MainRoom} from "./mainRoom";
 import {Upgrader} from "../creeps/upgrader/upgrader";
 import {UpgraderDefinition} from "../creeps/upgrader/upgraderDefinition";
 
 export class UpgradeManager {
 
-    spawnRoomHandler: SpawnRoomHandler;
+    mainRoom: MainRoom;
     creeps: Array<Creep>;
 
-    constructor(spawnRoomHandler: SpawnRoomHandler) {
-        this.spawnRoomHandler = spawnRoomHandler;
-        this.creeps = _.filter(spawnRoomHandler.creeps, (c) => c.memory.role == 'upgrader');
+    constructor(mainRoom: MainRoom) {
+        this.mainRoom = mainRoom;
+        this.getData();
+    }
+
+    getData() {
+        this.creeps = _.filter(this.mainRoom.creeps, (c) => c.memory.role == 'upgrader');
     }
 
     public checkCreeps() {
-        if (this.spawnRoomHandler.mainContainer != null && this.spawnRoomHandler.room.energyAvailable == this.spawnRoomHandler.room.energyCapacityAvailable && this.spawnRoomHandler.spawnManager.queue.length == 0 && _.filter(Game.creeps, (c) => c.memory.role == 'upgrader').length < 2) {
-            this.spawnRoomHandler.spawnManager.AddToQueue(UpgraderDefinition.getDefinition(this.spawnRoomHandler.maxSpawnEnergy).getBody(), { role: 'upgrader', spawnRoomName: this.spawnRoomHandler.roomName }, 1);
+        this.getData();
+        if (this.mainRoom.mainContainer != null && Game.rooms[this.mainRoom.name].energyAvailable == Game.rooms[this.mainRoom.name].energyCapacityAvailable && this.mainRoom.spawnManager.queue.length == 0 && this.creeps.length < 2) {
+            this.mainRoom.spawnManager.AddToQueue(UpgraderDefinition.getDefinition(this.mainRoom.maxSpawnEnergy).getBody(), { role: 'upgrader' }, 1);
         }
     }
 
     public tick() {
-        this.creeps.forEach((c) => new Upgrader(c, this.spawnRoomHandler).tick());
+        this.getData();
+        this.creeps.forEach((c) => new Upgrader(c, this.mainRoom).tick());
     }
 
 }
