@@ -7,6 +7,7 @@ export class ReservationManager {
 
     constructor(mainRoom: MainRoom) {
         this.mainRoom = mainRoom;
+        this.getData();
     }
 
     public checkCreeps() {
@@ -21,7 +22,7 @@ export class ReservationManager {
         for (var idx in _.filter(this.mainRoom.connectedRooms, (r) => r.canHarvest()==true && !r.memory.hostiles)) {
             let myRoom = this.mainRoom.connectedRooms[idx];
             let room = Game.rooms[myRoom.name];
-            if (room && room.controller.reservation != null && room.controller.reservation.ticksToEnd > 300)
+            if (room && room.controller.reservation != null && room.controller.reservation.ticksToEnd > 1000)
                 continue;
             if (Memory['verbose'] == true)
                 console.log('ReservationManager.checkCreep: Room ' + myRoom.name);

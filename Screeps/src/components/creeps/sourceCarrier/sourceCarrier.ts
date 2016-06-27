@@ -39,9 +39,19 @@ export class SourceCarrier {
         }
 
         let mainContainer = this.mainRoom.mainContainer;
-        if (mainContainer != null) {
+        if (mainContainer != null && mainContainer.store.energy < mainContainer.storeCapacity && this.mainRoom.creepManagers.spawnFillManager.creeps.length > 0) {
             if (this.creep.transfer(mainContainer, RESOURCE_ENERGY) == ERR_NOT_IN_RANGE)
                 this.creep.moveTo(mainContainer);
+        }
+        else {
+            if (this.creep.room.name != this.mainRoom.name)
+                this.creep.moveTo(this.mainRoom.mainPosition);
+            else {
+
+                var target = this.creep.pos.findClosestByPath<Spawn | Extension>(FIND_MY_STRUCTURES, { filter: (s: Spawn | Extension) => (s.structureType == STRUCTURE_SPAWN || s.structureType == STRUCTURE_EXTENSION) && s.energy < s.energyCapacity });
+                    if (this.creep.transfer(target, RESOURCE_ENERGY) == ERR_NOT_IN_RANGE)
+                        this.creep.moveTo(target);
+            }
         }
     }
 

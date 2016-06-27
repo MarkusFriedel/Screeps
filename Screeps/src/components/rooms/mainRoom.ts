@@ -5,6 +5,7 @@ import {Colony} from "../../colony/colony";
 /// <reference path='./src/objectWithMemory.ts' />
 //import {ObjectWithMemory} from "../../objectWithMemory";
 
+import {MyLink} from "../structures/myLink";
 
 import {MyTower} from "../structures/myTower";
 import {ConstructionManager} from "./constructionManager";
@@ -54,6 +55,7 @@ export class MainRoom {
     extensionCount: number;
     maxSpawnEnergy: number;
     creeps: Array<Creep>;
+    links: Array<MyLink>;
 
     spawnNames: Array<string>;
 
@@ -86,14 +88,18 @@ export class MainRoom {
 
         this.spawnNames = _.map(_.filter(Game.spawns, (s) => s.room.name == roomName), (s) => s.name);
 
+        this.links = _.map(this.room.find<Link>(FIND_MY_STRUCTURES, { filter: (x: Structure) => x.structureType == STRUCTURE_LINK }), x => new MyLink(x, this));
+
         if (this.memory.mainPosition) {
             let pos = this.memory.mainPosition;
             this.mainPosition = new RoomPosition(pos.x, pos.y, roomName);
         }
         else {
-            this.memory.mainPosition = this.mainPosition = Game.spawns[this.spawnNames[0]].pos;
+            this.mainPosition = Game.spawns[this.spawnNames[0]].pos;
+            this.memory.mainPosition = this.mainPosition;
         }
-        this.update(true);
+
+        this.creeps = _.filter(Game.creeps, (c) => (<CreepMemory>c.memory).mainRoomName == this.name && !(<CreepMemory>c.memory).handledByColony);
 
         //if (!this.memory.spawnManager) this.memory.spawnManager = {  }
         //if (!this.memory.constructionManager) this.memory.constructionManager = {}
@@ -116,6 +122,8 @@ export class MainRoom {
             reservationManager: new ReservationManager(this)
         }
 
+        this.update(true);
+
         if (!this.memory.roadConstructionManager)
             this.memory.roadConstructionManager = null;
         this.roadConstructionManager = new RoadConstructionManager(this);
@@ -136,7 +144,9 @@ export class MainRoom {
 
         maxSpawnEnergy += 300;
 
-        if (this.creeps.length == 0 || !this.mainContainer || this.mainContainer.store.energy == 0)
+        console.log('MAXENERGYCONDITION :' + this.name + ' creeps.length: ' + this.creeps.length + ', harverster length: ' + this.creepManagers.harvestingManager.harvesterCreeps.length);
+
+        if (this.creeps.length == 0 || !this.mainContainer || (this.mainContainer.store.energy == 0 && this.creepManagers.harvestingManager.harvesterCreeps.length == 0))
             maxSpawnEnergy = Math.max(this.room.energyAvailable, 300);
 
         return maxSpawnEnergy;
@@ -166,25 +176,25 @@ export class MainRoom {
     }
 
     placeExtensions() {
-        if (Game.time % 100 != 0)
-            return;
-        var maxExtensions = CONTROLLER_STRUCTURES.extension[this.room.controller.level];
+        //if (Game.time % 100 != 0)
+        //    return;
+        //var maxExtensions = CONTROLLER_STRUCTURES.extension[this.room.controller.level];
 
-        for (var i = maxExtensions - 1; i >= 0; i--) {
-            var idiv5 = ~~(i / 5);
-            var x = Math.ceil(idiv5 / 2);
-            if (idiv5 % 2 == 1)
-                x = -x;
-            x += this.mainPosition.x;
-            var y = this.mainPosition.y + 3 + (i % 5) * 2;//-(~~(i/5)%2)
+        //for (var i = maxExtensions - 1; i >= 0; i--) {
+        //    var idiv5 = ~~(i / 5);
+        //    var x = Math.ceil(idiv5 / 2);
+        //    if (idiv5 % 2 == 1)
+        //        x = -x;
+        //    x += this.mainPosition.x;
+        //    var y = this.mainPosition.y + 3 + (i % 5) * 2;//-(~~(i/5)%2)
 
-            if ((idiv5 + 3) % 4 > 1)
-                y--;
+        //    if ((idiv5 + 3) % 4 > 1)
+        //        y--;
 
-            var targetPos = new RoomPosition(x, y, this.name);
-            if (targetPos.createConstructionSite(STRUCTURE_EXTENSION) == ERR_RCL_NOT_ENOUGH)
-                break;
-        }
+        //    var targetPos = new RoomPosition(x, y, this.name);
+        //    if (targetPos.createConstructionSite(STRUCTURE_EXTENSION) == ERR_RCL_NOT_ENOUGH)
+        //        break;
+        //}
 
     }
 
@@ -365,7 +375,7 @@ export class MainRoom {
             endCpu = Game.cpu.getUsed();
             console.log('UpgradeManager.checkCreeps: ' + (endCpu - startCpu).toFixed(2));
         }
-        
+
 
 
     }
@@ -426,7 +436,7 @@ export class MainRoom {
 
     public tick() {
         //console.log('Memory Test= ' + JSON.stringify(Memory['colony']['rooms']['E21S22']['test']));
-
+        this.room = Game.rooms[this.name];
         var startCpu;
         var endCpu;
 
@@ -442,6 +452,15 @@ export class MainRoom {
             endCpu = Game.cpu.getUsed();
             console.log('MainRoom.update: ' + (endCpu - startCpu).toFixed(2));
         }
+
+        if (Memory['trace'])
+            startCpu = Game.cpu.getUsed();
+        this.links.forEach(x => x.tick());
+        if (Memory['trace']) {
+            endCpu = Game.cpu.getUsed();
+            console.log('MainRoom.links.tick: ' + (endCpu - startCpu).toFixed(2));
+        }
+
         if (Memory['trace'])
             startCpu = Game.cpu.getUsed();
         this.checkAndPlaceStorage();
@@ -458,7 +477,7 @@ export class MainRoom {
         }
         if (Memory['trace'])
             startCpu = Game.cpu.getUsed();
-        if (this.mainContainer)
+        if (this.mainContainer && this.room.controller.level > 1)
             this.creepManagers.harvestingManager.placeSourceContainers();
         if (Memory['trace']) {
             endCpu = Game.cpu.getUsed();

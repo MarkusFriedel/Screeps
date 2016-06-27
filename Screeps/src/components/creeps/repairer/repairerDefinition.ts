@@ -5,7 +5,7 @@ export namespace RepairerDefinition {
     export function getDefinition(maxEnergy: number) {
         let body = new Body();
 
-        let remainingEnergy = Math.min(maxEnergy, 1500);
+        let remainingEnergy = Math.min(maxEnergy, 800);
 
         if (remainingEnergy < 400) {
             body.work = 1;
@@ -36,6 +36,8 @@ export namespace RepairerDefinition {
                     body.move++;
                     remaining -= 100;
                 }
+                else
+                    break;
             }
 
 

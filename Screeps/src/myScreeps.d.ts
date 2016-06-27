@@ -1,9 +1,17 @@
-﻿interface ColonyMemory {
+﻿declare var BODYPARTS_ALL: Array<string>;
+
+interface ColonyMemory {
     mainRooms: {
         [roomName: string]: MainRoomMemory;
     }
     rooms: {
         [roomName: string]: MyRoomMemory;
+    }
+    claimingManagers: {
+        [roomName: string]: ClaimingManagerMemory;
+    }
+    invasionManagers: {
+        [roomName: string]: InvasionManagerMemory;
     }
 }
 
@@ -123,11 +131,13 @@ interface CreepMemory {
 }
 
 interface ScoutMemory extends CreepMemory {
-    targetRoomName: string;
+    targetPosition: RoomPosition;
 }
 
 interface HarvesterMemory extends CreepMemory {
     sourceId: string;
+    doConstructions: boolean;
+    state: string;
 }
 
 interface SourceCarrierMemory extends CreepMemory {
@@ -151,6 +161,12 @@ interface ReserverMemory extends CreepMemory {
     targetRoomName: string;
 }
 
+interface InvaderMemory extends CreepMemory {
+    targetRoomName: string;
+    state: string;
+    rallyPoint: RoomPosition;
+}
+
 interface ExitDescription {
     [direction: string]: string;
 }
@@ -169,4 +185,12 @@ interface CreepTarget {
 
 interface MainRoomDistanceDescriptions {
     [roomName: string]: { roomName: string, distance: number };
+}
+
+interface ClaimingManagerMemory {
+    targetPosition: RoomPosition;
+}
+
+interface InvasionManagerMemory {
+    targetRoomName: string;
 }

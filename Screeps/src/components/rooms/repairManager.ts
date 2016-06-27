@@ -3,7 +3,7 @@ import {Repairer} from "../creeps/repairer/repairer";
 import {RepairerDefinition} from "../creeps/repairer/repairerDefinition";
 //import {ObjectWithMemory} from "../../objectWithMemory";
 
-export class RepairManager  {
+export class RepairManager {
 
     public get memory(): RepairManagerMemory {
         return this.accessMemory();
@@ -25,6 +25,7 @@ export class RepairManager  {
 
     constructor(mainRoom: MainRoom) {
         this.mainRoom = mainRoom;
+        this.getData();
         if (this.memory.repairTargets == null || this.memory.emergencyTargets == null) {
             if (this.memory.repairTargets == null)
                 this.memory.repairTargets = {};
@@ -32,14 +33,13 @@ export class RepairManager  {
                 this.memory.emergencyTargets = {};
             this.loadRepairTargets();
         }
-        this.getData();
     }
 
     removeFromTargetList(target: RepairTarget, hashMap: RepairTargetHashMap) {
         let list = hashMap[target.pos.roomName];
         if (list == null)
             return;
-        hashMap[target.pos.roomName] = list.splice(_.findIndex(list, x => x.id == target.id), 1);
+        /*hashMap[target.pos.roomName] =*/ list.splice(_.findIndex(list, x => x.id == target.id), 1);
     }
     removeFromTargetLists(target: RepairTarget) {
         this.removeFromTargetList(target, this.memory.emergencyTargets);
@@ -47,7 +47,7 @@ export class RepairManager  {
     }
 
     public forceStopRepairDelegate(s: RepairTarget): boolean {
-        return (s.structureType == STRUCTURE_WALL || s.structureType == STRUCTURE_RAMPART) && s.hits > 120000 || (s.hits >0.9* s.hitsMax);
+        return (s.structureType == STRUCTURE_WALL || s.structureType == STRUCTURE_RAMPART) && s.hits > 500000 || (s.hits > 0.9 * s.hitsMax);
     }
 
     public targetDelegate(s: RepairTarget): boolean {
@@ -58,7 +58,7 @@ export class RepairManager  {
         return s.hits < s.hitsMax * 0.2 && (s.structureType == STRUCTURE_CONTAINER || s.structureType == STRUCTURE_ROAD) || s.structureType == STRUCTURE_RAMPART && s.hits < 2000;
     }
 
-    loadRepairTargets(force:boolean=false) {
+    loadRepairTargets(force: boolean = false) {
         if (!force && (Game.time % 100) != 0)
             return;
         for (var idx in _.filter(this.mainRoom.allRooms, (x) => x.canHarvest())) {
@@ -72,6 +72,16 @@ export class RepairManager  {
             }
         }
     }
+
+    existEmergencyRepairTargets() {
+        for (let idx in this.memory.emergencyTargets) {
+            let roomTargets = this.memory.emergencyTargets[idx];
+            if (roomTargets.length > 0)
+                return true;
+        }
+        return false;
+    }
+
     findRepairTargetInList(pos: RoomPosition, repairTargets: RepairTargetHashMap) {
         let sameRoomTarget = this.getClosestSameRoomTargetFor(pos, repairTargets, false);
         if (sameRoomTarget)
@@ -93,7 +103,7 @@ export class RepairManager  {
 
 
     getClosestSameRoomTargetFor(pos: RoomPosition, repairTargets: RepairTargetHashMap, pathSorting: boolean) {
-        if (repairTargets == null || repairTargets[pos.roomName]==null)
+        if (repairTargets == null || repairTargets[pos.roomName] == null)
             return null;
         if (repairTargets[pos.roomName].length == 0)
             return null;
@@ -147,7 +157,7 @@ export class RepairManager  {
                 creepMemory.repairTarget = repairTarget;
             }
             this.idleCreeps = [];
-            this.mainRoom.spawnManager.AddToQueue(RepairerDefinition.getDefinition(this.mainRoom.maxSpawnEnergy).getBody(), { role: 'repairer' }, this.maxCreeps - this.creeps.length);
+            this.mainRoom.spawnManager.AddToQueue(RepairerDefinition.getDefinition(this.mainRoom.maxSpawnEnergy).getBody(), { role: 'repairer' }, this.maxCreeps * (this.existEmergencyRepairTargets() ? 2 : 1) - this.creeps.length);
         }
     }
 

@@ -24,7 +24,7 @@ export class MyRoom {
                 foreignOwner: null,
                 foreignReserver: null,
                 lastScanTime: null,
-                mainRoomDistanceDescriptions: {},
+                mainRoomDistanceDescriptions: null,
                 mainRoomName: null
             };
         return Colony.memory.rooms[this.name];
@@ -59,15 +59,21 @@ export class MyRoom {
         //if (this.memory.mainRoomDistanceDescriptions == null)
         //    this.memory.mainRoomDistanceDescriptions = {};
 
-        if (!this.mainRoom) {
-            this.mainRoom = Colony.assignMainRoom(this);
-            if (this.mainRoom)
-                this.memory.mainRoomName = this.mainRoom.name;
-        }
+        //if (!this.mainRoom) {
+        //    this.mainRoom = Colony.assignMainRoom(this);
+        //    if (this.mainRoom)
+        //        this.memory.mainRoomName = this.mainRoom.name;
+        //}
 
 
         if (Game.rooms[this.name] != null)
             this.scan();
+    }
+
+    getClosestMainRoom() {
+        if (this.memory.mainRoomDistanceDescriptions == null || _.size(this.memory.mainRoomDistanceDescriptions)==0)
+            return null;
+        return Colony.mainRooms[_.min(this.memory.mainRoomDistanceDescriptions, x => x.distance).roomName];
     }
 
     scanSources(room: Room) {
@@ -142,7 +148,7 @@ export class MyRoom {
     }
 
     canHarvest() {
-        return (this.name == this.mainRoom.name
-            || (!this.memory.foreignOwner && !this.memory.foreignReserver && this.memory.mainRoomDistanceDescriptions[this.mainRoom.name] != null && this.memory.mainRoomDistanceDescriptions[this.mainRoom.name].distance <= 1));
+        return (this.mainRoom && this.name == this.mainRoom.name
+            || (!this.memory.foreignOwner && !this.memory.foreignReserver));
     }
 }

@@ -42,6 +42,9 @@ export class Harvester {
     }
 
     sourceContainerDropOff(dontMove: boolean = false) {
+        if (this.mainRoom.creepManagers.harvestingManager.sourceCarrierCreeps.length == 0 || this.mainRoom.creepManagers.spawnFillManager.creeps.length==0)
+            return false;
+        //this.creep.say('test');
         let container: Container = null;
         try {
             this.mainRoom.sources[this.sourceId].memory.containerId && (container = Game.getObjectById<Container>(this.mainRoom.sources[this.sourceId].memory.containerId));
@@ -59,23 +62,44 @@ export class Harvester {
     }
 
     dropOff() {
-        if (this.mainRoom.creepManagers.harvestingManager.sourceCarrierCreeps.length == 0 || !this.sourceContainerDropOff()) {
+        if (!this.sourceContainerDropOff()) {
             let dropOffContainer: Container|Storage|Spawn = this.mainRoom.mainContainer;
 
-            if (dropOffContainer == null || this.mainRoom.creepManagers.spawnFillManager.creeps.length == 0 || this.mainRoom.creepManagers.harvestingManager.sourceCarrierCreeps.length == 0) {
-                for (var spawnName in Game.spawns) {
-                    dropOffContainer = Game.spawns[spawnName];
+            if (dropOffContainer == null || this.mainRoom.creepManagers.spawnFillManager.creeps.length == 0) {
+                //this.creep.say('test');
+                let spawns = this.mainRoom.room.find<Spawn>(FIND_MY_SPAWNS, { filter: (x: Spawn) => x.energy < x.energyCapacity });
+                for (var spawnName in spawns) {
+                    dropOffContainer = spawns[spawnName];
                 }
             }
 
-            if (this.creep.transfer(dropOffContainer, RESOURCE_ENERGY) == ERR_NOT_IN_RANGE)
-                this.creep.moveTo(dropOffContainer);
+            if (dropOffContainer) {
+                if (this.creep.transfer(dropOffContainer, RESOURCE_ENERGY) == ERR_NOT_IN_RANGE)
+                    this.creep.moveTo(dropOffContainer);
+            }
+            else if (this.memory.doConstructions) {
+                let nearestConstructionSite = this.creep.pos.findClosestByRange < ConstructionSite>(FIND_CONSTRUCTION_SITES);
+                if (this.creep.build(nearestConstructionSite) == ERR_NOT_IN_RANGE)
+                    this.creep.moveTo(nearestConstructionSite);
+            }
         }
     }
 
     public tick() {
         this.memory = <HarvesterMemory>this.creep.memory;
-        if (this.creep.carry.energy < this.creep.carryCapacity) {
+        if (this.memory.state == null) {
+            if (this.creep.carry.energy <= this.creep.carryCapacity)
+                this.memory.state = 'harvesting';
+            else
+                this.memory.state = 'delivering';
+        }
+
+        if (this.memory.state == 'harvesting' && this.creep.carry.energy == this.creep.carryCapacity)
+            this.memory.state = 'delivering';
+        else if (this.memory.state == 'delivering' && this.creep.carry.energy == 0)
+            this.memory.state = 'harvesting';
+
+        if (this.memory.state=='harvesting') {
             this.harvest();
         }
         else {

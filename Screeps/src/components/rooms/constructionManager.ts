@@ -15,29 +15,27 @@ export class ConstructionManager {
     constructor(mainRoom: MainRoom) {
         this.mainRoom = mainRoom;
         this.maxCreeps = 2;
-        this.getData();
+        this.getCreeps();
     }
 
     public getConstruction() {
-        var constructionSites = Game.constructionSites;
+        var constructionSites = _.filter(Game.constructionSites, x => _.any(this.mainRoom.allRooms, y => x.pos.roomName == y.name));
         var extensions = _.filter(constructionSites, (c) => c.structureType == STRUCTURE_EXTENSION);
         if (extensions.length > 0) {
             return extensions[0];
         }
-        for (var idx in constructionSites) {
-            return constructionSites[idx];
-        }
+        return constructionSites[0];
     }
 
-    getData() {
+    getCreeps() {
         this.creeps = _.filter(this.mainRoom.creeps, (c) => c.memory.role == 'constructor');
         this.idleCreeps = _.filter(this.creeps, (c) => c.memory.targetId == null);
     }
 
     public checkCreeps() {
-        this.getData();
-        //console.log('idle creeps: ' + this.idleCreeps.length);
-        //console.log('active creeps: ' + this.creeps.length);
+        this.getCreeps();
+       //console.log('idle creeps: ' + this.idleCreeps.length);
+        console.log('active creeps: ' + this.creeps.length);
         var constructionSite = this.getConstruction();
         if (constructionSite != null && (this.creeps.length < this.maxCreeps || this.idleCreeps.length>0)) {
             for (var idx in this.idleCreeps) {
@@ -51,7 +49,7 @@ export class ConstructionManager {
     }
 
     public tick() {
-        this.getData();
+        this.getCreeps();
         this.creeps.forEach((c) => new Constructor(c, this.mainRoom).tick());
     }
 }

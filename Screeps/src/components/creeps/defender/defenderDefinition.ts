@@ -10,7 +10,14 @@ export namespace DefenderDefinition {
         var basicModulesCount = ~~(remainingEnergy / 330); //work,carry,move
         body.attack = basicModulesCount;
         body.ranged_attack = basicModulesCount;
-        body.move = 2*basicModulesCount;
+        body.move = 2 * basicModulesCount;
+
+        remainingEnergy = remainingEnergy - 330 * basicModulesCount;
+
+        while (remainingEnergy >= (BODYPART_COST.attack + BODYPART_COST.move)) {
+            body.attack++; body.move++;
+            remainingEnergy -= (BODYPART_COST.attack + BODYPART_COST.move);
+        }
 
         return body;
     }

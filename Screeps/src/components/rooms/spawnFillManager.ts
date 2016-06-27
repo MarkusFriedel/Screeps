@@ -13,8 +13,9 @@ export class SpawnFillManager {
     }
 
     public checkCreeps() {
-        if (this.mainRoom.mainContainer != null && _.size(_.filter(Game.creeps, (c) => c.memory.role == 'spawnFiller')) < 2) {
-            this.mainRoom.spawnManager.AddToQueue(SpawnFillerDefinition.getDefinition(this.mainRoom.maxSpawnEnergy).getBody(), { role: 'spawnFiller' }, 1);
+        this.getData();
+        if (this.mainRoom.mainContainer != null && _.size(_.filter(this.mainRoom.creeps, (c) => c.memory.role == 'spawnFiller')) < 2) {
+            this.mainRoom.spawnManager.AddToQueue(SpawnFillerDefinition.getDefinition(this.mainRoom.maxSpawnEnergy).getBody(), { role: 'spawnFiller' }, 1,true);
         }
     }
 

@@ -5,7 +5,7 @@ export namespace UpgraderDefinition {
     export function getDefinition(maxEnergy: number) {
         let body = new Body();
 
-        let remainingEnergy = Math.min(maxEnergy, 1500);
+        let remainingEnergy = maxEnergy;// Math.min(maxEnergy, 1500);
 
         var basicModuleCount = ~~(remainingEnergy / 300);
         body.work = basicModuleCount * 2;
@@ -27,6 +27,8 @@ export namespace UpgraderDefinition {
                 body.carry++;
                 remaining -= 50;
             }
+            else
+                break;
         }
         
         return body;

@@ -51,6 +51,8 @@ export class Constructor {
     public tick() {
         this.memory = <ConstructorMemory>this.creep.memory;
 
+        //this.creep.say('construct');
+
         if (this.creep.carry.energy > 0) {
             if (this.targetPosition != null)
                 this.construct();
@@ -61,18 +63,18 @@ export class Constructor {
             if (this.mainRoom == null)
                 return;
             var mainContainer;
-            this.mainRoom.mainContainer && (mainContainer = Game.getObjectById<Storage | Container>(this.mainRoom.mainContainer.id));
+
+            mainContainer = this.creep.pos.findClosestByRange(FIND_STRUCTURES, { filter: (x: Container) => (x.structureType == STRUCTURE_CONTAINER || x.structureType == STRUCTURE_STORAGE) && x.store.energy >= this.creep.carryCapacity });
+            if (mainContainer == null)
+                mainContainer = this.mainRoom.mainContainer;
             if (mainContainer != null) {
                 if (mainContainer.store.energy > 100)
                     if (mainContainer.transfer(this.creep, RESOURCE_ENERGY) == ERR_NOT_IN_RANGE)
                         this.creep.moveTo(mainContainer);
             }
             else {
-                if (this.mainRoom.spawnManager.queue.length==0) {
-                    for (var spawnName in Game.spawns) {
-                        var spawn = Game.spawns[spawnName];
-                        break;
-                    }
+                if (this.mainRoom.spawnManager.isIdle) {
+                    let spawn = this.mainRoom.room.find<Spawn>(FIND_MY_SPAWNS)[0];
 
                     if (spawn.transferEnergy(this.creep) == ERR_NOT_IN_RANGE)
                         this.creep.moveTo(spawn);

@@ -25,6 +25,8 @@ export namespace HarvesterDefinition {
                 body.carry++; body.move++;
                 remaining -= 100;
             }
+            else
+                break;
         }
         return body;
     }

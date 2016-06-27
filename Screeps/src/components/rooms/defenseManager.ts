@@ -9,21 +9,22 @@ export class DefenseManager {
 
     constructor(mainRoom: MainRoom) {
         this.mainRoom = mainRoom;
+        this.getCreeps();
     }
 
     public checkCreeps() {
-        this.getData();
-        if (_.filter(this.mainRoom.allRooms, (r) => r.memory.hostiles && r.canHarvest).length > 0 && this.creeps.length < this.maxCreeps) {
+        this.getCreeps();
+        if (_.filter(this.mainRoom.allRooms, (r) => !r.memory.foreignOwner && !r.memory.foreignReserver&& r.memory.hostiles && r.canHarvest).length > 0 && this.creeps.length < this.maxCreeps) {
             this.mainRoom.spawnManager.AddToQueue(DefenderDefinition.getDefinition(this.mainRoom.maxSpawnEnergy).getBody(), { role: 'defender' }, this.maxCreeps - this.creeps.length);
         }
     }
 
     public tick() {
-        this.getData();
+        this.getCreeps();
         this.creeps.forEach((c) => new Defender(c, this.mainRoom).tick());
     }
 
-    getData() {
+    getCreeps() {
         this.creeps = _.filter(this.mainRoom.creeps, (c) => c.memory.role == 'defender');
     }
 }

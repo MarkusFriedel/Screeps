@@ -69,7 +69,7 @@ export class RoadConstructionManager {
             if (!sourceContainer)
                 continue;
 
-            let path = PathFinder.search(this.mainRoom.mainContainer.pos, { pos: sourceContainer.pos, range: 1 });
+            let path = PathFinder.search(this.mainRoom.mainContainer.pos, { pos: sourceContainer.pos, range: 1 }, { swampCost: 2 });
             this.constructRoad(path.path, 0);
             source.memory.mainContainerRoadBuiltTo = this.mainRoom.name;
             break;            

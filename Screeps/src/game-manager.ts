@@ -40,7 +40,9 @@ export namespace GameManager {
         // Loop code starts here
         // This is executed every tick
 
-        
+        //var a = 1;
+        //if (a == 1)
+        //    return;
 
 
         let startCpu = Game.cpu.getUsed();

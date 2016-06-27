@@ -21,8 +21,8 @@ export class Repairer {
     }
 
     public tick() {
+        //this.creep.say('repair');
         this.memory = <RepairerMemory>this.creep.memory;
-        this.creep.say('REPAIR');
         if (this.creep.carry.energy == 0) {
             this.refill();
         }
@@ -33,16 +33,21 @@ export class Repairer {
 
             if (repairTarget) {
                 let result = this.creep.repair(repairTarget);
-                this.creep.say(''+result);
                 if (result == ERR_NOT_IN_RANGE)
                     this.creep.moveTo(repairTarget);
             }
+            else if (this.memory.repairTarget && this.creep.room.name != this.memory.repairTarget.pos.roomName) {
+                this.creep.moveTo(new RoomPosition(this.memory.repairTarget.pos.x, this.memory.repairTarget.pos.y, this.memory.repairTarget.pos.roomName));
+            }
             else {
-                if (this.memory.repairTarget && this.creep.room.name != this.memory.repairTarget.pos.roomName) {
-                    this.creep.moveTo(new RoomPosition(this.memory.repairTarget.pos.x, this.memory.repairTarget.pos.y, this.memory.repairTarget.pos.roomName));
-                }
+                repairTarget = this.creep.pos.findClosestByRange<Structure>(FIND_STRUCTURES, {
+                    filter: (x: Structure) => x.hits < x.hitsMax
+                });
+                if (repairTarget && this.creep.repair(repairTarget) == ERR_NOT_FOUND)
+                    this.creep.moveTo(repairTarget);
             }
         }
 
     }
+
 }

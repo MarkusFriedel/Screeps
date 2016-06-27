@@ -27,14 +27,17 @@ export class SpawnManager {
 
     constructor(mainRoom: MainRoom, memory: SpawnManagerMemory) {
         this.mainRoom = mainRoom;
-
     }
 
-    public AddToQueue(body: string[], memory: any, count: number = 1) {
+    public AddToQueue(body: string[], memory: any, count: number = 1, priority:boolean=false) {
         if (Memory['verbose'] || this.memory.verbose &&count>0)
             console.log('[' + this.mainRoom.name + '] ' + 'SpawnManager.AddToQueue(): ' + memory['role'] + ': ' + count);
-        for (let i = 0; i < count; i++)
-            this.queue.push({body:body,memory:memory});
+        for (let i = 0; i < count; i++) {
+            if (priority)
+                this.queue.unshift({ body: body, memory: memory });
+            else
+                this.queue.push({ body: body, memory: memory });
+        }
     }
 
     public spawn() {
@@ -48,20 +51,18 @@ export class SpawnManager {
            
             return;
         }
-        this.queue.reverse();
-
         for (let idx in this.mainRoom.spawnNames) {
             let spawn = Game.spawns[this.mainRoom.spawnNames[idx]];
             if (Memory['verbose'] || this.memory.verbose)
                 console.log('[' + this.mainRoom.name + '] ' +'SpawnManager.spawn(): Spawn: ' + spawn.name);
             if (this.queue.length == 0) {
                 if (Memory['verbose'] || this.memory.verbose)
-                    console.log('[' + this.mainRoom.name + '] ' +'SpawnManager.spawn(): shouldn\'t get here');
+                    console.log('[' + this.mainRoom.name + '] ' +'SpawnManager.spawn(): emptied the queue');
                 break;
             }
-            var queueItem = this.queue[this.queue.length - 1];
+            var queueItem = this.queue[0];
             if (Memory['verbose'] || this.memory.verbose)
-                console.log('[' + this.mainRoom.name + '] ' +'SpawnManager.spawn(): Last item: ' + queueItem.memory['role']+': '+ queueItem.body.join(', '));
+                console.log('[' + this.mainRoom.name + '] ' +'SpawnManager.spawn(): First item: ' + queueItem.memory['role']+': '+ queueItem.body.join(', '));
             // TODO not only try the last queue item
             if (spawn.spawning == null) {
                 if (Memory['verbose'] || this.memory.verbose)
@@ -74,7 +75,7 @@ export class SpawnManager {
                 if (Memory['verbose'] || this.memory.verbose)
                     console.log('[' + this.mainRoom.name + '] ' +'spawn.createCreepResult: ' + result);
                 if (_.isString(result))
-                    this.queue.pop();
+                    this.queue.shift();
             }
             else {
                 if (Memory['verbose'] || this.memory.verbose)

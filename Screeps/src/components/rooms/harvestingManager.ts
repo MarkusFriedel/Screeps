@@ -6,6 +6,7 @@ import {SourceCarrier} from "../creeps/sourceCarrier/sourceCarrier";
 import {SourceCarrierDefinition} from "../creeps/sourceCarrier/sourceCarrierDefinition";
 import {Colony} from "../../colony/colony";
 import {MySource} from "../sources/mySource";
+import {Body} from "../creeps/body";
 
 export class HarvestingManager {
 
@@ -39,7 +40,7 @@ export class HarvestingManager {
         if (this.mainRoom.mainContainer)
             for (var idx in this.mainRoom.sources) {
                 var sourceInfo = this.mainRoom.sources[idx];
-                if (sourceInfo.memory.keeper)
+                if (sourceInfo.memory.keeper || !sourceInfo.myRoom.canHarvest())
                     continue;
                 if (!sourceInfo.memory.keeper && sourceInfo.containerMissing()) {
                     var path = sourceInfo.pos.findPathTo(this.mainRoom.mainContainer.pos, { ignoreCreeps: true });
@@ -57,19 +58,21 @@ export class HarvestingManager {
     }
 
     getHarvesterBodyAndCount(sourceInfo: MySource) {
-        let partsRequired = Math.ceil(sourceInfo.memory.energyCapacity / ENERGY_REGEN_TIME);
-        let maxWorkParts = HarvesterDefinition.getDefinition(this.mainRoom.maxSpawnEnergy, sourceInfo.memory.containerId != null).work;
+        if (Memory['verbose'] || this.memory.verbose)
+            console.log('MAX_ENERGY: ' + this.mainRoom.maxSpawnEnergy);
+        let partsRequired = Math.ceil(sourceInfo.memory.energyCapacity / ENERGY_REGEN_TIME / 2)+1;
+        let maxWorkParts = HarvesterDefinition.getDefinition(this.mainRoom.maxSpawnEnergy, sourceInfo.memory.containerId != null && this.mainRoom.mainContainer!=null).work;
 
         if (maxWorkParts >= partsRequired)
-            return { body: HarvesterDefinition.getDefinition(this.mainRoom.maxSpawnEnergy, sourceInfo.memory.containerId != null, partsRequired), count: 1 };
+            return { body: HarvesterDefinition.getDefinition(this.mainRoom.maxSpawnEnergy, sourceInfo.memory.containerId != null && this.mainRoom.mainContainer != null, partsRequired), count: 1 };
         else {
             let creepCount = Math.min(Math.ceil(partsRequired / maxWorkParts), sourceInfo.memory.harvestingSpots);
             partsRequired = Math.min(Math.ceil(partsRequired / creepCount), maxWorkParts);
-            return { body: HarvesterDefinition.getDefinition(this.mainRoom.maxSpawnEnergy, sourceInfo.memory.containerId != null, partsRequired), count: creepCount };
+            return { body: HarvesterDefinition.getDefinition(this.mainRoom.maxSpawnEnergy, sourceInfo.memory.containerId != null && this.mainRoom.mainContainer != null, partsRequired), count: creepCount };
         }
     }
 
-    getSourceCarrierBodyAndCount(sourceInfo: MySource) {
+    getSourceCarrierBodyAndCount(sourceInfo: MySource, maxMiningRate?:number) {
         let useRoads = (sourceInfo.memory.mainContainerRoadBuiltTo == this.mainRoom.name);
         let pathLengh = sourceInfo.memory.mainContainerPathLength;
         if (pathLengh == null)
@@ -82,9 +85,11 @@ export class HarvestingManager {
             };
         }
 
-        let energyPerTick = sourceInfo.memory.energyCapacity / ENERGY_REGEN_TIME;
+        let sourceRate = sourceInfo.memory.energyCapacity / ENERGY_REGEN_TIME;
 
-        let requiredCarryModules = Math.ceil(pathLengh*(useRoads ? 2 : 3)  * energyPerTick / 50);
+        let energyPerTick = maxMiningRate == null ? sourceRate : Math.min(maxMiningRate, sourceRate);
+
+        let requiredCarryModules = Math.ceil(pathLengh*(useRoads ? 2 : 3)  * energyPerTick / 50)+1;
 
         let maxCarryParts = SourceCarrierDefinition.getDefinition(this.mainRoom.maxSpawnEnergy, requiredCarryModules).carry;
 
@@ -124,14 +129,20 @@ export class HarvestingManager {
             //if (harvesters.length < sourceInfo.memory.harvestingSpots) {
             if (Memory['verbose'] || this.memory.verbose)
                     console.log('HarvestingManager.checkCreeps(): Add harvester to queue');
-            let requirements = this.getHarvesterBodyAndCount(sourceInfo);
-            this.mainRoom.spawnManager.AddToQueue(requirements.body.getBody(), { role: 'harvester', sourceId: sourceInfo.id }, Math.min(requirements.count, sourceInfo.memory.harvestingSpots + (sourceInfo.memory.containerId==null ? 1 : 0)) - harvesters.length);
+            let harvesterRequirements = this.getHarvesterBodyAndCount(sourceInfo);
+            if (Memory['verbose'] || this.memory.verbose)
+                console.log('HarvestingManager.checkCreeps(): Requirements-cound: ' + harvesterRequirements.count + ' Requirements- body: ' + JSON.stringify(harvesterRequirements.body));
+            this.mainRoom.spawnManager.AddToQueue(harvesterRequirements.body.getBody(), { role: 'harvester', sourceId: sourceInfo.id }, harvesterRequirements.count - harvesters.length + (sourceInfo.memory.containerId == null ? 1 : 0));
             //}
 
+            //let miningRate = _.sum(_.map(harvesters, h => Body.getFromCreep(h).getHarvestingRate()));
+            
+
             if (sourceInfo.memory.containerId && this.mainRoom.mainContainer && sourceInfo.memory.containerId != this.mainRoom.mainContainer.id) {
+                let miningRate = harvesterRequirements.body.work * 2 * harvesterRequirements.count;
                 var sourceCarriers = _.filter(this.sourceCarrierCreeps, (c) => (<SourceCarrierMemory>c.memory).sourceId == sourceInfo.id);
-                let requirements = this.getSourceCarrierBodyAndCount(sourceInfo);
-                this.mainRoom.spawnManager.AddToQueue(requirements.body.getBody(), { role: 'sourceCarrier', sourceId: sourceInfo.id }, Math.min(requirements.count,2) - sourceCarriers.length);
+                let requirements = this.getSourceCarrierBodyAndCount(sourceInfo,miningRate);
+                this.mainRoom.spawnManager.AddToQueue(requirements.body.getBody(), { role: 'sourceCarrier', sourceId: sourceInfo.id }, requirements.count - sourceCarriers.length);
             }
         }
     }

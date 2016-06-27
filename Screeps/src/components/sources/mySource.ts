@@ -70,7 +70,7 @@ export class MySource {
         let sourceContainer = null;
         this.memory.containerId && (sourceContainer = Game.getObjectById(this.memory.containerId));
 
-        if (mainContainer == null || Source == null)
+        if (mainContainer == null || sourceContainer == null)
             return null;
 
         let path = PathFinder.search(mainContainer.pos, { pos: sourceContainer.pos, range: 2 });
@@ -94,7 +94,7 @@ export class MySource {
 
             this.memory.harvestingSpots = this.getHarvestingSpots(source);
 
-            if (this.memory.mainContainerPathLength!=null)
+            if (this.memory.mainContainerPathLength==null)
                 this.calculatePathLengthToMainContainer();
 
             if (!Game.getObjectById(this.memory.containerId)) {
