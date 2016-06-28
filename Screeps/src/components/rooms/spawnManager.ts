@@ -21,6 +21,20 @@ export class SpawnManager {
         return this.mainRoom.memory.spawnManager;
     }
 
+    public get isBusy(): boolean {
+        return false;
+        //return _.every(this.spawns, x => x.spawning);
+    }
+
+    _spawns: { time: number, spawns: Array<Spawn> } = { time: 0, spawns: null };
+    public get spawns(): Array<Spawn> {
+        if (this._spawns.time < Game.time)
+            this._spawns = {
+                time: Game.time, spawns: _.filter(Game.spawns, x => x.room.name == this.mainRoom.name)
+            };
+        return this._spawns.spawns;
+    }
+
     queue: SpawnQueueItem[] = [];
     isIdle: boolean;
     mainRoom: MainRoom;
@@ -48,11 +62,11 @@ export class SpawnManager {
 
         if (this.queue.length == 0) {
             this.isIdle = true;
-           
+
             return;
         }
-        for (let idx in this.mainRoom.spawnNames) {
-            let spawn = Game.spawns[this.mainRoom.spawnNames[idx]];
+        for (let idx in this.spawns) {
+            let spawn = this.spawns[idx];
             if (Memory['verbose'] || this.memory.verbose)
                 console.log('[' + this.mainRoom.name + '] ' +'SpawnManager.spawn(): Spawn: ' + spawn.name);
             if (this.queue.length == 0) {

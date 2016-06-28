@@ -29,6 +29,7 @@ interface MainRoomMemory {
     defenseManager: DefenseManagerMemory;
     reservationManager: ReservationManagerMemory;
     roadConstructionManager: RoadConstructionManagerMemory;
+    mainContainerId: string;
 
 }
 
@@ -48,6 +49,7 @@ interface MySourceMemory {
     containerId: string;
     mainContainerRoadBuiltTo: string;
     mainContainerPathLength: number;
+    linkId: string;
 }
 
 interface MyContainerMemory {
@@ -150,6 +152,7 @@ interface DefenderMemory extends CreepMemory {
 
 interface RepairerMemory extends CreepMemory {
     repairTarget: RepairTarget;
+    roomName: string;
 }
 
 interface ConstructorMemory extends CreepMemory {

@@ -9,6 +9,15 @@ export class MySource {
         return this.accessMemory();
     }
 
+    _room: { time: number, room: Room } = { time: 0, room: null };
+    public get room(): Room {
+        if (this._room.time < Game.time)
+            this._room = {
+                time: Game.time, room: Game.rooms[this.pos.roomName]
+            };
+        return this._room.room;
+    }
+
     accessMemory() {
         if (this.myRoom.memory.sources == null)
             this.myRoom.memory.sources = {};
@@ -22,14 +31,14 @@ export class MySource {
                 lastScanTime: null,
                 pos: null,
                 mainContainerRoadBuiltTo: null,
-                mainContainerPathLength:null
+                mainContainerPathLength: null,
+                linkId:null
             }
         return this.myRoom.memory.sources[this.id];
     }
 
     id: string;
     pos: RoomPosition;
-
 
     constructor(id: string,public myRoom: MyRoom) {
         this.id = id;
@@ -57,6 +66,15 @@ export class MySource {
     public findContainer() {
         let candidates = this.pos.findInRange<Container | Storage>(FIND_STRUCTURES, 4, {
             filter: (s: Structure) => s.structureType == STRUCTURE_CONTAINER || s.structureType == STRUCTURE_STORAGE
+        });
+        if (candidates.length > 0)
+            return candidates[0];
+        else return null;
+    }
+
+    public findLink() {
+        let candidates = this.pos.findInRange<Link>(FIND_MY_STRUCTURES, 4, {
+            filter: (s: Structure) => s.structureType == STRUCTURE_LINK
         });
         if (candidates.length > 0)
             return candidates[0];
@@ -106,26 +124,41 @@ export class MySource {
                     this.memory.containerId = null;
                 }
             }
+
+            if (!Game.getObjectById(this.memory.linkId)) {
+                let link = this.findLink();
+                if (link)
+                    this.memory.linkId = link.id;
+                else
+                    this.memory.linkId = null;
+            }
+
             return true;
         }
         return false;
     }
 
     public containerMissing() {
-        if (Game.rooms[this.pos.roomName] == null)
+        if (this.room == null)
             return false;
         if (Game.getObjectById(this.memory.containerId) != null)
             return false;
         let container = this.findContainer();
+        let link = this.findLink();
 
         if (container != null) {
             this.memory.containerId = container.id;
             return false;
         }
+        if (link != null) {
+            this.memory.linkId = link.id;
+            return false;
+        }
+
         this.memory.containerId = null;
 
         return this.pos.findInRange<ConstructionSite>(FIND_CONSTRUCTION_SITES, 4, {
-            filter: (s: Structure) => s.structureType == STRUCTURE_CONTAINER || s.structureType == STRUCTURE_STORAGE
+            filter: (s: Structure) => s.structureType == STRUCTURE_CONTAINER || s.structureType == STRUCTURE_STORAGE || s.structureType == STRUCTURE_LINK
         }).length == 0;
 
 

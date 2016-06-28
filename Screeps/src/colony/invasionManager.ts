@@ -47,7 +47,7 @@ export class InvasionManager {
     checkInvaders(myRoom: MyRoom, rallyFlag: Flag) {
         if (myRoom == null)
             return false;
-        let creepsRequired = 5;
+        let creepsRequired = 2;
         console.log('check invaders');
 
         if (this.invaders.length < creepsRequired) {
@@ -67,7 +67,7 @@ export class InvasionManager {
     checkDismantlers(myRoom: MyRoom, rallyFlag: Flag) {
         if (myRoom == null)
             return false;
-        let creepsRequired = 5;
+        let creepsRequired = 2;
 
         if (this.dismantlers.length < creepsRequired) {
             let mainRoom = myRoom.getClosestMainRoom();

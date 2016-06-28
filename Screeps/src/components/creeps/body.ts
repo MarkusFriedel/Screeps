@@ -22,6 +22,7 @@
         return this.work * 2;
     }
 
+
     isMilitary() {
         return (this.heal + this.ranged_attack + this.attack) > 0;
     }

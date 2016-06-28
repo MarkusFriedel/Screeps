@@ -12,6 +12,15 @@ export class MyRoom {
         return this.accessMemory();
     }
 
+    _room: { time: number, room: Room } = { time: 0, room: null };
+    public get room(): Room {
+        if (this._room.time < Game.time)
+            this._room = {
+                time: Game.time, room: Game.rooms[this.name]
+            };
+        return this._room.room;
+    }
+
     accessMemory() {
         if (Colony.memory.rooms == null)
             Colony.memory.rooms = {};
@@ -66,7 +75,7 @@ export class MyRoom {
         //}
 
 
-        if (Game.rooms[this.name] != null)
+        if (this.room != null)
             this.scan();
     }
 
@@ -117,7 +126,7 @@ export class MyRoom {
     }
 
     public scan() {
-        let room = <Room>Game.rooms[this.name];
+        let room = this.room;
 
         if (this.exits == null) {
             this.exits = {};
@@ -130,8 +139,8 @@ export class MyRoom {
         if (room == null)
             return;
 
-        this.memory.foreignOwner = room.controller.owner != null && room.controller.owner.username != Colony.myName;
-        this.memory.foreignReserver = room.controller.reservation != null && room.controller.reservation.username != Colony.myName;
+        this.memory.foreignOwner = room.controller!=null && room.controller.owner != null && room.controller.owner.username != Colony.myName;
+        this.memory.foreignReserver = room.controller != null &&  room.controller.reservation != null && room.controller.reservation.username != Colony.myName;
 
         this.memory.lastScanTime = Game.time;
         this.scanSources(room);
@@ -141,14 +150,15 @@ export class MyRoom {
     }
 
     scanForHostiles() {
-        let room = <Room>Game.rooms[this.name];
-        if (room == null)
+        if (this.room == null)
             return;
-        this.memory.hostiles = room.find(FIND_HOSTILE_CREEPS, { filter: (c: Creep) => c.owner.username != 'Source Keeper' }).length > 0;
+        this.memory.hostiles = this.room.find(FIND_HOSTILE_CREEPS, { filter: (c: Creep) => c.owner.username != 'Source Keeper' }).length > 0;
     }
 
+
     canHarvest() {
-        return (this.mainRoom && this.name == this.mainRoom.name
-            || (!this.memory.foreignOwner && !this.memory.foreignReserver));
+        return (this.mainRoom && this.name == this.mainRoom.name || !(this.memory.foreignOwner || this.memory.foreignReserver));
     }
+
+
 }

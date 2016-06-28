@@ -17,7 +17,10 @@ gulp.task('upload-sim', ['compile'], function () {
         password = secrets.password,
         data = {
             branch: 'default',
-            modules: { main: fs.readFileSync('./dist/main.js', { encoding: "utf8" }) }
+            modules: {
+                main: fs.readFileSync('./dist/main.js', { encoding: "utf8" }),
+                'screeps-profiler': fs.readFileSync('./src/screeps-profiler.js',{encoding:"utf8"})
+            }
         };
     var req = https.request({
         hostname: 'screeps.com',

@@ -36,7 +36,7 @@ export namespace HarvesterDefinition {
         body.carry = 2;
         var remainingEnergy = maxEnergy - 2 * BODYPART_COST.carry;
 
-        var basicModulesCount = ~~(remainingEnergy / (2 * BODYPART_COST.work + BODYPART_COST.move)); //work,carry,move
+        var basicModulesCount = Math.floor(remainingEnergy / (2 * BODYPART_COST.work + BODYPART_COST.move)); //work,carry,move
 
         body.move = basicModulesCount;
         body.work = 2 * basicModulesCount;

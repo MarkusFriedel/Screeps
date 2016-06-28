@@ -42,28 +42,27 @@ export class Harvester {
     }
 
     sourceContainerDropOff(dontMove: boolean = false) {
-        if (this.mainRoom.creepManagers.harvestingManager.sourceCarrierCreeps.length == 0 || this.mainRoom.creepManagers.spawnFillManager.creeps.length==0)
-            return false;
         //this.creep.say('test');
-        let container: Container = null;
-        try {
+        let container: Container | Link = null;
+        this.mainRoom.sources[this.sourceId].memory.linkId && (container = Game.getObjectById<Link>(this.mainRoom.sources[this.sourceId].memory.linkId));
+        if (container == null){
+            if (this.mainRoom.creepManagers.harvestingManager.sourceCarrierCreeps.length == 0 || this.mainRoom.creepManagers.spawnFillManager.creeps.length == 0)
+                return false;
             this.mainRoom.sources[this.sourceId].memory.containerId && (container = Game.getObjectById<Container>(this.mainRoom.sources[this.sourceId].memory.containerId));
-            if (container) {
-                let result = this.creep.transfer(container, RESOURCE_ENERGY);
-                if (result == ERR_NOT_IN_RANGE && !dontMove)
-                    this.creep.moveTo(container);
-                return true;
-            }
         }
-        catch (e) {
-            this.creep.say(this.sourceId);
+        if (container) {
+            let result = this.creep.transfer(container, RESOURCE_ENERGY);
+            if (result == ERR_NOT_IN_RANGE && !dontMove)
+                this.creep.moveTo(container);
+            return true;
         }
+
         return false;
     }
 
     dropOff() {
         if (!this.sourceContainerDropOff()) {
-            let dropOffContainer: Container|Storage|Spawn = this.mainRoom.mainContainer;
+            let dropOffContainer: Container | Storage | Spawn = this.mainRoom.mainContainer;
 
             if (dropOffContainer == null || this.mainRoom.creepManagers.spawnFillManager.creeps.length == 0) {
                 //this.creep.say('test');
@@ -78,7 +77,7 @@ export class Harvester {
                     this.creep.moveTo(dropOffContainer);
             }
             else if (this.memory.doConstructions) {
-                let nearestConstructionSite = this.creep.pos.findClosestByRange < ConstructionSite>(FIND_CONSTRUCTION_SITES);
+                let nearestConstructionSite = this.creep.pos.findClosestByRange<ConstructionSite>(FIND_CONSTRUCTION_SITES);
                 if (this.creep.build(nearestConstructionSite) == ERR_NOT_IN_RANGE)
                     this.creep.moveTo(nearestConstructionSite);
             }
@@ -87,6 +86,10 @@ export class Harvester {
 
     public tick() {
         this.memory = <HarvesterMemory>this.creep.memory;
+
+        if (!this.mainRoom.sources[this.sourceId])
+            return;
+
         if (this.memory.state == null) {
             if (this.creep.carry.energy <= this.creep.carryCapacity)
                 this.memory.state = 'harvesting';
@@ -99,7 +102,7 @@ export class Harvester {
         else if (this.memory.state == 'delivering' && this.creep.carry.energy == 0)
             this.memory.state = 'harvesting';
 
-        if (this.memory.state=='harvesting') {
+        if (this.memory.state == 'harvesting') {
             this.harvest();
         }
         else {

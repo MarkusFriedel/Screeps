@@ -18,14 +18,34 @@ export class RepairManager {
         return this.mainRoom.memory.repairManager;
     }
 
-    mainRoom: MainRoom;
-    creeps: Array<Creep>;
-    idleCreeps: Array<Creep>;
+    _creeps: { time: number, creeps: Array<Creep> } = { time: 0, creeps: null };
+    public get creeps(): Array<Creep> {
+        if (this._creeps.time < Game.time)
+            this._creeps = {
+                time: Game.time, creeps: _.filter(this.mainRoom.creeps, (c) => c.memory.role == 'repairer')
+            };
+        return this._creeps.creeps;
+    }
+
+    _idleCreeps: { time: number, creeps: Array<Creep> } = { time: 0, creeps: null };
+    public get idleCreeps(): Array<Creep> {
+        if (this._idleCreeps.time < Game.time)
+            this._idleCreeps = {
+                time: Game.time, creeps: _.filter(this.creeps, (c) => (<RepairerMemory>c.memory).repairTarget == null)
+            };
+        return this._creeps.creeps;
+    }
+    public set idleCreeps(value: Array<Creep>) {
+        if (value == null)
+            this._idleCreeps.creeps = [];
+        else
+            this._idleCreeps.creeps = value;
+    }
+
+
     maxCreeps = 2;
 
-    constructor(mainRoom: MainRoom) {
-        this.mainRoom = mainRoom;
-        this.getData();
+    constructor(public mainRoom: MainRoom) {
         if (this.memory.repairTargets == null || this.memory.emergencyTargets == null) {
             if (this.memory.repairTargets == null)
                 this.memory.repairTargets = {};
@@ -47,11 +67,11 @@ export class RepairManager {
     }
 
     public forceStopRepairDelegate(s: RepairTarget): boolean {
-        return (s.structureType == STRUCTURE_WALL || s.structureType == STRUCTURE_RAMPART) && s.hits > 500000 || (s.hits > 0.9 * s.hitsMax);
+        return (s.structureType == STRUCTURE_WALL || s.structureType == STRUCTURE_RAMPART) && s.hits > 1000000 || (s.hits > 0.9 * s.hitsMax);
     }
 
     public targetDelegate(s: RepairTarget): boolean {
-        return s.structureType != STRUCTURE_RAMPART && s.structureType != STRUCTURE_WALL && s.hits < s.hitsMax || (s.structureType == STRUCTURE_RAMPART || s.structureType == STRUCTURE_WALL) && s.hits < 80000
+        return s.structureType != STRUCTURE_RAMPART && s.structureType != STRUCTURE_WALL && s.hits < s.hitsMax || (s.structureType == STRUCTURE_RAMPART || s.structureType == STRUCTURE_WALL) && s.hits < 500000
     }
 
     public emergencyTargetDelegate(s: RepairTarget): boolean {
@@ -63,7 +83,7 @@ export class RepairManager {
             return;
         for (var idx in _.filter(this.mainRoom.allRooms, (x) => x.canHarvest())) {
             let myRoom = this.mainRoom.allRooms[idx];
-            let room = Game.rooms[myRoom.name];
+            let room = myRoom.room;
             //console.log('repair targets for myroom' + myRoom.name);
             if (room) {
                 //console.log('repair targets for ' + room.name);
@@ -112,19 +132,17 @@ export class RepairManager {
             return position.findClosestByPath(repairTargets[pos.roomName]);
         else
             return position.findClosestByRange(repairTargets[pos.roomName]);
+
     }
 
-    getData() {
-        this.creeps = _.filter(this.mainRoom.creeps, (c) => c.memory.role == 'repairer');
-        this.idleCreeps = _.filter(this.creeps, (c) => (<RepairerMemory>c.memory).repairTarget == null);
-    }
 
     public checkCreeps() {
+        if (this.mainRoom.spawnManager.isBusy)
+            return;
         if (!this.mainRoom.mainContainer)
             return;
         this.loadRepairTargets();
 
-        this.getData();
 
         for (var idx in this.creeps) {
             var creep = this.creeps[idx];
@@ -150,6 +168,8 @@ export class RepairManager {
         var maxCreeps = ~~_.sum(_.map(this.memory.emergencyTargets, x => x.length)) / 10;
         maxCreeps = maxCreeps < this.maxCreeps ? this.maxCreeps : maxCreeps;
 
+
+
         if ((this.creeps.length < this.maxCreeps || this.idleCreeps.length > 0)) {
             for (var idx in this.idleCreeps) {
                 let creepMemory = <RepairerMemory>this.idleCreeps[idx].memory;
@@ -162,7 +182,6 @@ export class RepairManager {
     }
 
     public tick() {
-        this.getData();
         if (Game.time % 100 == 0)
             this.loadRepairTargets();
         this.creeps.forEach((c) => new Repairer(c, this.mainRoom).tick());

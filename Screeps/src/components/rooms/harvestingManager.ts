@@ -23,15 +23,25 @@ export class HarvestingManager {
         return this.mainRoom.memory.harvestingManager;
     }
 
-    mainRoom: MainRoom;
-    harvesterCreeps: Array<Creep>;
-    idleHarvesterCreeps: Array<Creep>;
-    sourceCarrierCreeps: Array<Creep>;
-    idleSourceCarrierCreeps: Array<Creep>;
+    _harvesterCreeps: { time: number, creeps: Array<Creep> } = { time: 0, creeps: null };
+    public get harvesterCreeps(): Array<Creep> {
+        if (this._harvesterCreeps.time < Game.time)
+            this._harvesterCreeps = {
+                time: Game.time, creeps: _.filter(this.mainRoom.creeps, (c) => c.memory.role == 'harvester')
+            };
+        return this._harvesterCreeps.creeps;
+    }
 
-    constructor(mainRoom: MainRoom) {
-        this.mainRoom = mainRoom;
-        this.getData();
+    _sourceCarrierCreeps: { time: number, creeps: Array<Creep> } = { time: 0, creeps: null };
+    public get sourceCarrierCreeps(): Array<Creep> {
+        if (this._sourceCarrierCreeps.time < Game.time)
+            this._sourceCarrierCreeps = {
+                time: Game.time, creeps: _.filter(this.mainRoom.creeps, (c) => c.memory.role == 'sourceCarrier')
+            };
+        return this._sourceCarrierCreeps.creeps;
+    }
+
+    constructor(public mainRoom: MainRoom) {
     }
 
     public placeSourceContainers() {
@@ -50,25 +60,19 @@ export class HarvestingManager {
             }
     }
 
-    getData() {
-        this.harvesterCreeps = _.filter(this.mainRoom.creeps, (c) => c.memory.role == 'harvester');
-        this.idleHarvesterCreeps = _.filter(this.harvesterCreeps, (c) => c.memory.sourceId == null);
-        this.sourceCarrierCreeps = _.filter(this.mainRoom.creeps, (c) => c.memory.role == 'sourceCarrier');
-        this.idleSourceCarrierCreeps = _.filter(this.sourceCarrierCreeps, (c) => c.memory.sourceId == null);
-    }
 
     getHarvesterBodyAndCount(sourceInfo: MySource) {
         if (Memory['verbose'] || this.memory.verbose)
             console.log('MAX_ENERGY: ' + this.mainRoom.maxSpawnEnergy);
-        let partsRequired = Math.ceil(sourceInfo.memory.energyCapacity / ENERGY_REGEN_TIME / 2)+1;
-        let maxWorkParts = HarvesterDefinition.getDefinition(this.mainRoom.maxSpawnEnergy, sourceInfo.memory.containerId != null && this.mainRoom.mainContainer!=null).work;
+        let partsRequired = Math.ceil((sourceInfo.memory.energyCapacity / ENERGY_REGEN_TIME) / 2) + 1;
+        let maxWorkParts = HarvesterDefinition.getDefinition(this.mainRoom.maxSpawnEnergy, sourceInfo.memory.containerId != null && this.mainRoom.mainContainer != null || sourceInfo.memory.linkId!=null).work;
 
         if (maxWorkParts >= partsRequired)
-            return { body: HarvesterDefinition.getDefinition(this.mainRoom.maxSpawnEnergy, sourceInfo.memory.containerId != null && this.mainRoom.mainContainer != null, partsRequired), count: 1 };
+            return { body: HarvesterDefinition.getDefinition(this.mainRoom.maxSpawnEnergy, sourceInfo.memory.containerId != null && this.mainRoom.mainContainer != null || sourceInfo.memory.linkId != null, partsRequired), count: 1 };
         else {
             let creepCount = Math.min(Math.ceil(partsRequired / maxWorkParts), sourceInfo.memory.harvestingSpots);
             partsRequired = Math.min(Math.ceil(partsRequired / creepCount), maxWorkParts);
-            return { body: HarvesterDefinition.getDefinition(this.mainRoom.maxSpawnEnergy, sourceInfo.memory.containerId != null && this.mainRoom.mainContainer != null, partsRequired), count: creepCount };
+            return { body: HarvesterDefinition.getDefinition(this.mainRoom.maxSpawnEnergy, sourceInfo.memory.containerId != null && this.mainRoom.mainContainer != null || sourceInfo.memory.linkId != null, partsRequired), count: creepCount };
         }
     }
 
@@ -105,11 +109,18 @@ export class HarvestingManager {
     }
 
     public checkCreeps() {
-        this.getData();
+        let startCpu: number;
+        let endCpu: number;
+        if (this.mainRoom.spawnManager.isBusy)
+            return;
         if (Memory['verbose'] || this.memory.verbose)
             console.log('HarvestingManager.checkCreeps()');
         for (var idx in this.mainRoom.sources) {
             var sourceInfo = this.mainRoom.sources[idx];
+
+            if (sourceInfo.myRoom.memory.mainRoomDistanceDescriptions[this.mainRoom.name].distance >= 2 && !sourceInfo.memory.containerId)
+                continue;
+
             if (Memory['verbose'] || this.memory.verbose)
                 console.log('HarvestingManager.checkCreeps(): Source [' + sourceInfo.id + ']');
             if (!Colony.getRoom(sourceInfo.pos.roomName).canHarvest()) {
@@ -136,19 +147,27 @@ export class HarvestingManager {
             //}
 
             //let miningRate = _.sum(_.map(harvesters, h => Body.getFromCreep(h).getHarvestingRate()));
+            if (Memory['verbose'] || this.memory.verbose)
+                console.log('Start checking source carriers');
+            if (Memory['trace'])
+                startCpu = Game.cpu.getUsed();
             
-
-            if (sourceInfo.memory.containerId && this.mainRoom.mainContainer && sourceInfo.memory.containerId != this.mainRoom.mainContainer.id) {
+            if (sourceInfo.memory.containerId && this.mainRoom.mainContainer && sourceInfo.memory.containerId != this.mainRoom.mainContainer.id && sourceInfo.memory.linkId==null) {
+                if (Memory['verbose'] || this.memory.verbose)
+                    console.log('Checking source carriers for '+sourceInfo.id);
                 let miningRate = harvesterRequirements.body.work * 2 * harvesterRequirements.count;
                 var sourceCarriers = _.filter(this.sourceCarrierCreeps, (c) => (<SourceCarrierMemory>c.memory).sourceId == sourceInfo.id);
                 let requirements = this.getSourceCarrierBodyAndCount(sourceInfo,miningRate);
                 this.mainRoom.spawnManager.AddToQueue(requirements.body.getBody(), { role: 'sourceCarrier', sourceId: sourceInfo.id }, requirements.count - sourceCarriers.length);
             }
+            if (Memory['trace']) {
+                endCpu = Game.cpu.getUsed();
+                console.log('HarvestingManagers checking SourceCarriers: ' + (endCpu - startCpu).toFixed(2));
+            }
         }
     }
 
     public tick() {
-        this.getData();
         this.harvesterCreeps.forEach((c) => new Harvester(c, this.mainRoom).tick());
         this.sourceCarrierCreeps.forEach((c) => new SourceCarrier(c, this.mainRoom).tick());
     }

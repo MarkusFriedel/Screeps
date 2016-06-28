@@ -14,16 +14,12 @@ export class RoadConstructionManager {
         return this.mainRoom.memory.roadConstructionManager;
     }
 
-    mainRoom: MainRoom;
-    creeps: Array<Creep>;
-
-    constructor(mainRoom: MainRoom) {
-        this.mainRoom = mainRoom;
+    constructor(public mainRoom: MainRoom) {
     }
 
     buildExtensionRoads() {
         if (Game.time % 100 == 0) {
-            let extensions = Game.rooms[this.mainRoom.name].find<Extension>(FIND_MY_STRUCTURES, {
+            let extensions = this.mainRoom.room.find<Extension>(FIND_MY_STRUCTURES, {
                 filter: (s: Structure) => s.structureType == STRUCTURE_EXTENSION
             });
 

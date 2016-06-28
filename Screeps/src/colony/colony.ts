@@ -76,14 +76,15 @@ export namespace Colony {
     }
 
     export function createScouts() {
-        for (let roomName in mainRooms) {
-            if (!Game.map.isRoomProtected(roomName)) {
-                let mainRoom = mainRooms[roomName];
-                let exits = mainRoom.myRoom.exits;
+        let myRooms = _.filter(rooms, x => x.mainRoom != null);
+        for (let idx in myRooms) {
+            if (!Game.map.isRoomProtected(myRooms[idx].name)) {
+                let myRoom = myRooms[idx];
+                let exits = myRoom.exits;
                 for (let exitDirection in exits) {
                     let targetRoomName = exits[exitDirection];
-                    if (shouldSendScout(targetRoomName) && _.filter(Game.creeps, (c) => (<ScoutMemory>c.memory).role == 'scout' && (<ScoutMemory>c.memory).handledByColony == true && (<ScoutMemory>c.memory).targetPosition!=null && (<ScoutMemory>c.memory).targetPosition.roomName == targetRoomName).length == 0) {
-                        mainRoom.spawnManager.AddToQueue(['move'], <ScoutMemory>{ handledByColony: true, role: 'scout', mainRoomName: null, targetPosition: new RoomPosition(25, 25, targetRoomName) });
+                    if (shouldSendScout(targetRoomName) && _.filter(Game.creeps, (c) => (<ScoutMemory>c.memory).role == 'scout' && (<ScoutMemory>c.memory).handledByColony == true && (<ScoutMemory>c.memory).targetPosition != null && (<ScoutMemory>c.memory).targetPosition.roomName == targetRoomName).length == 0) {
+                        myRoom.mainRoom.spawnManager.AddToQueue(['move'], <ScoutMemory>{ handledByColony: true, role: 'scout', mainRoomName: null, targetPosition: new RoomPosition(25, 25, targetRoomName) });
                     }
                 }
             }
@@ -147,8 +148,8 @@ export namespace Colony {
                 myRoom.memory.mainRoomDistanceDescriptions = {};
             myRoom.memory.mainRoomDistanceDescriptions[mainRoom.name] = { roomName: mainRoom.name, distance: distance };
         }
-        let mainRoomCandidates = _.sortBy(_.map(_.filter(myRoom.memory.mainRoomDistanceDescriptions, (x) => x.distance <= 1), function (y) { return { distance: y.distance, mainRoom: mainRooms[y.roomName] }; }), z =>- z.mainRoom.room.controller.level);
-        if (mainRoomCandidates.length > 0 && !myRoom.memory.foreignOwner) {
+        let mainRoomCandidates = _.sortBy(_.map(_.filter(myRoom.memory.mainRoomDistanceDescriptions, (x) => x.distance <= 1), function (y) { return { distance: y.distance, mainRoom: mainRooms[y.roomName] }; }), z => [z.distance.toString(), (10 - z.mainRoom.room.controller.level).toString()].join('_'));
+        if (mainRoomCandidates.length > 0 && !myRoom.memory.foreignOwner && (mainRoomCandidates[0].distance == 1 || mainRoomCandidates[0].mainRoom.room.controller.level>=6)) {
             myRoom.mainRoom = mainRoomCandidates[0].mainRoom;
             myRoom.memory.mainRoomName = mainRoomCandidates[0].mainRoom.name;
         }

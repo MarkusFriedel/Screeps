@@ -30,7 +30,7 @@ export class SourceCarrier {
 
     deliver() {
         if (this.creep.room.name == this.mainRoom.name) {
-            let tower = this.creep.room.find<Tower>(FIND_STRUCTURES, { filter: (x: Tower) => x.structureType == STRUCTURE_TOWER && x.energy < x.energyCapacity * 0.7 });
+            let tower = this.creep.room.find<Tower>(FIND_STRUCTURES, { filter: (x: Tower) => x.structureType == STRUCTURE_TOWER && x.energy < (_.filter(this.mainRoom.links, y => y.nextToTower).length >0 ? 150 : 700) });
             if (tower.length > 0) {
                 if (this.creep.transfer(tower[0], RESOURCE_ENERGY) == ERR_NOT_IN_RANGE)
                     this.creep.moveTo(tower[0]);
@@ -56,7 +56,8 @@ export class SourceCarrier {
     }
 
     public tick() {
-
+        if (this.mySource == null)
+            return;
         if (this.creep.carry.energy == 0)
             this.pickUp();
         else

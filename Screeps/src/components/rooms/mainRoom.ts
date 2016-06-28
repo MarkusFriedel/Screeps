@@ -16,11 +16,49 @@ import {SpawnFillManager} from "./spawnFillManager";
 import {DefenseManager} from "./defenseManager";
 import {ReservationManager} from "./reservationManager";
 import {RoadConstructionManager} from "./roadConstructionManager";
+import {LinkFillerManager} from "./linkFillerManager";
 
 export class MainRoom {
 
     public get memory(): MainRoomMemory {
         return this.accessMemory();
+    }
+
+    _room: { time: number, room: Room } = { time: 0, room: null };
+    public get room(): Room {
+        if (this._room.time < Game.time)
+            this._room = {
+                time: Game.time, room: Game.rooms[this.name]
+            };
+        return this._room.room;
+    }
+
+    _maxSpawnEnergy: { time: number, maxSpawnEnergy: number } = { time: 0, maxSpawnEnergy: 300 };
+    public get maxSpawnEnergy(): number {
+        if (this._maxSpawnEnergy.time + 50 < Game.time)
+            this._maxSpawnEnergy = {
+                time: Game.time, maxSpawnEnergy: this.getMaxSpawnEnergy()
+            };
+        return this._maxSpawnEnergy.maxSpawnEnergy;
+        //return 400;
+    }
+
+    _creeps: { time: number, creeps: Array<Creep> } = { time: 0, creeps: null };
+    public get creeps(): Array<Creep> {
+        if (this._creeps.time < Game.time)
+            this._creeps = {
+                time: Game.time, creeps: _.filter(Game.creeps, (c) => (<CreepMemory>c.memory).mainRoomName == this.name && !(<CreepMemory>c.memory).handledByColony)
+            };
+        return this._creeps.creeps;
+    }
+
+    _mainContainer: { time: number, mainContainer: Container | Storage } = { time: 0, mainContainer: null };
+    public get mainContainer(): Container | Storage {
+        if (this._mainContainer.time < Game.time)
+            this._mainContainer = {
+                time: Game.time, mainContainer: this.checkAndPlaceStorage()
+            };
+        return this._mainContainer.mainContainer;
     }
 
     accessMemory() {
@@ -38,23 +76,20 @@ export class MainRoom {
                 harvestingManager: null,
                 defenseManager: null,
                 reservationManager: null,
-                roadConstructionManager: null
+                roadConstructionManager: null,
+                mainContainerId:null
             };
         return Colony.memory.mainRooms[this.name];
     }
 
     name: string;
     myRoom: MyRoom;
-    room: Room;
     connectedRooms: Array<MyRoom>;
     allRooms: Array<MyRoom>;
-    mainContainer: Container | Storage;
     mainPosition: RoomPosition; //Usually location of the first spawn
     spawnManager: SpawnManager;
     roadConstructionManager: RoadConstructionManager;
     extensionCount: number;
-    maxSpawnEnergy: number;
-    creeps: Array<Creep>;
     links: Array<MyLink>;
 
     spawnNames: Array<string>;
@@ -72,6 +107,7 @@ export class MainRoom {
         harvestingManager: HarvestingManager,
         defenseManager: DefenseManager,
         reservationManager: ReservationManager,
+        linkFillerManager: LinkFillerManager
     }
 
 
@@ -84,9 +120,8 @@ export class MainRoom {
         if (this.myRoom.memory.mainRoomDistanceDescriptions == null)
             this.myRoom.memory.mainRoomDistanceDescriptions = {};
         this.myRoom.memory.mainRoomDistanceDescriptions[this.name] = { roomName: this.name, distance: 0 };
-        this.room = Game.rooms[roomName];
 
-        this.spawnNames = _.map(_.filter(Game.spawns, (s) => s.room.name == roomName), (s) => s.name);
+        //this.spawnNames = _.map(_.filter(Game.spawns, (s) => s.room.name == roomName), (s) => s.name);
 
         this.links = _.map(this.room.find<Link>(FIND_MY_STRUCTURES, { filter: (x: Structure) => x.structureType == STRUCTURE_LINK }), x => new MyLink(x, this));
 
@@ -98,8 +133,6 @@ export class MainRoom {
             this.mainPosition = Game.spawns[this.spawnNames[0]].pos;
             this.memory.mainPosition = this.mainPosition;
         }
-
-        this.creeps = _.filter(Game.creeps, (c) => (<CreepMemory>c.memory).mainRoomName == this.name && !(<CreepMemory>c.memory).handledByColony);
 
         //if (!this.memory.spawnManager) this.memory.spawnManager = {  }
         //if (!this.memory.constructionManager) this.memory.constructionManager = {}
@@ -119,7 +152,8 @@ export class MainRoom {
             spawnFillManager: new SpawnFillManager(this),
             harvestingManager: new HarvestingManager(this),
             defenseManager: new DefenseManager(this),
-            reservationManager: new ReservationManager(this)
+            reservationManager: new ReservationManager(this),
+            linkFillerManager: new LinkFillerManager(this)
         }
 
         this.update(true);
@@ -144,9 +178,9 @@ export class MainRoom {
 
         maxSpawnEnergy += 300;
 
-        console.log('MAXENERGYCONDITION :' + this.name + ' creeps.length: ' + this.creeps.length + ', harverster length: ' + this.creepManagers.harvestingManager.harvesterCreeps.length);
+        //console.log('MAXENERGYCONDITION :' + this.name + ' creeps.length: ' + this.creeps.length + ', harverster length: ' + this.creepManagers.harvestingManager.harvesterCreeps.length);
 
-        if (this.creeps.length == 0 || !this.mainContainer || (this.mainContainer.store.energy == 0 && this.creepManagers.harvestingManager.harvesterCreeps.length == 0))
+        if (this.creeps.length == 0 || !this.mainContainer /*|| (this.mainContainer.store.energy == 0 && this.creepManagers.harvestingManager.harvesterCreeps.length == 0)*/)
             maxSpawnEnergy = Math.max(this.room.energyAvailable, 300);
 
         return maxSpawnEnergy;
@@ -161,11 +195,9 @@ export class MainRoom {
     }
 
     update(runAll = true) {
-        this.creeps = _.filter(Game.creeps, (c) => (<CreepMemory>c.memory).mainRoomName == this.name && !(<CreepMemory>c.memory).handledByColony);
-        if (runAll || (Game.time % 100) == 0) {
-            this.maxSpawnEnergy = this.getMaxSpawnEnergy();
+        if (runAll || (Game.time % 1) == 0) {
 
-            this.connectedRooms = _.filter(Colony.rooms, (r) => r.name != this.room.name && r.mainRoom == this);
+            this.connectedRooms = _.filter(Colony.rooms, (r) => r.name != this.name && r.mainRoom && r.mainRoom.name == this.name);
 
             this.allRooms = this.connectedRooms.concat(this.myRoom);
         }
@@ -287,14 +319,18 @@ export class MainRoom {
         targetPos.createConstructionSite(STRUCTURE_STORAGE);
     }
 
-    checkAndPlaceMainContainer() {
-        if (this.mainContainer == null) {
+    checkAndPlaceMainContainer(): Container {
+        let mainContainer = null;
+        this.memory.mainContainerId && (mainContainer = Game.getObjectById(this.memory.mainContainerId));
+
+        if (mainContainer == null) {
             let candidates = this.mainPosition.findInRange<Container>(FIND_STRUCTURES, 4, {
                 filter: (s: Structure) => s.structureType == STRUCTURE_CONTAINER
             });
 
             if (candidates.length > 0) {
-                this.mainContainer = candidates[0];
+                this.memory.mainContainerId = candidates[0].id;
+                return candidates[0];
             } else {
                 let constructionCandidates = this.mainPosition.findInRange<ConstructionSite>(FIND_CONSTRUCTION_SITES, 4, {
                     filter: (s: Structure) => s.structureType == STRUCTURE_CONTAINER
@@ -305,21 +341,20 @@ export class MainRoom {
                 }
             }
         }
+        else
+            return mainContainer;        
     }
 
 
 
-    checkAndPlaceStorage() {
-        let storage = this.room.storage;
-        if (storage != null) {
-            this.mainContainer = storage;
+    checkAndPlaceStorage(): Storage | Container {
+        if (this.room.storage != null) {
+            return this.room.storage;
         }
         else if (CONTROLLER_STRUCTURES.storage[this.room.controller.level] > 0) {
             this.placeStorage();
         }
-        else {
-            this.checkAndPlaceMainContainer();
-        }
+        return this.checkAndPlaceMainContainer();
     }
 
     checkCreeps() {
@@ -331,6 +366,13 @@ export class MainRoom {
         if (Memory['trace']) {
             endCpu = Game.cpu.getUsed();
             console.log('SpawnFillManager.checkCreeps: ' + (endCpu - startCpu).toFixed(2));
+        }
+        if (Memory['trace'])
+            startCpu = Game.cpu.getUsed();
+        this.creepManagers.linkFillerManager.checkCreeps();
+        if (Memory['trace']) {
+            endCpu = Game.cpu.getUsed();
+            console.log('LinkFiller.checkCreeps: ' + (endCpu - startCpu).toFixed(2));
         }
         if (Memory['trace'])
             startCpu = Game.cpu.getUsed();
@@ -392,6 +434,13 @@ export class MainRoom {
         }
         if (Memory['trace'])
             startCpu = Game.cpu.getUsed();
+        this.creepManagers.linkFillerManager.tick();
+        if (Memory['trace']) {
+            endCpu = Game.cpu.getUsed();
+            console.log('LinkFillerManager.tick: ' + (endCpu - startCpu).toFixed(2));
+        }
+        if (Memory['trace'])
+            startCpu = Game.cpu.getUsed();
         this.creepManagers.harvestingManager.tick();
         if (Memory['trace']) {
             endCpu = Game.cpu.getUsed();
@@ -436,9 +485,10 @@ export class MainRoom {
 
     public tick() {
         //console.log('Memory Test= ' + JSON.stringify(Memory['colony']['rooms']['E21S22']['test']));
-        this.room = Game.rooms[this.name];
         var startCpu;
         var endCpu;
+
+        console.log('MainRoom ' + this.name + ': ' + this.creeps.length + ' creeps');
 
         if (Memory['verbose'])
             console.log('SpawnRoomHandler.tick');

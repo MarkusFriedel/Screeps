@@ -4,18 +4,36 @@ import {ConstructorDefinition} from "../creeps/constructor/constructorDefinition
 
 export class ConstructionManager {
 
-    mainRoom: MainRoom;
+    _creeps: { time: number, creeps: Array<Creep> } = { time: 0, creeps: null };
+    public get creeps(): Array<Creep> {
+        if (this._creeps.time < Game.time)
+            this._creeps = {
+                time: Game.time, creeps: _.filter(this.mainRoom.creeps, (c) => c.memory.role == 'constructor')
+            };
+        return this._creeps.creeps;
+    }
 
-    creeps: Array<Creep>;
-    idleCreeps: Array<Creep>;
+    _idleCreeps: { time: number, creeps: Array<Creep> } = { time: 0, creeps: null };
+    public get idleCreeps(): Array<Creep> {
+        if (this._idleCreeps.time < Game.time)
+            this._idleCreeps = {
+                time: Game.time, creeps: _.filter(this.creeps, (c) => c.memory.targetId == null)
+            };
+        return this._creeps.creeps;
+    }
+    public set idleCreeps(value: Array<Creep>) {
+        if (value == null)
+            this._idleCreeps.creeps = [];
+        else
+            this._idleCreeps.creeps = value;
+    }
+
 
     maxCreeps: number;
     
 
-    constructor(mainRoom: MainRoom) {
-        this.mainRoom = mainRoom;
+    constructor(public mainRoom: MainRoom) {
         this.maxCreeps = 2;
-        this.getCreeps();
     }
 
     public getConstruction() {
@@ -27,15 +45,9 @@ export class ConstructionManager {
         return constructionSites[0];
     }
 
-    getCreeps() {
-        this.creeps = _.filter(this.mainRoom.creeps, (c) => c.memory.role == 'constructor');
-        this.idleCreeps = _.filter(this.creeps, (c) => c.memory.targetId == null);
-    }
-
     public checkCreeps() {
-        this.getCreeps();
-       //console.log('idle creeps: ' + this.idleCreeps.length);
-        console.log('active creeps: ' + this.creeps.length);
+        if (this.mainRoom.spawnManager.isBusy)
+            return;
         var constructionSite = this.getConstruction();
         if (constructionSite != null && (this.creeps.length < this.maxCreeps || this.idleCreeps.length>0)) {
             for (var idx in this.idleCreeps) {
@@ -49,7 +61,6 @@ export class ConstructionManager {
     }
 
     public tick() {
-        this.getCreeps();
         this.creeps.forEach((c) => new Constructor(c, this.mainRoom).tick());
     }
 }

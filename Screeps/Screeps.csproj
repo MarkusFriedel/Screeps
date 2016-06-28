@@ -2603,6 +2603,8 @@
     <TypeScriptCompile Include="src\components\creeps\harvester\harvesterDefinition.ts" />
     <TypeScriptCompile Include="src\components\creeps\harvester\harvester.ts" />
     <TypeScriptCompile Include="src\components\creeps\invader\invader.ts" />
+    <TypeScriptCompile Include="src\components\creeps\linkFiller\linkFiller.ts" />
+    <TypeScriptCompile Include="src\components\creeps\linkFiller\linkFillerDefinition.ts" />
     <TypeScriptCompile Include="src\components\creeps\repairer\repairerDefinition.ts" />
     <TypeScriptCompile Include="src\components\creeps\repairer\repairer.ts" />
     <TypeScriptCompile Include="src\components\creeps\reserver\reserver.ts" />
@@ -2616,6 +2618,7 @@
     <TypeScriptCompile Include="src\components\rooms\constructionManager.ts" />
     <TypeScriptCompile Include="src\components\rooms\defenseManager.ts" />
     <TypeScriptCompile Include="src\components\rooms\harvestingManager.ts" />
+    <TypeScriptCompile Include="src\components\rooms\linkFillerManager.ts" />
     <TypeScriptCompile Include="src\components\rooms\repairManager.ts" />
     <TypeScriptCompile Include="src\components\rooms\reservationManager.ts" />
     <TypeScriptCompile Include="src\components\rooms\roadConstructionManager.ts" />
@@ -2638,6 +2641,7 @@
   </ItemGroup>
   <ItemGroup>
     <Content Include="package.json" />
+    <Content Include="src\screeps-profiler.js" />
     <Content Include="tsconfig.json" />
     <Content Include="tsd.json" />
     <Content Include="node_modules\.bin\gulp" />
