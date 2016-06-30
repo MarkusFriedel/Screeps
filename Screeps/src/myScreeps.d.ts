@@ -151,7 +151,8 @@ interface ScoutMemory extends CreepMemory {
 
 declare enum HarvesterState {
     Harvesting = 0,
-    Delivering = 1
+    Delivering = 1,
+    Repairing=2
 }
 interface HarvesterMemory extends CreepMemory {
     sourceId: string;

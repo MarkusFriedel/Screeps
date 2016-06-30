@@ -18,7 +18,6 @@ export class RoadConstructionManager {
     }
 
     buildExtensionRoads() {
-        if (Game.time % 100 == 0) {
             let extensions = this.mainRoom.room.find<Extension>(FIND_MY_STRUCTURES, {
                 filter: (s: Structure) => s.structureType == STRUCTURE_EXTENSION
             });
@@ -31,7 +30,6 @@ export class RoadConstructionManager {
                 new RoomPosition(extension.pos.x, extension.pos.y - 1, roomName).createConstructionSite(STRUCTURE_ROAD);
                 new RoomPosition(extension.pos.x, extension.pos.y + 1, roomName).createConstructionSite(STRUCTURE_ROAD);
             }
-        }
     }
 
     constructRoad(path: RoomPosition[], startIdx = 0, endIdx = null) {

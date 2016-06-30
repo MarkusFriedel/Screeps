@@ -36,4 +36,7 @@ export class Tracer {
             }
         }
     }
+    public reset() {
+        this.results = {};
+    }
 }

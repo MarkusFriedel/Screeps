@@ -51,7 +51,7 @@ export class MySource {
         return this._source.source;
     }
 
-    private _sourceDropOffContainer: { time: number, sourceDropOffContainer: Structure } = { time: -1, sourceDropOffContainer: null }
+    private _sourceDropOffContainer: { time: number, sourceDropOffContainer: { id: string, pos: RoomPosition } } = { time: -1, sourceDropOffContainer: null }
     public get sourceDropOffContainer(): { id: string, pos: RoomPosition } {
         let trace = this.tracer.start('Property sourceDropOffContainer');
         if (this._sourceDropOffContainer.time == Game.time)
@@ -65,14 +65,16 @@ export class MySource {
             return structure;
         }
         else {
-            let structure = null;
+            let structure: { id: string, pos: RoomPosition } = null;
             if (this.memory.sourceDropOffContainer.value)
                 structure = Game.getObjectById<Structure>(this.memory.sourceDropOffContainer.value.id);
-            trace.stop();
-            if (structure == null)
-                structure = this.memory.sourceDropOffContainer.value
-
+            if (structure == null && this.memory.sourceDropOffContainer && this.memory.sourceDropOffContainer.value!=null)
+                structure = {
+                    id: this.memory.sourceDropOffContainer.value.id,
+                    pos: RoomPos.fromObj(this.memory.sourceDropOffContainer.value.pos)
+                };
             this._sourceDropOffContainer = { time: Game.time, sourceDropOffContainer: structure };
+            trace.stop();
             return structure ? structure : null;
         }
 
@@ -212,8 +214,9 @@ export class MySource {
     }
 
     public containerMissing() {
-        if (this.requiresCarrier)
+        if (this.requiresCarrier || this.hasLink)
             return false;
+
 
         return this.pos.findInRange<ConstructionSite>(FIND_CONSTRUCTION_SITES, 4, {
             filter: (s: Structure) => (s.structureType == STRUCTURE_CONTAINER || s.structureType == STRUCTURE_STORAGE || s.structureType == STRUCTURE_LINK)

@@ -47,15 +47,15 @@ export class RepairManager {
     }
 
     public static targetDelegate(s: Structure): boolean {
-        return s.structureType != STRUCTURE_RAMPART && s.structureType != STRUCTURE_WALL && s.hits < s.hitsMax || (s.structureType == STRUCTURE_RAMPART || s.structureType == STRUCTURE_WALL) && s.hits < 500000
+        return s.structureType != STRUCTURE_RAMPART && s.structureType != STRUCTURE_WALL && s.hits < 0.5*s.hitsMax || (s.structureType == STRUCTURE_RAMPART || s.structureType == STRUCTURE_WALL) && s.hits < 500000
     }
 
     public static emergencyTargetDelegate(s: Structure): boolean {
-        return s.hits < s.hitsMax * 0.2 && (s.structureType == STRUCTURE_CONTAINER || s.structureType == STRUCTURE_ROAD) || s.structureType == STRUCTURE_RAMPART && s.hits < 2000;
+        return s.hits < s.hitsMax * 0.2 && s.structureType == STRUCTURE_CONTAINER || s.hits<2000 && s.structureType == STRUCTURE_ROAD || s.structureType == STRUCTURE_RAMPART && s.hits < 5000;
     }
 
     public static emergencyStopDelegate(s: Structure): boolean {
-        return (s.structureType == STRUCTURE_WALL || s.structureType == STRUCTURE_RAMPART) && s.hits > 20000 || (s.hits > 0.9 * s.hitsMax);
+        return (s.structureType == STRUCTURE_WALL || s.structureType == STRUCTURE_RAMPART) && s.hits > 20000 || s.hits < s.hitsMax && s.structureType == STRUCTURE_ROAD || s.hits > 0.5 * s.hitsMax && s.structureType == STRUCTURE_CONTAINER;
     }
 
 
@@ -66,6 +66,8 @@ export class RepairManager {
     }
 
     public createNewRepairers() {
+        if (this.mainRoom.spawnManager.isBusy)
+            return;
         for (let idx in this.mainRoom.allRooms) {
             let myRoom = this.mainRoom.allRooms[idx];
 

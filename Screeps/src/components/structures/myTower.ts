@@ -1,5 +1,6 @@
 ﻿import {Config} from "./../../config/config";
 import {MainRoom} from "../rooms/mainRoom";
+import {RepairManager} from "../rooms/repairManager";
 
 export class MyTower {
 
@@ -25,12 +26,12 @@ export class MyTower {
             return;
         }
 
-        //var repairTarget = this.tower.room.find<Structure>(FIND_STRUCTURES, { filter: (x: Structure) => this.mainRoom.creepManagers.repairManager.targetDelegate(x) && !this.mainRoom.creepManagers.repairManager.forceStopRepairDelegate(x) })[0];
+        var repairTarget = this.tower.room.find<Structure>(FIND_STRUCTURES, { filter: (x: Structure) => RepairManager.emergencyTargetDelegate(x) })[0];
 
-        //if (repairTarget != null && this.tower.energy > this.tower.energyCapacity / 2) {
-        //    this.tower.repair(repairTarget);
-        //    return;
-        //}
+        if (repairTarget != null && this.tower.energy > this.tower.energyCapacity / 2) {
+            this.tower.repair(repairTarget);
+            return;
+        }
 
 
         

@@ -1,5 +1,6 @@
 ﻿import {Colony} from "./colony";
 import {MyRoom} from "../components/rooms/myRoom";
+import {MySource} from "../components/sources/mySource";
 import {MainRoom} from "../components/rooms/mainRoom";
 //import {MySource} from "../components/sources/mySource";
 
@@ -126,13 +127,20 @@ export class ClaimingManager {
         for (let idx in this.claimers)
             this.claimers[idx].suicide();
 
-        for (let idx in this.spawnConstructors) {
+        let sourceArray = _.values<MySource>(myRoom.mySources);
+
+        for (let idx = 0; idx < this.spawnConstructors.length; idx++) {
             let creep = this.spawnConstructors[idx];
             creep.memory.role = 'harvester';
             creep.memory.doConstructions = true;
             creep.memory.handledByColony = false;
             creep.memory.mainRoomName = this.roomName;
+            (<HarvesterMemory>creep.memory).state = HarvesterState.Harvesting;
+
+            (<HarvesterMemory>creep.memory).sourceId = sourceArray[idx % sourceArray.length].id;
         }
+       
+        
 
 
         delete Colony.memory.claimingManagers[this.roomName];
@@ -151,7 +159,7 @@ export class ClaimingManager {
         if (_.size(room.find(FIND_MY_SPAWNS)) > 0) {
             this.finishClaimingManager();
             return;
-        }       
+        }
 
         let owning = false;
 

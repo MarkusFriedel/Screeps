@@ -4,7 +4,8 @@ import {Colony}from "../../../colony/colony";
 
 export enum HarvesterState {
     Harvesting,
-    Delivering
+    Delivering,
+    Repairing
 }
 
 export class Harvester {
@@ -45,14 +46,14 @@ export class Harvester {
     }
 
     harvest() {
-        
+
         if (this.source == null) {
             this.creep.moveTo(this.mySource);
         }
         else {
             if (this.creep.harvest(this.source) == ERR_NOT_IN_RANGE)
                 this.creep.moveTo(this.source);
-            else if (!this.mySource.nearByConstructionSite)
+            else if (!this.mySource.nearByConstructionSite && !this.shouldRepair())
                 this.deliver(true);
         }
 
@@ -66,17 +67,40 @@ export class Harvester {
             this.creep.moveTo(this.mySource.nearByConstructionSite);
     }
 
+    repair() {
+        let target = <Structure>this.mySource.dropOffStructure;
+        if (target == null)
+            return;
+
+        if (this.creep.repair(target) == ERR_NOT_IN_RANGE)
+            this.memory.state == HarvesterState.Delivering;
+    }
+
+    shouldRepair() {
+        return this.mySource.dropOffStructure && this.mySource.dropOffStructure.pos.inRangeTo(this.creep.pos, 4) && (<Structure>this.mySource.dropOffStructure).hits < (<Structure>this.mySource.dropOffStructure).hitsMax;
+    }
+
     public tick() {
         if (this.mySource == null) {
             this.creep.say('NoMySource');
             return;
         }
 
-        if (this.memory.state == null)
+        if (this.memory.state == null || this.creep.memory.state == 'harvesting')
             this.memory.state = HarvesterState.Harvesting;
+        if (this.creep.memory.state == 'delivering')
+            this.memory.state = HarvesterState.Delivering;
+
         if (this.memory.state == HarvesterState.Harvesting && this.creep.carry.energy < this.creep.carryCapacity)
             this.harvest();
-        else if (this.memory.state == HarvesterState.Harvesting && this.creep.carry.energy == this.creep.carryCapacity)
+
+        else if (this.memory.state == HarvesterState.Harvesting && this.creep.carry.energy == this.creep.carryCapacity) {
+            if (this.shouldRepair)
+                this.memory.state = HarvesterState.Repairing;
+            else
+                this.memory.state = HarvesterState.Delivering;
+        }
+        else if (this.memory.state == HarvesterState.Repairing && (this.creep.carry.energy<10 || !this.mySource.dropOffStructure || (<Structure>this.mySource.dropOffStructure).hits == (<Structure>this.mySource.dropOffStructure).hitsMax))
             this.memory.state = HarvesterState.Delivering;
 
         if (this.memory.state == HarvesterState.Delivering && this.creep.carry.energy > 0) {
@@ -85,6 +109,8 @@ export class Harvester {
             else
                 this.deliver();
         }
+        else if (this.memory.state == HarvesterState.Repairing)
+            this.repair();
         else if (this.memory.state == HarvesterState.Delivering && this.creep.carry.energy == 0)
             this.memory.state = HarvesterState.Harvesting;
 

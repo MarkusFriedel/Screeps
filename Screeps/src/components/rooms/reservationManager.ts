@@ -32,12 +32,12 @@ export class ReservationManager {
             if (myRoom.memory.mainRoomDistanceDescriptions[this.mainRoom.name].distance >= 2 && !_.any(myRoom.mySources, x => x.requiresCarrier))
                 continue;
             let room = myRoom.room;
-            if (room && room.controller.reservation != null && room.controller.reservation.ticksToEnd > 1000)
+            if (room && room.controller.reservation != null && room.controller.reservation.ticksToEnd > 10000)
                 continue;
             if (Memory['verbose'] == true)
                 console.log('ReservationManager.checkCreep: 2 Room ' + myRoom.name);
             if (_.filter(this.creeps, (x) => (<ReserverMemory>x.memory).targetRoomName == myRoom.name).length == 0) {
-                this.mainRoom.spawnManager.AddToQueue([CLAIM, CLAIM, MOVE, MOVE], { role: 'reserver', targetRoomName: myRoom.name });
+                this.mainRoom.spawnManager.AddToQueue([CLAIM, CLAIM, MOVE, MOVE], { role: 'reserver', targetRoomName: myRoom.name },1,true);
             }
         }
     }

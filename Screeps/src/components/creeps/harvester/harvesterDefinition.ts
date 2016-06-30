@@ -7,8 +7,6 @@ export namespace HarvesterDefinition {
 
         let remainingEnergy = Math.min(maxEnergy, 1500);
         var basicModulesCount = ~~(remainingEnergy / 200); //work,carry,move
-        //if (basicModulesCount==0)
-        //    return ['work','carry','carry','move','move'];
 
         body.work = basicModulesCount;
         body.carry = basicModulesCount;

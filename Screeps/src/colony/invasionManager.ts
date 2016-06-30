@@ -33,10 +33,14 @@ export class InvasionManager {
     checkScouts(myRoom: MyRoom) {
         if (myRoom == null || myRoom.memory.lastScanTime < Game.time - 500) {
             if (this.scouts.length == 0) {
-                let mainRoom = myRoom.getClosestMainRoom();
-                if (mainRoom == null)
-                    return false;
-                mainRoom.spawnManager.AddToQueue(['move'], { handledByColony: true, invasionManager: this.roomName, role: 'scout', targetPosition: new RoomPosition(25, 25, this.roomName) });
+
+                if (myRoom && myRoom.getClosestMainRoom()) {
+                    let mainRoom = myRoom.getClosestMainRoom();
+
+                    mainRoom.spawnManager.AddToQueue(['move','work'], { handledByColony: true, invasionManager: this.roomName, role: 'scout', targetPosition: new RoomPosition(25, 25, this.roomName) },1,true);
+                }
+                else
+                    Colony.spawnCreep(['move','work'], { handledByColony: true, invasionManager: this.roomName, role: 'scout', targetPosition: new RoomPosition(25, 25, this.roomName) }, 1);
             }
             return false;
         }
@@ -47,7 +51,7 @@ export class InvasionManager {
     checkInvaders(myRoom: MyRoom, rallyFlag: Flag) {
         if (myRoom == null)
             return false;
-        let creepsRequired = 2;
+        let creepsRequired = 5;
         console.log('check invaders');
 
         if (this.invaders.length < creepsRequired) {
@@ -67,7 +71,7 @@ export class InvasionManager {
     checkDismantlers(myRoom: MyRoom, rallyFlag: Flag) {
         if (myRoom == null)
             return false;
-        let creepsRequired = 2;
+        let creepsRequired = 5;
 
         if (this.dismantlers.length < creepsRequired) {
             let mainRoom = myRoom.getClosestMainRoom();
@@ -78,6 +82,7 @@ export class InvasionManager {
 
             if (idleInvaders.length == 0) {
                 let moduleCount = Math.floor(mainRoom.maxSpawnEnergy / 150);
+                moduleCount = Math.min(moduleCount, 25);
                 let body = new Body();
                 body.work = moduleCount;
                 body.move = moduleCount;

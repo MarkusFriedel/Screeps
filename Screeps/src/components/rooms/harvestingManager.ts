@@ -109,8 +109,8 @@ export class HarvestingManager {
     public checkCreeps() {
         let startCpu: number;
         let endCpu: number;
-//        if (this.mainRoom.spawnManager.isBusy)
-//            return;
+        if (this.mainRoom.spawnManager.isBusy)
+            return;
         if (Memory['verbose'] || this.memory.verbose)
             console.log('HarvestingManager.checkCreeps()');
         for (var idx in this.mainRoom.sources) {
@@ -170,8 +170,8 @@ export class HarvestingManager {
     }
 
     public tick() {
-        this.harvesterCreeps.forEach((c) => new Harvester(c, this.mainRoom).tick());
-        this.sourceCarrierCreeps.forEach((c) => new SourceCarrier(c, this.mainRoom).tick());
+        this.harvesterCreeps.forEach((c) => { try { new Harvester(c, this.mainRoom).tick() } catch (e) { c.say('ERROR'); Memory['error'] = e; console.log(e);} });
+        this.sourceCarrierCreeps.forEach((c) => { try { new SourceCarrier(c, this.mainRoom).tick() } catch (e) { c.say('ERROR'); Memory['error'] = e; console.log(e); } });
     }
 
 }

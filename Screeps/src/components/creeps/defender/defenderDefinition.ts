@@ -18,7 +18,6 @@ export namespace DefenderDefinition {
             body.attack++; body.move++;
             remainingEnergy -= (BODYPART_COST.attack + BODYPART_COST.move);
         }
-
         return body;
     }
 

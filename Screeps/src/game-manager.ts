@@ -69,6 +69,8 @@ export namespace GameManager {
         console.log('Loop tracers :');
         for (let idx in Colony.tracers) {
             Colony.tracers[idx].print();
+            Colony.tracers[idx].reset();
+
         }
 
         let endCpu = Game.cpu.getUsed();

@@ -370,6 +370,13 @@ export class MainRoom {
         var endCpu;
         if (Memory['trace'])
             startCpu = Game.cpu.getUsed();
+        this.creepManagers.reservationManager.checkCreeps();
+        if (Memory['trace']) {
+            endCpu = Game.cpu.getUsed();
+            console.log('ReservationManager.checkCreeps: ' + (endCpu - startCpu).toFixed(2));
+        }
+        if (Memory['trace'])
+            startCpu = Game.cpu.getUsed();
         this.creepManagers.spawnFillManager.checkCreeps();
         if (Memory['trace']) {
             endCpu = Game.cpu.getUsed();
@@ -397,13 +404,7 @@ export class MainRoom {
             console.log('HarvestingManager.checkCreeps: ' + (endCpu - startCpu).toFixed(2));
         }
 
-        if (Memory['trace'])
-            startCpu = Game.cpu.getUsed();
-        this.creepManagers.reservationManager.checkCreeps();
-        if (Memory['trace']) {
-            endCpu = Game.cpu.getUsed();
-            console.log('ReservationManager.checkCreeps: ' + (endCpu - startCpu).toFixed(2));
-        }
+        
         if (Memory['trace'])
             startCpu = Game.cpu.getUsed();
         this.creepManagers.repairManager.createNewRepairers();

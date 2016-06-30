@@ -2554,6 +2554,7 @@
     <Content Include="node_modules\tsproject\node_modules\vinyl\node_modules\replace-ext\index.js" />
     <Content Include="node_modules\tsproject\node_modules\vinyl\node_modules\replace-ext\test\main.js" />
     <Content Include="node_modules\tsproject\tsproject.min.js" />
+    <Content Include="secrets - Copy.js" />
     <Content Include="secrets.js" />
   </ItemGroup>
   <ItemGroup>
@@ -2615,6 +2616,7 @@
     <TypeScriptCompile Include="src\components\creeps\spawnFiller\spawnFillerDefinition.ts" />
     <TypeScriptCompile Include="src\components\creeps\upgrader\upgrader.ts" />
     <TypeScriptCompile Include="src\components\creeps\upgrader\upgraderDefinition.ts" />
+    <TypeScriptCompile Include="src\components\memory\LazyLoadCache.ts" />
     <TypeScriptCompile Include="src\components\rooms\constructionManager.ts" />
     <TypeScriptCompile Include="src\components\rooms\defenseManager.ts" />
     <TypeScriptCompile Include="src\components\rooms\harvestingManager.ts" />
@@ -4730,7 +4732,6 @@
     <Content Include="node_modules\tsproject\README.md" />
   </ItemGroup>
   <ItemGroup>
-    <Folder Include="src\components\memory\" />
     <Folder Include="src\shared\" />
   </ItemGroup>
   <PropertyGroup>
