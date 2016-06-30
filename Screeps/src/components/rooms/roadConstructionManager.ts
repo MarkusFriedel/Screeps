@@ -57,17 +57,14 @@ export class RoadConstructionManager {
         if (!this.mainRoom.mainContainer)
             return;
 
-        let sources = _.filter(this.mainRoom.sources, (x) => x.memory.containerId != null && (x.memory.mainContainerRoadBuiltTo != this.mainRoom.name || (Game.time %500 == 0) )&& x.myRoom.canHarvest());
+        let sources = _.filter(this.mainRoom.sources, (x) => !x.keeper && x.sourceDropOffContainer != null && (x.roadBuiltToMainContainer != this.mainRoom.name || (Game.time % 500 == 0)) && x.myRoom.canHarvest());
 
         for (let sourceIdx = 0; sourceIdx < sources.length; sourceIdx++) {
-            let source = sources[sourceIdx];
-            let sourceContainer = Game.getObjectById<Container>(source.memory.containerId);
-            if (!sourceContainer)
-                continue;
+            let mySource = sources[sourceIdx];
 
-            let path = PathFinder.search(this.mainRoom.mainContainer.pos, { pos: sourceContainer.pos, range: 1 }, { swampCost: 2 });
+            let path = PathFinder.search(this.mainRoom.mainContainer.pos, { pos: mySource.sourceDropOffContainer.pos, range: 1 }, { swampCost: 2 });
             this.constructRoad(path.path, 0);
-            source.memory.mainContainerRoadBuiltTo = this.mainRoom.name;
+            mySource.roadBuiltToMainContainer = this.mainRoom.name;
             break;            
         }
 

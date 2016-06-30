@@ -2,121 +2,91 @@
 import {MainRoom} from "../../rooms/mainRoom";
 import {Colony}from "../../../colony/colony";
 
+export enum HarvesterState {
+    Harvesting,
+    Delivering
+}
+
 export class Harvester {
+    public get memory(): HarvesterMemory { return this.creep.memory; }
 
-    creep: Creep;
-    sourceId: string;
-    source: Source;
-    sourcePosition: RoomPosition;
-    mainRoom: MainRoom;
-    memory: HarvesterMemory;
-
-    constructor(creep: Creep, mainRoom: MainRoom) {
-        this.creep = creep;
-        this.mainRoom = mainRoom;
-        this.memory = <HarvesterMemory>creep.memory;
-
-        this.loadFromMemory();
-
+    _source: { time: number, source: Source } = { time: -1, source: null };
+    public get source(): Source {
+        if (this._source.time < Game.time)
+            this._source = {
+                time: Game.time, source: Game.getObjectById<Source>(this.memory.sourceId)
+            };
+        return this._source.source;
     }
 
-    getSourcePosition() {
-        this.source = Game.getObjectById<Source>(this.sourceId);
+    _mySource: { time: number, mySource: MySource } = { time: -1, mySource: null };
+    public get mySource(): MySource {
+        if (this._mySource.time < Game.time)
+            this._mySource = {
+                time: Game.time, mySource: this.mainRoom.sources[this.memory.sourceId]
+            };
+        return this._mySource.mySource;
+    }
 
-        if (this.source == null)
-            this.sourcePosition = this.source.pos;
+    constructor(public creep: Creep, public mainRoom: MainRoom) {
+    }
+
+
+    deliver(dontMove: boolean = false) {
+
+        if (this.mySource.dropOffStructure == null)
+            return;
+        if (this.creep.room.name == this.mySource.dropOffStructure.pos.roomName) {
+            if (this.creep.transfer(<Structure>this.mySource.dropOffStructure, RESOURCE_ENERGY) == ERR_NOT_IN_RANGE && !dontMove)
+                this.creep.moveTo(this.mySource.dropOffStructure);
+        }
         else
-            this.sourcePosition = this.mainRoom.sources[this.sourceId].pos;
+            this.creep.moveTo(this.mySource.dropOffStructure);
     }
 
     harvest() {
-        let source = Game.getObjectById<Source>(this.sourceId);
-        if (source != null) {
-            if (this.creep.harvest(source) == ERR_NOT_IN_RANGE)
-                this.creep.moveTo(source);
-            this.sourceContainerDropOff(true);
+        
+        if (this.source == null) {
+            this.creep.moveTo(this.mySource);
         }
         else {
-            this.creep.moveTo(this.sourcePosition);
+            if (this.creep.harvest(this.source) == ERR_NOT_IN_RANGE)
+                this.creep.moveTo(this.source);
+            else if (!this.mySource.nearByConstructionSite)
+                this.deliver(true);
         }
+
     }
 
-    sourceContainerDropOff(dontMove: boolean = false) {
-        //this.creep.say('test');
-        let container: Container | Link = null;
-        this.mainRoom.sources[this.sourceId].memory.linkId && (container = Game.getObjectById<Link>(this.mainRoom.sources[this.sourceId].memory.linkId));
-        if (container == null){
-            if (this.mainRoom.creepManagers.harvestingManager.sourceCarrierCreeps.length == 0 || this.mainRoom.creepManagers.spawnFillManager.creeps.length == 0)
-                return false;
-            this.mainRoom.sources[this.sourceId].memory.containerId && (container = Game.getObjectById<Container>(this.mainRoom.sources[this.sourceId].memory.containerId));
-        }
-        if (container) {
-            let result = this.creep.transfer(container, RESOURCE_ENERGY);
-            if (result == ERR_NOT_IN_RANGE && !dontMove)
-                this.creep.moveTo(container);
-            return true;
-        }
+    construct() {
+        if (!this.mySource.nearByConstructionSite)
+            return;
 
-        return false;
-    }
-
-    dropOff() {
-        if (!this.sourceContainerDropOff()) {
-            let dropOffContainer: Container | Storage | Spawn = this.mainRoom.mainContainer;
-
-            if (dropOffContainer == null || this.mainRoom.creepManagers.spawnFillManager.creeps.length == 0) {
-                //this.creep.say('test');
-                let spawns = this.mainRoom.room.find<Spawn>(FIND_MY_SPAWNS, { filter: (x: Spawn) => x.energy < x.energyCapacity });
-                for (var spawnName in spawns) {
-                    dropOffContainer = spawns[spawnName];
-                }
-            }
-
-            if (dropOffContainer) {
-                if (this.creep.transfer(dropOffContainer, RESOURCE_ENERGY) == ERR_NOT_IN_RANGE)
-                    this.creep.moveTo(dropOffContainer);
-            }
-            else if (this.memory.doConstructions) {
-                let nearestConstructionSite = this.creep.pos.findClosestByRange<ConstructionSite>(FIND_CONSTRUCTION_SITES);
-                if (this.creep.build(nearestConstructionSite) == ERR_NOT_IN_RANGE)
-                    this.creep.moveTo(nearestConstructionSite);
-            }
-        }
+        if (this.creep.build(this.mySource.nearByConstructionSite) == ERR_NOT_IN_RANGE)
+            this.creep.moveTo(this.mySource.nearByConstructionSite);
     }
 
     public tick() {
-        this.memory = <HarvesterMemory>this.creep.memory;
-
-        if (!this.mainRoom.sources[this.sourceId])
+        if (this.mySource == null) {
+            this.creep.say('NoMySource');
             return;
-
-        if (this.memory.state == null) {
-            if (this.creep.carry.energy <= this.creep.carryCapacity)
-                this.memory.state = 'harvesting';
-            else
-                this.memory.state = 'delivering';
         }
 
-        if (this.memory.state == 'harvesting' && this.creep.carry.energy == this.creep.carryCapacity)
-            this.memory.state = 'delivering';
-        else if (this.memory.state == 'delivering' && this.creep.carry.energy == 0)
-            this.memory.state = 'harvesting';
-
-        if (this.memory.state == 'harvesting') {
+        if (this.memory.state == null)
+            this.memory.state = HarvesterState.Harvesting;
+        if (this.memory.state == HarvesterState.Harvesting && this.creep.carry.energy < this.creep.carryCapacity)
             this.harvest();
+        else if (this.memory.state == HarvesterState.Harvesting && this.creep.carry.energy == this.creep.carryCapacity)
+            this.memory.state = HarvesterState.Delivering;
+
+        if (this.memory.state == HarvesterState.Delivering && this.creep.carry.energy > 0) {
+            if (this.source && this.mySource.nearByConstructionSite && this.mainRoom.mainContainer)
+                this.construct();
+            else
+                this.deliver();
         }
-        else {
-            this.dropOff();
-        }
-    }
+        else if (this.memory.state == HarvesterState.Delivering && this.creep.carry.energy == 0)
+            this.memory.state = HarvesterState.Harvesting;
 
-    loadFromMemory() {
-        this.sourceId = this.memory.sourceId;
-        this.mainRoom = Colony.mainRooms[this.memory.mainRoomName];
     }
-
-    saveToMemory() {
-        this.memory.mainRoomName = this.mainRoom.name;
-    }
-
 }

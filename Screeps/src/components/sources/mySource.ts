@@ -1,52 +1,200 @@
 ﻿import {Config} from "./../../config/config";
 import {MyRoom} from "../rooms/myRoom";
+import {MainRoom} from "../rooms/mainRoom";
+import {MySourceMemory} from "./mySourceMemory";
+import {RoomPos} from "../../helpers";
+import {Tracer} from "../../tracer";
+import {Colony} from "../../colony/colony";
 //import {ObjectWithMemory} from "../../objectWithMemory";
 
 
 export class MySource {
 
-    public get memory(): MySourceMemory {
+    private get memory(): MySourceMemory {
         return this.accessMemory();
     }
 
-    _room: { time: number, room: Room } = { time: 0, room: null };
+    private memoryInitialized = false;
+    public tracer: Tracer;
+
+    private accessMemory() {
+        if (this.myRoom.memory.sources == null)
+            this.myRoom.memory.sources = {};
+        if (this.myRoom.memory.sources[this.id] == null) {
+            let mem = new MySourceMemory();
+            mem.id = this.id;
+            this.myRoom.memory.sources[this.id] = mem;
+            mem.pos = this.source.pos;
+        }
+        this.memoryInitialized = true;
+        return this.myRoom.memory.sources[this.id];
+    }
+
+    private _room: { time: number, room: Room } = { time: -1, room: null };
     public get room(): Room {
+        let trace = this.tracer.start('Property room');
         if (this._room.time < Game.time)
             this._room = {
                 time: Game.time, room: Game.rooms[this.pos.roomName]
             };
+        trace.stop();
         return this._room.room;
+
     }
 
-    accessMemory() {
-        if (this.myRoom.memory.sources == null)
-            this.myRoom.memory.sources = {};
-        if (this.myRoom.memory.sources[this.id] == null)
-            this.myRoom.memory.sources[this.id] = {
-                id:this.id,
-                containerId: null,
-                energyCapacity: null,
-                harvestingSpots: null,
-                keeper: null,
-                lastScanTime: null,
-                pos: null,
-                mainContainerRoadBuiltTo: null,
-                mainContainerPathLength: null,
-                linkId:null
-            }
-        return this.myRoom.memory.sources[this.id];
+    private _source: { time: number, source: Source } = { time: -1, source: null }
+    public get source(): Source {
+        let trace = this.tracer.start('Property source');
+        if (this._source.time < Game.time)
+            this._source = { time: Game.time, source: Game.getObjectById<Source>(this.id) }
+        trace.stop();
+        return this._source.source;
     }
 
-    id: string;
-    pos: RoomPosition;
+    private _sourceDropOffContainer: { time: number, sourceDropOffContainer: Structure } = { time: -1, sourceDropOffContainer: null }
+    public get sourceDropOffContainer(): { id: string, pos: RoomPosition } {
+        let trace = this.tracer.start('Property sourceDropOffContainer');
+        if (this._sourceDropOffContainer.time == Game.time)
+            return this._sourceDropOffContainer.sourceDropOffContainer;
 
-    constructor(id: string,public myRoom: MyRoom) {
-        this.id = id;
-        this.memory.id = id;        
-        if (this.memory.lastScanTime == null)
-            this.scan();
-        if (this.memory.pos)
-            this.pos = new RoomPosition(this.memory.pos.x, this.memory.pos.y, this.memory.pos.roomName);       
+        if (this.source && (!this.memory.sourceDropOffContainer || (this.memory.sourceDropOffContainer.time + 50) < Game.time)) {
+            let structure = this.getSourceDropOffContainer();
+            this._sourceDropOffContainer = { time: Game.time, sourceDropOffContainer: structure };
+            this.memory.sourceDropOffContainer = { time: Game.time, value: structure ? { id: structure.id, pos: structure ? structure.pos : null } : null }
+            trace.stop();
+            return structure;
+        }
+        else {
+            let structure = null;
+            if (this.memory.sourceDropOffContainer.value)
+                structure = Game.getObjectById<Structure>(this.memory.sourceDropOffContainer.value.id);
+            trace.stop();
+            if (structure == null)
+                structure = this.memory.sourceDropOffContainer.value
+
+            this._sourceDropOffContainer = { time: Game.time, sourceDropOffContainer: structure };
+            return structure ? structure : null;
+        }
+
+
+    }
+    private _dropOffStructre: { time: number, dropOffStructure: Structure } = { time: -1, dropOffStructure: null }
+    public get dropOffStructure(): { id: string, pos: RoomPosition } {
+        let trace = this.tracer.start('Property dropOffStructure');
+        if (this._dropOffStructre.time == Game.time)
+            return this._dropOffStructre.dropOffStructure;
+
+        if (this.source && (!this.memory.dropOffStructure || this.memory.dropOffStructure.time + 50 < Game.time)) {
+            let structure = this.getDropOffStructure();
+            this.memory.dropOffStructure = { time: Game.time, value: structure ? { id: structure.id, pos: structure.pos } : null }
+            trace.stop();
+            return structure;
+        }
+        else {
+            let structure = Game.getObjectById<Structure>(this.memory.dropOffStructure.value.id);
+            trace.stop();
+            this._dropOffStructre = { time: Game.time, dropOffStructure: structure };
+            return structure ? structure : (this.memory.dropOffStructure ? { id: this.memory.dropOffStructure.value.id, pos: RoomPos.fromObj(this.memory.dropOffStructure.value.pos) } : null);
+        }
+    }
+
+    private _nearByConstructionSite: { time: number, constructionSite: ConstructionSite } = { time: -1, constructionSite: null };
+    public get nearByConstructionSite(): ConstructionSite {
+        let trace = this.tracer.start('Property nearByConstruction');
+        if (this._nearByConstructionSite.time + 10 < Game.time) {
+            this._nearByConstructionSite = {
+                time: Game.time, constructionSite: _.filter(RoomPos.fromObj(this.memory.pos).findInRange<ConstructionSite>(FIND_CONSTRUCTION_SITES, 4))[0]
+            };
+        }
+        trace.stop();
+        return this._nearByConstructionSite.constructionSite;
+    }
+
+    public get pos(): RoomPosition {
+        let trace = this.tracer.start('Property pos');
+        trace.stop();
+        return this.source != null ? this.source.pos : RoomPos.fromObj(this.memory.pos);
+    }
+
+    public get maxHarvestingSpots(): number {
+        let trace = this.tracer.start('Property maxHarvestingSpots');
+        if (this.memory.harvestingSpots != null || this.source == null) {
+            trace.stop();
+            return this.memory.harvestingSpots;
+        }
+        else {
+            let pos = this.source.pos;
+            trace.stop();
+            return _.filter((<LookAtResultWithPos[]>this.source.room.lookForAtArea(LOOK_TERRAIN, pos.y - 1, pos.x - 1, pos.y + 1, pos.x + 1, true)), x => x.terrain == 'swamp' || x.terrain == 'plain').length;
+        }
+    }
+
+    public get keeper(): boolean {
+        let trace = this.tracer.start('Property keeper');
+        if (this.memory.keeper != null) {
+            trace.stop();
+            return this.memory.keeper;
+        }
+        else {
+            this.memory.keeper = this.source.pos.findInRange(FIND_STRUCTURES, 5, { filter: (s) => s.structureType == STRUCTURE_KEEPER_LAIR }).length > 0;
+            trace.stop();
+            return this.memory.keeper;
+        }
+    }
+
+    public get roadBuiltToMainContainer() {
+        return this.memory.mainContainerRoadBuiltTo;
+    }
+    public set roadBuiltToMainContainer(value: string) {
+        this.memory.mainContainerRoadBuiltTo = value;
+    }
+
+    public get pathLengthToMainContainer() {
+        let trace = this.tracer.start('Property pathLengthToMainContainer');
+        if (this.memory.mainContainerPathLength != null || this.source == null) {
+            trace.stop();
+            return this.memory.mainContainerPathLength;
+        }
+        else {
+            let pathLength = PathFinder.search(this.myRoom.mainRoom.spawns[0].pos, { pos: this.source.pos, range: 1 }).path.length;
+            this.memory.mainContainerPathLength = pathLength;
+            trace.stop();
+            return pathLength;
+        }
+    }
+
+    public get requiresCarrier() {
+        //console.log('Requires Carrier: sourceDropOff: ' + ((this.sourceDropOffContainer) ? 'true' : 'false'));
+        //if (this.room)
+        //    console.log('Requires Carrier: getSourceDropOff: ' + (this.getSourceDropOffContainer() ? 'true' : 'false'));
+        //console.log('Requires Carrier: mainContainer: ' + (this.myRoom.mainRoom.mainContainer ? 'true' : 'false'));
+        //console.log('Requires Carrier: hasLink: ' + (this.hasLink ? 'true' : 'false'));
+        return this.sourceDropOffContainer != null && this.myRoom.mainRoom.mainContainer != null && !this.hasLink;
+    }
+
+
+    public get energyCapacity() {
+        let trace = this.tracer.start('Property energyCapacity');
+        if (this.source)
+            this.memory.energyCapacity = this.source.energyCapacity;
+        trace.stop();
+        return this.memory.energyCapacity;
+    }
+
+    public get hasLink() {
+        let trace = this.tracer.start('Property hasLink');
+        if ((this.memory.hasLink == null || (Game.time % 100 == 0)) && this.source) {
+            this.memory.hasLink = this.source.pos.findInRange(FIND_STRUCTURES, 4, { filter: (x: Structure) => x.structureType == STRUCTURE_LINK }).length > 0;
+        }
+        trace.stop();
+        return this.memory.hasLink;
+    }
+
+    constructor(public id: string, public myRoom: MyRoom) {
+        this.tracer = new Tracer('MySource ' + id);
+        Colony.tracers.push(this.tracer);
+
+        this.accessMemory();
     }
 
     getHarvestingSpots(source) {
@@ -63,105 +211,66 @@ export class MySource {
         return 9 - walls;
     }
 
-    public findContainer() {
-        let candidates = this.pos.findInRange<Container | Storage>(FIND_STRUCTURES, 4, {
-            filter: (s: Structure) => s.structureType == STRUCTURE_CONTAINER || s.structureType == STRUCTURE_STORAGE
-        });
-        if (candidates.length > 0)
-            return candidates[0];
-        else return null;
-    }
-
-    public findLink() {
-        let candidates = this.pos.findInRange<Link>(FIND_MY_STRUCTURES, 4, {
-            filter: (s: Structure) => s.structureType == STRUCTURE_LINK
-        });
-        if (candidates.length > 0)
-            return candidates[0];
-        else return null;
-    }
-
-   calculatePathLengthToMainContainer() {
-        let mainContainer = null;
-        this.myRoom && this.myRoom.mainRoom && (mainContainer = this.myRoom.mainRoom.mainContainer);
-
-        let sourceContainer = null;
-        this.memory.containerId && (sourceContainer = Game.getObjectById(this.memory.containerId));
-
-        if (mainContainer == null || sourceContainer == null)
-            return null;
-
-        let path = PathFinder.search(mainContainer.pos, { pos: sourceContainer.pos, range: 2 });
-
-        this.memory.mainContainerPathLength = path.path.length;
-        return this.memory.mainContainerPathLength;
-    }
-
-
-    public scan() {
-        let source = <Source>Game.getObjectById(this.id);
-        if (source != null) {
-            this.memory.lastScanTime = Game.time;
-
-
-            this.memory.energyCapacity = source.energyCapacity;
-            this.memory.pos = source.pos;
-            this.pos = new RoomPosition(this.memory.pos.x, this.memory.pos.y, this.memory.pos.roomName);       
-            this.memory.lastScanTime = Game.time;
-            this.memory.keeper = source.pos.findInRange(FIND_STRUCTURES, 5, { filter: (s) => s.structureType == STRUCTURE_KEEPER_LAIR }).length > 0;
-
-            this.memory.harvestingSpots = this.getHarvestingSpots(source);
-
-            if (this.memory.mainContainerPathLength==null)
-                this.calculatePathLengthToMainContainer();
-
-            if (!Game.getObjectById(this.memory.containerId)) {
-                let container = this.findContainer();
-                if (container) {
-                    this.memory.containerId = container.id;
-                }
-                else {
-                    this.memory.containerId = null;
-                }
-            }
-
-            if (!Game.getObjectById(this.memory.linkId)) {
-                let link = this.findLink();
-                if (link)
-                    this.memory.linkId = link.id;
-                else
-                    this.memory.linkId = null;
-            }
-
-            return true;
-        }
-        return false;
-    }
-
     public containerMissing() {
-        if (this.room == null)
+        if (this.requiresCarrier)
             return false;
-        if (Game.getObjectById(this.memory.containerId) != null)
-            return false;
-        let container = this.findContainer();
-        let link = this.findLink();
-
-        if (container != null) {
-            this.memory.containerId = container.id;
-            return false;
-        }
-        if (link != null) {
-            this.memory.linkId = link.id;
-            return false;
-        }
-
-        this.memory.containerId = null;
 
         return this.pos.findInRange<ConstructionSite>(FIND_CONSTRUCTION_SITES, 4, {
-            filter: (s: Structure) => s.structureType == STRUCTURE_CONTAINER || s.structureType == STRUCTURE_STORAGE || s.structureType == STRUCTURE_LINK
+            filter: (s: Structure) => (s.structureType == STRUCTURE_CONTAINER || s.structureType == STRUCTURE_STORAGE || s.structureType == STRUCTURE_LINK)
         }).length == 0;
-
-
-
     }
+
+    private getSourceDropOffContainer() {
+        let containerCandidate = this.pos.findInRange<Container | Storage>(FIND_STRUCTURES, 4, {
+            filter: (s: Structure) => (s.structureType == STRUCTURE_CONTAINER || s.structureType == STRUCTURE_STORAGE) && s.isActive()
+        })[0];
+
+        return containerCandidate;
+    }
+
+    private getDropOffStructure(): Storage | Container | Link | Spawn {
+
+        let linkCandidate = this.pos.findInRange<Link>(FIND_MY_STRUCTURES, 4, {
+            filter: (s: Structure) => s.structureType == STRUCTURE_LINK && s.isActive()
+        })[0];
+
+        if (this.myRoom.mainRoom.creepManagers.harvestingManager.sourceCarrierCreeps.length > 0) {
+            
+
+            let sourceDropOff = this.getSourceDropOffContainer();
+            if (sourceDropOff && sourceDropOff.structureType == STRUCTURE_STORAGE)
+                return sourceDropOff;
+            else if (linkCandidate)
+                return linkCandidate;
+            else if (sourceDropOff)
+                return sourceDropOff;
+        }
+
+        if (linkCandidate)
+            return linkCandidate;
+        if (this.myRoom.mainRoom.creepManagers.spawnFillManager.creeps.length > 0) {
+            if (this.myRoom.mainRoom.mainContainer)
+                return this.myRoom.mainRoom.mainContainer;
+        }
+
+        if (this.myRoom.mainRoom.spawns[0])
+            return this.myRoom.mainRoom.spawns[0];
+
+        return null;
+    }
+
+    //initializeMemory(): MySourceMemory {
+    //    //var mem: MySourceMemory = new MySourceMemory();
+    //    //mem.id = this.source.id;
+    //    //mem.pos = this.source.pos;
+    //    //mem.energyCapacity = this.source.energyCapacity;
+    //    //mem.keeper = this.keeper;
+    //    //mem.harvestingSpots = this.maxHarvestingSpots;
+    //    //mem.mainContainerRoadBuiltTo = null;
+    //    //mem.mainContainerPathLength = this.pathLengthToMainContainer;
+    //    //mem.hasSourceDropOff = this.hasSourceDropOff;
+    //    //mem.hasLink = this.hasLink;
+
+    //    return mem;
+    //}
 }

@@ -2,29 +2,38 @@
 import {MainRoom} from "../../rooms/mainRoom";
 
 export class SourceCarrier {
+    public get memory(): SourceCarrierMemory { return this.creep.memory; }
 
-    creep: Creep;
-    mainRoom: MainRoom;
-    memory: SourceCarrierMemory;
-    mySource: MySource;
-    sourceContainer: Container;
+    _source: { time: number, source: Source } = { time: 0, source: null };
+    public get source(): Source {
+        if (this._source.time < Game.time)
+            this._source = {
+                time: Game.time, source: Game.getObjectById<Source>(this.memory.sourceId)
+            };
+        return this._source.source;
+    }
 
-    constructor(creep: Creep, mainRoom: MainRoom) {
-        this.creep = creep;
-        this.mainRoom = mainRoom;
-        this.memory = <SourceCarrierMemory>this.creep.memory;
-        this.mySource = this.mainRoom.sources[this.memory.sourceId];
+    _mySource: { time: number, mySource: MySource } = { time: 0, mySource: null };
+    public get mySource(): MySource {
+        if (this._mySource.time < Game.time)
+            this._mySource = {
+                time: Game.time, mySource: this.mainRoom.sources[this.memory.sourceId]
+            };
+        return this._mySource.mySource;
+    }
 
+
+    constructor(public creep: Creep, public mainRoom: MainRoom) {
     }
 
     pickUp() {
-        this.memory = <SourceCarrierMemory>this.creep.memory;
-        if (this.mySource.pos.roomName != this.creep.room.name)
-            this.creep.moveTo(this.mySource);
+        if (!this.mySource.sourceDropOffContainer)
+            return;
+        if (this.mySource.sourceDropOffContainer.pos.roomName != this.creep.pos.roomName)
+            this.creep.moveTo(this.mySource.sourceDropOffContainer);
         else {
-            this.sourceContainer = Game.getObjectById<Container>(this.mySource.memory.containerId);
-            if (this.sourceContainer && this.sourceContainer.transfer(this.creep, RESOURCE_ENERGY) == ERR_NOT_IN_RANGE)
-                this.creep.moveTo(this.sourceContainer);
+            if (this.mySource.sourceDropOffContainer && (<Container|Storage>this.mySource.sourceDropOffContainer).transfer(this.creep, RESOURCE_ENERGY) == ERR_NOT_IN_RANGE)
+                this.creep.moveTo(this.mySource.sourceDropOffContainer);
         }
     }
 

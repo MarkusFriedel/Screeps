@@ -1,22 +1,16 @@
 ﻿import {MainRoom} from "../../rooms/mainRoom";
 
 export class Constructor {
-
-    creep: Creep;
+    public get memory(): ConstructorMemory { return this.creep.memory; }
     target: ConstructionSite;
     targetPosition: RoomPosition;
-    mainRoom: MainRoom;
-    memory: ConstructorMemory;
 
-    constructor(creep: Creep, mainRoom: MainRoom) {
-        this.creep = creep;
-        this.memory = <ConstructorMemory>this.creep.memory;
 
-        this.mainRoom = mainRoom;
+
+    constructor(public creep: Creep, public mainRoom: MainRoom) {
 
         this.target = Game.getObjectById<ConstructionSite>(this.memory.targetId);
         if (this.target != null) {
-            this.creep.memory.targetPosition = this.target.pos;
             this.targetPosition = this.target.pos;
             this.memory.targetPosition = this.targetPosition;
         }
@@ -34,8 +28,12 @@ export class Constructor {
     }
 
     construct() {
+        
         if (this.target != null) {
-            if (this.creep.build(this.target) == ERR_NOT_IN_RANGE)
+            let result = this.creep.build(this.target);
+            if (result == ERR_RCL_NOT_ENOUGH)
+                this.target.remove();
+            else if (result == ERR_NOT_IN_RANGE)
                 this.creep.moveTo(this.target);
         }
         else {
@@ -49,9 +47,7 @@ export class Constructor {
     }
 
     public tick() {
-        this.memory = <ConstructorMemory>this.creep.memory;
-
-        //this.creep.say('construct');
+        
 
         if (this.creep.carry.energy > 0) {
             if (this.targetPosition != null)

@@ -5,8 +5,11 @@ import {Scout} from "../components/creeps/scout/scout";
 import {ClaimingManager} from "./claimingManager";
 
 import {InvasionManager} from "./invasionManager";
+import {Tracer} from "../tracer";
 
 export namespace Colony {
+
+    export var tracers: Array<Tracer> = [];
 
     export var myName;
 
@@ -60,14 +63,14 @@ export namespace Colony {
     function shouldSendScout(roomName): boolean {
         var myRoom = getRoom(roomName);
         var result =
-            !Game.map.isRoomProtected(roomName)
-            && (myRoom == null || !myRoom.memory.hostiles && !myRoom.memory.foreignOwner && !myRoom.memory.foreignReserver || (Game.time % 2000) == 0);
+            !Game.map.isRoomProtected(roomName) && !(myRoom != null && myRoom.mainRoom)
+            && (myRoom != null && !myRoom.memory.hostiles && !myRoom.memory.foreignOwner && !myRoom.memory.foreignReserver || (Game.time % 2000) == 0);
 
         return result;
     }
 
 
-    export function spawnCreep(body,memory,count=1) {
+    export function spawnCreep(body, memory, count = 1) {
         for (let roomName in mainRooms) {
             let mainRoom = mainRooms[roomName];
             mainRoom.spawnManager.AddToQueue(body, memory, count);
@@ -117,8 +120,9 @@ export namespace Colony {
         if (!memory.mainRooms) memory.mainRooms = {};
         var mainRoomNames = _.uniq(_.map(Game.spawns, (s) => s.room.name));
         for (var idx in mainRoomNames) {
-            if (!claimingManagers[mainRoomNames[idx]])
+            if (!claimingManagers[mainRoomNames[idx]]) {
                 mainRooms[mainRoomNames[idx]] = new MainRoom(mainRoomNames[idx]);
+            }
         }
 
         if (memory.claimingManagers != null) {
@@ -149,13 +153,12 @@ export namespace Colony {
             myRoom.memory.mainRoomDistanceDescriptions[mainRoom.name] = { roomName: mainRoom.name, distance: distance };
         }
         let mainRoomCandidates = _.sortBy(_.map(_.filter(myRoom.memory.mainRoomDistanceDescriptions, (x) => x.distance <= 1), function (y) { return { distance: y.distance, mainRoom: mainRooms[y.roomName] }; }), z => [z.distance.toString(), (10 - z.mainRoom.room.controller.level).toString()].join('_'));
-        if (mainRoomCandidates.length > 0 && !myRoom.memory.foreignOwner && (mainRoomCandidates[0].distance == 1 || mainRoomCandidates[0].mainRoom.room.controller.level>=6)) {
+        if (mainRoomCandidates.length > 0 && !myRoom.memory.foreignOwner && (mainRoomCandidates[0].distance <= 1 || mainRoomCandidates[0].mainRoom.room.controller.level >= 6)) {
             myRoom.mainRoom = mainRoomCandidates[0].mainRoom;
             myRoom.memory.mainRoomName = mainRoomCandidates[0].mainRoom.name;
         }
         else {
             myRoom.mainRoom = null;
-            myRoom.memory.mainRoomName = null;
         }
     }
 
@@ -164,7 +167,7 @@ export namespace Colony {
             var startCpu = Game.cpu.getUsed();
 
         let flags = _.filter(Game.flags, (x) => x.memory.claim == 'true' && !mainRooms[x.pos.roomName])
-        
+
         for (let idx in flags) {
             claimingManagers[flags[idx].pos.roomName] = new ClaimingManager(flags[idx].pos);
         }
@@ -173,7 +176,7 @@ export namespace Colony {
             claimingManagers[idx].tick();
         }
 
-        
+
 
         if (Memory['trace']) {
             var endCpu = Game.cpu.getUsed();
@@ -192,7 +195,7 @@ export namespace Colony {
         _.values<InvasionManager>(invasionManagers).forEach(x => x.tick());
 
 
-        let invasionsToDelete = _.filter(invasionManagers, x => !_.any(Game.flags, f => (f.memory.invasion == true || f.memory.invasion=='true') && f.pos.roomName == x.roomName));
+        let invasionsToDelete = _.filter(invasionManagers, x => !_.any(Game.flags, f => (f.memory.invasion == true || f.memory.invasion == 'true') && f.pos.roomName == x.roomName));
 
         if (Memory['trace']) {
             var endCpu = Game.cpu.getUsed();

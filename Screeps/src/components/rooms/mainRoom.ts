@@ -24,7 +24,7 @@ export class MainRoom {
         return this.accessMemory();
     }
 
-    _room: { time: number, room: Room } = { time: 0, room: null };
+    _room: { time: number, room: Room } = { time: -1, room: null };
     public get room(): Room {
         if (this._room.time < Game.time)
             this._room = {
@@ -33,8 +33,10 @@ export class MainRoom {
         return this._room.room;
     }
 
-    _maxSpawnEnergy: { time: number, maxSpawnEnergy: number } = { time: 0, maxSpawnEnergy: 300 };
+    _maxSpawnEnergy: { time: number, maxSpawnEnergy: number } = { time: -1, maxSpawnEnergy: 300 };
     public get maxSpawnEnergy(): number {
+        if (this.creepManagers.spawnFillManager.creeps.length == 0)
+            return 300;
         if (this._maxSpawnEnergy.time + 50 < Game.time)
             this._maxSpawnEnergy = {
                 time: Game.time, maxSpawnEnergy: this.getMaxSpawnEnergy()
@@ -43,7 +45,7 @@ export class MainRoom {
         //return 400;
     }
 
-    _creeps: { time: number, creeps: Array<Creep> } = { time: 0, creeps: null };
+    _creeps: { time: number, creeps: Array<Creep> } = { time: -1, creeps: null };
     public get creeps(): Array<Creep> {
         if (this._creeps.time < Game.time)
             this._creeps = {
@@ -52,13 +54,22 @@ export class MainRoom {
         return this._creeps.creeps;
     }
 
-    _mainContainer: { time: number, mainContainer: Container | Storage } = { time: 0, mainContainer: null };
+    _mainContainer: { time: number, mainContainer: Container | Storage } = { time: -1, mainContainer: null };
     public get mainContainer(): Container | Storage {
-        if (this._mainContainer.time < Game.time)
+        if (this._mainContainer.time + 100 < Game.time)
             this._mainContainer = {
                 time: Game.time, mainContainer: this.checkAndPlaceStorage()
             };
         return this._mainContainer.mainContainer;
+    }
+
+    _spawns: { time: number, spawns: Array<Spawn> } = { time: -1, spawns:null };
+    public get spawns(): Array<Spawn> {
+        if (this._spawns.time < Game.time)
+            this._spawns = {
+                time: Game.time, spawns: _.filter(Game.spawns, x => x.room.name == this.name)
+            };
+        return this._spawns.spawns;
     }
 
     accessMemory() {
@@ -92,8 +103,6 @@ export class MainRoom {
     extensionCount: number;
     links: Array<MyLink>;
 
-    spawnNames: Array<string>;
-
     sources: {
         [id: string]: MySource;
     };
@@ -116,7 +125,6 @@ export class MainRoom {
         this.name = roomName;
         this.myRoom = Colony.getRoom(roomName);
         this.myRoom.mainRoom = this;
-        this.myRoom.memory.mainRoomName = this.name;
         if (this.myRoom.memory.mainRoomDistanceDescriptions == null)
             this.myRoom.memory.mainRoomDistanceDescriptions = {};
         this.myRoom.memory.mainRoomDistanceDescriptions[this.name] = { roomName: this.name, distance: 0 };
@@ -130,7 +138,7 @@ export class MainRoom {
             this.mainPosition = new RoomPosition(pos.x, pos.y, roomName);
         }
         else {
-            this.mainPosition = Game.spawns[this.spawnNames[0]].pos;
+            this.mainPosition = this.spawns[0].pos;
             this.memory.mainPosition = this.mainPosition;
         }
 
@@ -166,7 +174,7 @@ export class MainRoom {
     getMaxSpawnEnergy(): number {
         let maxSpawnEnergy = 0;
 
-        this.extensionCount = this.room.find(FIND_MY_STRUCTURES, { filter: (s: Structure) => s.structureType == STRUCTURE_EXTENSION }).length;
+        this.extensionCount = this.room.find(FIND_MY_STRUCTURES, { filter: (s: Structure) => s.structureType == STRUCTURE_EXTENSION && s.isActive() }).length;
         if (this.extensionCount > CONTROLLER_STRUCTURES.extension[this.room.controller.level])
             this.extensionCount = CONTROLLER_STRUCTURES.extension[this.room.controller.level];
 
@@ -187,10 +195,10 @@ export class MainRoom {
     }
 
     getAllSources() {
-        var sources = this.myRoom.sources;
+        var sources = this.myRoom.mySources;
         for (var roomIdx in _.filter(this.connectedRooms, x => x.canHarvest))
-            for (var sourceIdx in this.connectedRooms[roomIdx].sources)
-                sources[this.connectedRooms[roomIdx].sources[sourceIdx].id] = this.connectedRooms[roomIdx].sources[sourceIdx];
+            for (var sourceIdx in this.connectedRooms[roomIdx].mySources)
+                sources[this.connectedRooms[roomIdx].mySources[sourceIdx].id] = this.connectedRooms[roomIdx].mySources[sourceIdx];
         return sources;
     }
 
@@ -240,7 +248,7 @@ export class MainRoom {
             targetPos = new RoomPosition(this.mainPosition.x + 4, this.mainPosition.y + 4, this.name);
         else {
             targetPos = new RoomPosition(this.mainPosition.x, this.mainPosition.y, this.name);
-            let direction = this.mainPosition.getDirectionTo(closestSource);
+            let direction = this.mainPosition.getDirectionTo(this.room.controller);
             switch (direction) {
                 case TOP:
                     targetPos.y -= 4;
@@ -285,7 +293,7 @@ export class MainRoom {
             targetPos = new RoomPosition(this.mainPosition.x + 2, this.mainPosition.y + 2, this.name);
         else {
             targetPos = new RoomPosition(this.mainPosition.x, this.mainPosition.y, this.name);
-            let direction = this.mainPosition.getDirectionTo(closestSource);
+            let direction = this.mainPosition.getDirectionTo(this.room.controller);
             switch (direction) {
                 case TOP:
                     targetPos.y -= 2;
@@ -398,7 +406,7 @@ export class MainRoom {
         }
         if (Memory['trace'])
             startCpu = Game.cpu.getUsed();
-        this.creepManagers.repairManager.checkCreeps();
+        this.creepManagers.repairManager.createNewRepairers();
         if (Memory['trace']) {
             endCpu = Game.cpu.getUsed();
             console.log('RepairManager.checkCreeps: ' + (endCpu - startCpu).toFixed(2));
@@ -511,13 +519,13 @@ export class MainRoom {
             console.log('MainRoom.links.tick: ' + (endCpu - startCpu).toFixed(2));
         }
 
-        if (Memory['trace'])
-            startCpu = Game.cpu.getUsed();
-        this.checkAndPlaceStorage();
-        if (Memory['trace']) {
-            endCpu = Game.cpu.getUsed();
-            console.log('MainRoom.checAndPlaceStorage: ' + (endCpu - startCpu).toFixed(2));
-        }
+        //if (Memory['trace'])
+        //    startCpu = Game.cpu.getUsed();
+        //this.checkAndPlaceStorage();
+        //if (Memory['trace']) {
+        //    endCpu = Game.cpu.getUsed();
+        //    console.log('MainRoom.checAndPlaceStorage: ' + (endCpu - startCpu).toFixed(2));
+        //}
         if (Memory['trace'])
             startCpu = Game.cpu.getUsed();
         this.placeExtensions();

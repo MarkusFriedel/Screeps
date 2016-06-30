@@ -1,5 +1,18 @@
 ﻿declare var BODYPARTS_ALL: Array<string>;
 
+interface IStructure {
+    id: String;
+    pos: Room;
+    room: string;
+    hits: number;
+    hitsMax: number;
+}
+
+interface cachedProperty<T> {
+    time: number;
+    value: T;
+}
+
 interface ColonyMemory {
     mainRooms: {
         [roomName: string]: MainRoomMemory;
@@ -39,17 +52,18 @@ interface RoomPositionMemory {
     roomName: string;
 }
 
-interface MySourceMemory {
+interface IMySourceMemory {
     id: string;
     pos: RoomPositionMemory;
     energyCapacity: number;
-    lastScanTime: number;
     keeper: boolean;
     harvestingSpots: number;
-    containerId: string;
     mainContainerRoadBuiltTo: string;
     mainContainerPathLength: number;
-    linkId: string;
+    hasSourceDropOff: boolean;
+    hasLink: boolean;
+    dropOffStructure: cachedProperty<{ id: string, pos: RoomPosition }>;
+    sourceDropOffContainer: cachedProperty<{ id: string, pos: RoomPosition }>;
 }
 
 interface MyContainerMemory {
@@ -62,7 +76,7 @@ interface MyRoomMemory {
     name: string;
     lastScanTime: number;
     sources: {
-        [id: string]: MySourceMemory;
+        [id: string]: IMySourceMemory;
     }
     containers: {
         [id: string]: MyContainerMemory;
@@ -90,9 +104,8 @@ interface HarvestingManagerMemory {
 interface RepairTarget {
     id: string;
     pos: RoomPositionMemory;
-    structureType: string;
-    hits: number;
-    hitsMax: number;
+    repairToHits: number;
+    isEmergency: boolean;
 }
 
 interface RepairTargetHashMap {
@@ -136,10 +149,13 @@ interface ScoutMemory extends CreepMemory {
     targetPosition: RoomPosition;
 }
 
+declare enum HarvesterState {
+    Harvesting = 0,
+    Delivering = 1
+}
 interface HarvesterMemory extends CreepMemory {
     sourceId: string;
-    doConstructions: boolean;
-    state: string;
+    state: HarvesterState;
 }
 
 interface SourceCarrierMemory extends CreepMemory {
@@ -149,10 +165,16 @@ interface SourceCarrierMemory extends CreepMemory {
 interface DefenderMemory extends CreepMemory {
     targetRoomName: string;
 }
-
+declare enum RepairerState {
+    Refilling = 0,
+    Repairing = 1
+}
 interface RepairerMemory extends CreepMemory {
-    repairTarget: RepairTarget;
+    targetId: string;
+    isEmergency: boolean;
     roomName: string;
+    state: RepairerState;
+    fillupContainerId: string;
 }
 
 interface ConstructorMemory extends CreepMemory {
@@ -197,3 +219,4 @@ interface ClaimingManagerMemory {
 interface InvasionManagerMemory {
     targetRoomName: string;
 }
+

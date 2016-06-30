@@ -100,7 +100,7 @@ export class ClaimingManager {
         if (myRoom == null)
             return false;
         let needCreeps = false;
-        let sources = _.filter(myRoom.sources, x => x.memory.keeper == false);
+        let sources = _.filter(myRoom.mySources, x => x.keeper == false);
         for (let idx in sources) {
             let mySource = sources[idx];
             let creepCount = _.filter(this.spawnConstructors, (x) => x.memory.sourceId == mySource.id).length;

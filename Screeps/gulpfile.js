@@ -16,7 +16,7 @@ gulp.task('upload-sim', ['compile'], function () {
     var email = secrets.email,
         password = secrets.password,
         data = {
-            branch: 'default',
+            branch: 'sim',
             modules: {
                 main: fs.readFileSync('./dist/main.js', { encoding: "utf8" }),
                 'screeps-profiler': fs.readFileSync('./src/screeps-profiler.js',{encoding:"utf8"})

@@ -12,7 +12,7 @@ export class MyRoom {
         return this.accessMemory();
     }
 
-    _room: { time: number, room: Room } = { time: 0, room: null };
+    _room: { time: number, room: Room } = { time: -1, room: null };
     public get room(): Room {
         if (this._room.time < Game.time)
             this._room = {
@@ -21,14 +21,60 @@ export class MyRoom {
         return this._room.room;
     }
 
+    _myContainers: {
+        time: number,
+        myContainers: { [id: string]: MyContainer; }
+    } = { time: -101, myContainers: {} };
+
+    public get myContainers(): { [id: string]: MyContainer; } {
+        if (((this._myContainers.time + 100) < Game.time || this.memory.containers == null) && this.room) {
+            let containers = _.map(this.room.find<Container>(FIND_STRUCTURES, { filter: (x: Structure) => x.structureType == STRUCTURE_CONTAINER }), x => new MyContainer(x.id, this));
+            this._myContainers = {
+                time: Game.time,
+                myContainers: _.indexBy(containers, (x) => x.id)
+            };
+        }
+        return this._myContainers.myContainers;
+    }
+
+    _mySources: { time: number, mySources: { [id: string]: MySource; } } = null;
+
+    public get mySources(): { [id: string]: MySource; } {
+        if (this._mySources == null) {
+            if (this.memory.sources == null && this.room) {
+                this._mySources = { time: Game.time, mySources: _.indexBy(_.map(this.room.find<Source>(FIND_SOURCES), x => new MySource(x.id, this)), (x) => x.id) };
+            }
+            else if (this.memory.sources != null) {
+                this._mySources = { time: Game.time, mySources: _.indexBy(_.map(this.memory.sources, x => new MySource(x.id, this)), (x) => x.id) };
+            }
+        }
+        if (this._mySources)
+            return this._mySources.mySources;
+        else return {};
+
+
+
+    }
+
+    private _mainRoom: MainRoom = null;
+    public get mainRoom() {
+        if (this._mainRoom == null)
+            this._mainRoom = Colony.mainRooms[this.memory.mainRoomName];
+        return this._mainRoom;
+    }
+    public set mainRoom(value: MainRoom) {
+        this._mainRoom = value;
+        this.memory.mainRoomName = value == null ? null : value.name;
+    }
+
     accessMemory() {
         if (Colony.memory.rooms == null)
             Colony.memory.rooms = {};
         if (Colony.memory.rooms[this.name] == null)
             Colony.memory.rooms[this.name] = {
                 name: this.name,
-                containers: {},
-                sources: {},
+                containers: null,
+                sources: null,
                 hostiles: false,
                 foreignOwner: null,
                 foreignReserver: null,
@@ -39,90 +85,23 @@ export class MyRoom {
         return Colony.memory.rooms[this.name];
     }
 
-    name: string;
-
-    sources: {
-        [id: string]: MySource;
-    };
-    containers: {
-        [id: string]: MyContainer;
-    }
 
     exitNames: Array<string>;
     exits: ExitDescription;
-    mainRoom: MainRoom;
-    //memory: MyRoomMemory;
 
-    constructor(name: string) {
-        this.name = name;
+
+
+    constructor(public name: string) {
         this.memory.name = name;
-        if (this.memory.containers == null)
-            this.memory.containers = {};
-        if (this.memory.sources == null)
-            this.memory.sources = {};
-
-        this.sources = _.indexBy(_.map(this.memory.sources, (s) => new MySource(s.id, this)), (s) => s.id);
-        this.containers = _.indexBy(_.map(this.memory.containers, (s) => new MyContainer(s.id, this)), (s) => s.id);
-        this.mainRoom = Colony.mainRooms[this.memory.mainRoomName];
-
-        //if (this.memory.mainRoomDistanceDescriptions == null)
-        //    this.memory.mainRoomDistanceDescriptions = {};
-
-        //if (!this.mainRoom) {
-        //    this.mainRoom = Colony.assignMainRoom(this);
-        //    if (this.mainRoom)
-        //        this.memory.mainRoomName = this.mainRoom.name;
-        //}
-
 
         if (this.room != null)
             this.scan();
     }
 
     getClosestMainRoom() {
-        if (this.memory.mainRoomDistanceDescriptions == null || _.size(this.memory.mainRoomDistanceDescriptions)==0)
+        if (this.memory.mainRoomDistanceDescriptions == null || _.size(this.memory.mainRoomDistanceDescriptions) == 0)
             return null;
         return Colony.mainRooms[_.min(this.memory.mainRoomDistanceDescriptions, x => x.distance).roomName];
-    }
-
-    scanSources(room: Room) {
-        if (Object.keys(this.sources).length == 0) {
-            this.sources = {};
-            let sources = room.find<Source>(FIND_SOURCES);
-            for (let idx in sources) {
-                let source = sources[idx];
-                this.sources[source.id] = new MySource(source.id, this);
-            }
-        }
-        else {
-            for (let sourceId in this.sources)
-                this.sources[sourceId].scan();
-        }
-    }
-
-    scanContainers(room: Room) {
-        if (this.containers != null) {
-            for (let idx in this.containers) {
-                let container = <Container>Game.getObjectById(this.containers[idx].id);
-                if (!container) {
-                    delete this.containers[this.containers[idx].id];
-                }
-                else {
-                    this.containers[this.containers[idx].id].scan(container);
-                }
-            }
-        }
-        let containers = room.find<Container>(FIND_STRUCTURES, { filter: (s: Structure) => s.structureType == STRUCTURE_CONTAINER });
-        for (let idx in containers) {
-            let container = containers[idx];
-            if (!container) {
-                if (this.memory.containers[container.id] == null)
-                    this.memory.containers[container.id] = { id: container.id, pos: container.pos, lastScanTime: Game.time };
-                this.containers[container.id] = new MyContainer(container.id, this);
-            }
-
-        }
-
     }
 
     public scan() {
@@ -139,14 +118,10 @@ export class MyRoom {
         if (room == null)
             return;
 
-        this.memory.foreignOwner = room.controller!=null && room.controller.owner != null && room.controller.owner.username != Colony.myName;
-        this.memory.foreignReserver = room.controller != null &&  room.controller.reservation != null && room.controller.reservation.username != Colony.myName;
+        this.memory.foreignOwner = room.controller != null && room.controller.owner != null && room.controller.owner.username != Colony.myName;
+        this.memory.foreignReserver = room.controller != null && room.controller.reservation != null && room.controller.reservation.username != Colony.myName;
 
         this.memory.lastScanTime = Game.time;
-        this.scanSources(room);
-        this.scanContainers(room);
-
-
     }
 
     scanForHostiles() {

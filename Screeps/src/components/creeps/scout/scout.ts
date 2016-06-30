@@ -19,9 +19,15 @@ export class Scout {
             this.creep.moveTo(new RoomPosition(25, 25, this.memory.targetPosition.roomName));
         }
 
-        let myRoom = Colony.getRoom(pos.roomName);
-        if (myRoom.memory.lastScanTime < Game.time - 100)
-            myRoom.scan();
+        if (pos.roomName == this.memory.targetPosition.roomName) {
+
+            let myRoom = Colony.getRoom(pos.roomName);
+            if (myRoom.memory.lastScanTime < Game.time - 100)
+                myRoom.scan();
+            if (myRoom.memory.foreignOwner)
+                this.creep.suicide();
+        }
+        
     }
 
 }

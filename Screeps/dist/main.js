@@ -22,14 +22,17 @@ var Config;
 //import {ObjectWithMemory} from "../../objectWithMemory";
 var MySource = (function () {
     function MySource(id, myRoom) {
-        this.myRoom = myRoom;
-        this._room = { time: 0, room: null };
         this.id = id;
-        this.memory.id = id;
-        if (this.memory.lastScanTime == null)
-            this.scan();
-        if (this.memory.pos)
-            this.pos = new RoomPosition(this.memory.pos.x, this.memory.pos.y, this.memory.pos.roomName);
+        this.myRoom = myRoom;
+        this.memoryInitialized = false;
+        this._room = { time: -1, room: null };
+        this._source = { time: -1, source: null };
+        this._sourceDropOffContainer = { time: -1, sourceDropOffContainer: null };
+        this._dropOffStructre = { time: -1, dropOffStructure: null };
+        this._nearByConstructionSite = { time: -1, constructionSite: null };
+        this.tracer = new Tracer('MySource ' + id);
+        Colony.tracers.push(this.tracer);
+        this.accessMemory();
     }
     Object.defineProperty(MySource.prototype, "memory", {
         get: function () {
@@ -38,35 +41,206 @@ var MySource = (function () {
         enumerable: true,
         configurable: true
     });
+    MySource.prototype.accessMemory = function () {
+        if (this.myRoom.memory.sources == null)
+            this.myRoom.memory.sources = {};
+        if (this.myRoom.memory.sources[this.id] == null) {
+            var mem = new MySourceMemory();
+            mem.id = this.id;
+            this.myRoom.memory.sources[this.id] = mem;
+            mem.pos = this.source.pos;
+        }
+        this.memoryInitialized = true;
+        return this.myRoom.memory.sources[this.id];
+    };
     Object.defineProperty(MySource.prototype, "room", {
         get: function () {
+            var trace = this.tracer.start('Property room');
             if (this._room.time < Game.time)
                 this._room = {
                     time: Game.time, room: Game.rooms[this.pos.roomName]
                 };
+            trace.stop();
             return this._room.room;
         },
         enumerable: true,
         configurable: true
     });
-    MySource.prototype.accessMemory = function () {
-        if (this.myRoom.memory.sources == null)
-            this.myRoom.memory.sources = {};
-        if (this.myRoom.memory.sources[this.id] == null)
-            this.myRoom.memory.sources[this.id] = {
-                id: this.id,
-                containerId: null,
-                energyCapacity: null,
-                harvestingSpots: null,
-                keeper: null,
-                lastScanTime: null,
-                pos: null,
-                mainContainerRoadBuiltTo: null,
-                mainContainerPathLength: null,
-                linkId: null
-            };
-        return this.myRoom.memory.sources[this.id];
-    };
+    Object.defineProperty(MySource.prototype, "source", {
+        get: function () {
+            var trace = this.tracer.start('Property source');
+            if (this._source.time < Game.time)
+                this._source = { time: Game.time, source: Game.getObjectById(this.id) };
+            trace.stop();
+            return this._source.source;
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Object.defineProperty(MySource.prototype, "sourceDropOffContainer", {
+        get: function () {
+            var trace = this.tracer.start('Property sourceDropOffContainer');
+            if (this._sourceDropOffContainer.time == Game.time)
+                return this._sourceDropOffContainer.sourceDropOffContainer;
+            if (this.source && (!this.memory.sourceDropOffContainer || (this.memory.sourceDropOffContainer.time + 50) < Game.time)) {
+                var structure = this.getSourceDropOffContainer();
+                this._sourceDropOffContainer = { time: Game.time, sourceDropOffContainer: structure };
+                this.memory.sourceDropOffContainer = { time: Game.time, value: structure ? { id: structure.id, pos: structure ? structure.pos : null } : null };
+                trace.stop();
+                return structure;
+            }
+            else {
+                var structure = null;
+                if (this.memory.sourceDropOffContainer.value)
+                    structure = Game.getObjectById(this.memory.sourceDropOffContainer.value.id);
+                trace.stop();
+                if (structure == null)
+                    structure = this.memory.sourceDropOffContainer.value;
+                this._sourceDropOffContainer = { time: Game.time, sourceDropOffContainer: structure };
+                return structure ? structure : null;
+            }
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Object.defineProperty(MySource.prototype, "dropOffStructure", {
+        get: function () {
+            var trace = this.tracer.start('Property dropOffStructure');
+            if (this._dropOffStructre.time == Game.time)
+                return this._dropOffStructre.dropOffStructure;
+            if (this.source && (!this.memory.dropOffStructure || this.memory.dropOffStructure.time + 50 < Game.time)) {
+                var structure = this.getDropOffStructure();
+                this.memory.dropOffStructure = { time: Game.time, value: structure ? { id: structure.id, pos: structure.pos } : null };
+                trace.stop();
+                return structure;
+            }
+            else {
+                var structure = Game.getObjectById(this.memory.dropOffStructure.value.id);
+                trace.stop();
+                this._dropOffStructre = { time: Game.time, dropOffStructure: structure };
+                return structure ? structure : (this.memory.dropOffStructure ? { id: this.memory.dropOffStructure.value.id, pos: RoomPos.fromObj(this.memory.dropOffStructure.value.pos) } : null);
+            }
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Object.defineProperty(MySource.prototype, "nearByConstructionSite", {
+        get: function () {
+            var trace = this.tracer.start('Property nearByConstruction');
+            if (this._nearByConstructionSite.time + 10 < Game.time) {
+                this._nearByConstructionSite = {
+                    time: Game.time, constructionSite: _.filter(RoomPos.fromObj(this.memory.pos).findInRange(FIND_CONSTRUCTION_SITES, 4))[0]
+                };
+            }
+            trace.stop();
+            return this._nearByConstructionSite.constructionSite;
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Object.defineProperty(MySource.prototype, "pos", {
+        get: function () {
+            var trace = this.tracer.start('Property pos');
+            trace.stop();
+            return this.source != null ? this.source.pos : RoomPos.fromObj(this.memory.pos);
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Object.defineProperty(MySource.prototype, "maxHarvestingSpots", {
+        get: function () {
+            var trace = this.tracer.start('Property maxHarvestingSpots');
+            if (this.memory.harvestingSpots != null || this.source == null) {
+                trace.stop();
+                return this.memory.harvestingSpots;
+            }
+            else {
+                var pos = this.source.pos;
+                trace.stop();
+                return _.filter(this.source.room.lookForAtArea(LOOK_TERRAIN, pos.y - 1, pos.x - 1, pos.y + 1, pos.x + 1, true), function (x) { return x.terrain == 'swamp' || x.terrain == 'plain'; }).length;
+            }
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Object.defineProperty(MySource.prototype, "keeper", {
+        get: function () {
+            var trace = this.tracer.start('Property keeper');
+            if (this.memory.keeper != null) {
+                trace.stop();
+                return this.memory.keeper;
+            }
+            else {
+                this.memory.keeper = this.source.pos.findInRange(FIND_STRUCTURES, 5, { filter: function (s) { return s.structureType == STRUCTURE_KEEPER_LAIR; } }).length > 0;
+                trace.stop();
+                return this.memory.keeper;
+            }
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Object.defineProperty(MySource.prototype, "roadBuiltToMainContainer", {
+        get: function () {
+            return this.memory.mainContainerRoadBuiltTo;
+        },
+        set: function (value) {
+            this.memory.mainContainerRoadBuiltTo = value;
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Object.defineProperty(MySource.prototype, "pathLengthToMainContainer", {
+        get: function () {
+            var trace = this.tracer.start('Property pathLengthToMainContainer');
+            if (this.memory.mainContainerPathLength != null || this.source == null) {
+                trace.stop();
+                return this.memory.mainContainerPathLength;
+            }
+            else {
+                var pathLength = PathFinder.search(this.myRoom.mainRoom.spawns[0].pos, { pos: this.source.pos, range: 1 }).path.length;
+                this.memory.mainContainerPathLength = pathLength;
+                trace.stop();
+                return pathLength;
+            }
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Object.defineProperty(MySource.prototype, "requiresCarrier", {
+        get: function () {
+            //console.log('Requires Carrier: sourceDropOff: ' + ((this.sourceDropOffContainer) ? 'true' : 'false'));
+            //if (this.room)
+            //    console.log('Requires Carrier: getSourceDropOff: ' + (this.getSourceDropOffContainer() ? 'true' : 'false'));
+            //console.log('Requires Carrier: mainContainer: ' + (this.myRoom.mainRoom.mainContainer ? 'true' : 'false'));
+            //console.log('Requires Carrier: hasLink: ' + (this.hasLink ? 'true' : 'false'));
+            return this.sourceDropOffContainer != null && this.myRoom.mainRoom.mainContainer != null && !this.hasLink;
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Object.defineProperty(MySource.prototype, "energyCapacity", {
+        get: function () {
+            var trace = this.tracer.start('Property energyCapacity');
+            if (this.source)
+                this.memory.energyCapacity = this.source.energyCapacity;
+            trace.stop();
+            return this.memory.energyCapacity;
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Object.defineProperty(MySource.prototype, "hasLink", {
+        get: function () {
+            var trace = this.tracer.start('Property hasLink');
+            if ((this.memory.hasLink == null || (Game.time % 100 == 0)) && this.source) {
+                this.memory.hasLink = this.source.pos.findInRange(FIND_STRUCTURES, 4, { filter: function (x) { return x.structureType == STRUCTURE_LINK; } }).length > 0;
+            }
+            trace.stop();
+            return this.memory.hasLink;
+        },
+        enumerable: true,
+        configurable: true
+    });
     MySource.prototype.getHarvestingSpots = function (source) {
         var surroundingTerrain = source.room.lookForAtArea('terrain', source.pos.y - 1, source.pos.x - 1, source.pos.y + 1, source.pos.x + 1);
         var walls = 0;
@@ -78,86 +252,41 @@ var MySource = (function () {
             }
         return 9 - walls;
     };
-    MySource.prototype.findContainer = function () {
-        var candidates = this.pos.findInRange(FIND_STRUCTURES, 4, {
-            filter: function (s) { return s.structureType == STRUCTURE_CONTAINER || s.structureType == STRUCTURE_STORAGE; }
-        });
-        if (candidates.length > 0)
-            return candidates[0];
-        else
-            return null;
-    };
-    MySource.prototype.findLink = function () {
-        var candidates = this.pos.findInRange(FIND_MY_STRUCTURES, 4, {
-            filter: function (s) { return s.structureType == STRUCTURE_LINK; }
-        });
-        if (candidates.length > 0)
-            return candidates[0];
-        else
-            return null;
-    };
-    MySource.prototype.calculatePathLengthToMainContainer = function () {
-        var mainContainer = null;
-        this.myRoom && this.myRoom.mainRoom && (mainContainer = this.myRoom.mainRoom.mainContainer);
-        var sourceContainer = null;
-        this.memory.containerId && (sourceContainer = Game.getObjectById(this.memory.containerId));
-        if (mainContainer == null || sourceContainer == null)
-            return null;
-        var path = PathFinder.search(mainContainer.pos, { pos: sourceContainer.pos, range: 2 });
-        this.memory.mainContainerPathLength = path.path.length;
-        return this.memory.mainContainerPathLength;
-    };
-    MySource.prototype.scan = function () {
-        var source = Game.getObjectById(this.id);
-        if (source != null) {
-            this.memory.lastScanTime = Game.time;
-            this.memory.energyCapacity = source.energyCapacity;
-            this.memory.pos = source.pos;
-            this.pos = new RoomPosition(this.memory.pos.x, this.memory.pos.y, this.memory.pos.roomName);
-            this.memory.lastScanTime = Game.time;
-            this.memory.keeper = source.pos.findInRange(FIND_STRUCTURES, 5, { filter: function (s) { return s.structureType == STRUCTURE_KEEPER_LAIR; } }).length > 0;
-            this.memory.harvestingSpots = this.getHarvestingSpots(source);
-            if (this.memory.mainContainerPathLength == null)
-                this.calculatePathLengthToMainContainer();
-            if (!Game.getObjectById(this.memory.containerId)) {
-                var container = this.findContainer();
-                if (container) {
-                    this.memory.containerId = container.id;
-                }
-                else {
-                    this.memory.containerId = null;
-                }
-            }
-            if (!Game.getObjectById(this.memory.linkId)) {
-                var link = this.findLink();
-                if (link)
-                    this.memory.linkId = link.id;
-                else
-                    this.memory.linkId = null;
-            }
-            return true;
-        }
-        return false;
-    };
     MySource.prototype.containerMissing = function () {
-        if (this.room == null)
+        if (this.requiresCarrier)
             return false;
-        if (Game.getObjectById(this.memory.containerId) != null)
-            return false;
-        var container = this.findContainer();
-        var link = this.findLink();
-        if (container != null) {
-            this.memory.containerId = container.id;
-            return false;
-        }
-        if (link != null) {
-            this.memory.linkId = link.id;
-            return false;
-        }
-        this.memory.containerId = null;
         return this.pos.findInRange(FIND_CONSTRUCTION_SITES, 4, {
-            filter: function (s) { return s.structureType == STRUCTURE_CONTAINER || s.structureType == STRUCTURE_STORAGE || s.structureType == STRUCTURE_LINK; }
+            filter: function (s) { return (s.structureType == STRUCTURE_CONTAINER || s.structureType == STRUCTURE_STORAGE || s.structureType == STRUCTURE_LINK); }
         }).length == 0;
+    };
+    MySource.prototype.getSourceDropOffContainer = function () {
+        var containerCandidate = this.pos.findInRange(FIND_STRUCTURES, 4, {
+            filter: function (s) { return (s.structureType == STRUCTURE_CONTAINER || s.structureType == STRUCTURE_STORAGE) && s.isActive(); }
+        })[0];
+        return containerCandidate;
+    };
+    MySource.prototype.getDropOffStructure = function () {
+        var linkCandidate = this.pos.findInRange(FIND_MY_STRUCTURES, 4, {
+            filter: function (s) { return s.structureType == STRUCTURE_LINK && s.isActive(); }
+        })[0];
+        if (this.myRoom.mainRoom.creepManagers.harvestingManager.sourceCarrierCreeps.length > 0) {
+            var sourceDropOff = this.getSourceDropOffContainer();
+            if (sourceDropOff && sourceDropOff.structureType == STRUCTURE_STORAGE)
+                return sourceDropOff;
+            else if (linkCandidate)
+                return linkCandidate;
+            else if (sourceDropOff)
+                return sourceDropOff;
+        }
+        if (linkCandidate)
+            return linkCandidate;
+        if (this.myRoom.mainRoom.creepManagers.spawnFillManager.creeps.length > 0) {
+            if (this.myRoom.mainRoom.mainContainer)
+                return this.myRoom.mainRoom.mainContainer;
+        }
+        if (this.myRoom.mainRoom.spawns[0])
+            return this.myRoom.mainRoom.spawns[0];
+        return null;
     };
     return MySource;
 }());
@@ -166,11 +295,7 @@ exports.MySource = MySource;
 var MyContainer = (function () {
     function MyContainer(id, myRoom) {
         this.id = id;
-        this.memory.id = id;
-        if (this.memory.lastScanTime == null)
-            this.scan();
-        if (this.memory.pos != null)
-            this.pos = new RoomPosition(this.memory.pos.x, this.memory.pos.y, this.memory.pos.roomName);
+        this.myRoom = myRoom;
     }
     Object.defineProperty(MyContainer.prototype, "memory", {
         get: function () {
@@ -190,32 +315,20 @@ var MyContainer = (function () {
             };
         return this.myRoom.memory.containers[this.id];
     };
-    MyContainer.prototype.scan = function (container) {
-        var cont = container;
-        if (!cont)
-            cont = Game.getObjectById(this.id);
-        if (cont) {
-            this.pos = cont.pos;
-            this.memory.pos = this.pos;
-            this.memory.lastScanTime = Game.time;
-            return true;
-        }
-        return false;
-    };
     return MyContainer;
 }());
 exports.MyContainer = MyContainer;
 var MainRoom = (function () {
     function MainRoom(roomName) {
         var _this = this;
-        this._room = { time: 0, room: null };
-        this._maxSpawnEnergy = { time: 0, maxSpawnEnergy: 300 };
-        this._creeps = { time: 0, creeps: null };
-        this._mainContainer = { time: 0, mainContainer: null };
+        this._room = { time: -1, room: null };
+        this._maxSpawnEnergy = { time: -1, maxSpawnEnergy: 300 };
+        this._creeps = { time: -1, creeps: null };
+        this._mainContainer = { time: -1, mainContainer: null };
+        this._spawns = { time: -1, spawns: null };
         this.name = roomName;
         this.myRoom = Colony.getRoom(roomName);
         this.myRoom.mainRoom = this;
-        this.myRoom.memory.mainRoomName = this.name;
         if (this.myRoom.memory.mainRoomDistanceDescriptions == null)
             this.myRoom.memory.mainRoomDistanceDescriptions = {};
         this.myRoom.memory.mainRoomDistanceDescriptions[this.name] = { roomName: this.name, distance: 0 };
@@ -226,7 +339,7 @@ var MainRoom = (function () {
             this.mainPosition = new RoomPosition(pos.x, pos.y, roomName);
         }
         else {
-            this.mainPosition = Game.spawns[this.spawnNames[0]].pos;
+            this.mainPosition = this.spawns[0].pos;
             this.memory.mainPosition = this.mainPosition;
         }
         //if (!this.memory.spawnManager) this.memory.spawnManager = {  }
@@ -273,6 +386,8 @@ var MainRoom = (function () {
     });
     Object.defineProperty(MainRoom.prototype, "maxSpawnEnergy", {
         get: function () {
+            if (this.creepManagers.spawnFillManager.creeps.length == 0)
+                return 300;
             if (this._maxSpawnEnergy.time + 50 < Game.time)
                 this._maxSpawnEnergy = {
                     time: Game.time, maxSpawnEnergy: this.getMaxSpawnEnergy()
@@ -297,11 +412,23 @@ var MainRoom = (function () {
     });
     Object.defineProperty(MainRoom.prototype, "mainContainer", {
         get: function () {
-            if (this._mainContainer.time < Game.time)
+            if (this._mainContainer.time + 100 < Game.time)
                 this._mainContainer = {
                     time: Game.time, mainContainer: this.checkAndPlaceStorage()
                 };
             return this._mainContainer.mainContainer;
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Object.defineProperty(MainRoom.prototype, "spawns", {
+        get: function () {
+            var _this = this;
+            if (this._spawns.time < Game.time)
+                this._spawns = {
+                    time: Game.time, spawns: _.filter(Game.spawns, function (x) { return x.room.name == _this.name; })
+                };
+            return this._spawns.spawns;
         },
         enumerable: true,
         configurable: true
@@ -328,7 +455,7 @@ var MainRoom = (function () {
     };
     MainRoom.prototype.getMaxSpawnEnergy = function () {
         var maxSpawnEnergy = 0;
-        this.extensionCount = this.room.find(FIND_MY_STRUCTURES, { filter: function (s) { return s.structureType == STRUCTURE_EXTENSION; } }).length;
+        this.extensionCount = this.room.find(FIND_MY_STRUCTURES, { filter: function (s) { return s.structureType == STRUCTURE_EXTENSION && s.isActive(); } }).length;
         if (this.extensionCount > CONTROLLER_STRUCTURES.extension[this.room.controller.level])
             this.extensionCount = CONTROLLER_STRUCTURES.extension[this.room.controller.level];
         if (this.room.controller.level == 8)
@@ -344,10 +471,10 @@ var MainRoom = (function () {
         return maxSpawnEnergy;
     };
     MainRoom.prototype.getAllSources = function () {
-        var sources = this.myRoom.sources;
+        var sources = this.myRoom.mySources;
         for (var roomIdx in _.filter(this.connectedRooms, function (x) { return x.canHarvest; }))
-            for (var sourceIdx in this.connectedRooms[roomIdx].sources)
-                sources[this.connectedRooms[roomIdx].sources[sourceIdx].id] = this.connectedRooms[roomIdx].sources[sourceIdx];
+            for (var sourceIdx in this.connectedRooms[roomIdx].mySources)
+                sources[this.connectedRooms[roomIdx].mySources[sourceIdx].id] = this.connectedRooms[roomIdx].mySources[sourceIdx];
         return sources;
     };
     MainRoom.prototype.update = function (runAll) {
@@ -388,7 +515,7 @@ var MainRoom = (function () {
             targetPos = new RoomPosition(this.mainPosition.x + 4, this.mainPosition.y + 4, this.name);
         else {
             targetPos = new RoomPosition(this.mainPosition.x, this.mainPosition.y, this.name);
-            var direction = this.mainPosition.getDirectionTo(closestSource);
+            var direction = this.mainPosition.getDirectionTo(this.room.controller);
             switch (direction) {
                 case TOP:
                     targetPos.y -= 4;
@@ -430,7 +557,7 @@ var MainRoom = (function () {
             targetPos = new RoomPosition(this.mainPosition.x + 2, this.mainPosition.y + 2, this.name);
         else {
             targetPos = new RoomPosition(this.mainPosition.x, this.mainPosition.y, this.name);
-            var direction = this.mainPosition.getDirectionTo(closestSource);
+            var direction = this.mainPosition.getDirectionTo(this.room.controller);
             switch (direction) {
                 case TOP:
                     targetPos.y -= 2;
@@ -535,7 +662,7 @@ var MainRoom = (function () {
         }
         if (Memory['trace'])
             startCpu = Game.cpu.getUsed();
-        this.creepManagers.repairManager.checkCreeps();
+        this.creepManagers.repairManager.createNewRepairers();
         if (Memory['trace']) {
             endCpu = Game.cpu.getUsed();
             console.log('RepairManager.checkCreeps: ' + (endCpu - startCpu).toFixed(2));
@@ -639,13 +766,13 @@ var MainRoom = (function () {
             endCpu = Game.cpu.getUsed();
             console.log('MainRoom.links.tick: ' + (endCpu - startCpu).toFixed(2));
         }
-        if (Memory['trace'])
-            startCpu = Game.cpu.getUsed();
-        this.checkAndPlaceStorage();
-        if (Memory['trace']) {
-            endCpu = Game.cpu.getUsed();
-            console.log('MainRoom.checAndPlaceStorage: ' + (endCpu - startCpu).toFixed(2));
-        }
+        //if (Memory['trace'])
+        //    startCpu = Game.cpu.getUsed();
+        //this.checkAndPlaceStorage();
+        //if (Memory['trace']) {
+        //    endCpu = Game.cpu.getUsed();
+        //    console.log('MainRoom.checAndPlaceStorage: ' + (endCpu - startCpu).toFixed(2));
+        //}
         if (Memory['trace'])
             startCpu = Game.cpu.getUsed();
         this.placeExtensions();
@@ -706,6 +833,7 @@ var MainRoom = (function () {
 exports.MainRoom = MainRoom;
 var Colony;
 (function (Colony) {
+    Colony.tracers = [];
     Colony.mainRooms = {};
     Colony.rooms = {};
     Colony.claimingManagers = {};
@@ -734,8 +862,8 @@ var Colony;
     Colony.assignMainRoom = assignMainRoom;
     function shouldSendScout(roomName) {
         var myRoom = getRoom(roomName);
-        var result = !Game.map.isRoomProtected(roomName)
-            && (myRoom == null || !myRoom.memory.hostiles && !myRoom.memory.foreignOwner && !myRoom.memory.foreignReserver || (Game.time % 2000) == 0);
+        var result = !Game.map.isRoomProtected(roomName) && !(myRoom != null && myRoom.mainRoom)
+            && (myRoom != null && !myRoom.memory.hostiles && !myRoom.memory.foreignOwner && !myRoom.memory.foreignReserver || (Game.time % 2000) == 0);
         return result;
     }
     function spawnCreep(body, memory, count) {
@@ -789,8 +917,9 @@ var Colony;
             memory.mainRooms = {};
         var mainRoomNames = _.uniq(_.map(Game.spawns, function (s) { return s.room.name; }));
         for (var idx in mainRoomNames) {
-            if (!Colony.claimingManagers[mainRoomNames[idx]])
+            if (!Colony.claimingManagers[mainRoomNames[idx]]) {
                 Colony.mainRooms[mainRoomNames[idx]] = new MainRoom(mainRoomNames[idx]);
+            }
         }
         if (memory.claimingManagers != null) {
             for (var idx in memory.claimingManagers) {
@@ -819,13 +948,12 @@ var Colony;
             myRoom.memory.mainRoomDistanceDescriptions[mainRoom.name] = { roomName: mainRoom.name, distance: distance };
         }
         var mainRoomCandidates = _.sortBy(_.map(_.filter(myRoom.memory.mainRoomDistanceDescriptions, function (x) { return x.distance <= 1; }), function (y) { return { distance: y.distance, mainRoom: Colony.mainRooms[y.roomName] }; }), function (z) { return [z.distance.toString(), (10 - z.mainRoom.room.controller.level).toString()].join('_'); });
-        if (mainRoomCandidates.length > 0 && !myRoom.memory.foreignOwner && (mainRoomCandidates[0].distance == 1 || mainRoomCandidates[0].mainRoom.room.controller.level >= 6)) {
+        if (mainRoomCandidates.length > 0 && !myRoom.memory.foreignOwner && (mainRoomCandidates[0].distance <= 1 || mainRoomCandidates[0].mainRoom.room.controller.level >= 6)) {
             myRoom.mainRoom = mainRoomCandidates[0].mainRoom;
             myRoom.memory.mainRoomName = mainRoomCandidates[0].mainRoom.name;
         }
         else {
             myRoom.mainRoom = null;
-            myRoom.memory.mainRoomName = null;
         }
     }
     function handleClaimingManagers() {
@@ -906,26 +1034,13 @@ var Colony;
 })(Colony = exports.Colony || (exports.Colony = {}));
 //import {ObjectWithMemory} from "../../objectWithMemory";
 var MyRoom = (function () {
-    //memory: MyRoomMemory;
     function MyRoom(name) {
-        var _this = this;
-        this._room = { time: 0, room: null };
         this.name = name;
+        this._room = { time: -1, room: null };
+        this._myContainers = { time: -101, myContainers: {} };
+        this._mySources = null;
+        this._mainRoom = null;
         this.memory.name = name;
-        if (this.memory.containers == null)
-            this.memory.containers = {};
-        if (this.memory.sources == null)
-            this.memory.sources = {};
-        this.sources = _.indexBy(_.map(this.memory.sources, function (s) { return new MySource(s.id, _this); }), function (s) { return s.id; });
-        this.containers = _.indexBy(_.map(this.memory.containers, function (s) { return new MyContainer(s.id, _this); }), function (s) { return s.id; });
-        this.mainRoom = Colony.mainRooms[this.memory.mainRoomName];
-        //if (this.memory.mainRoomDistanceDescriptions == null)
-        //    this.memory.mainRoomDistanceDescriptions = {};
-        //if (!this.mainRoom) {
-        //    this.mainRoom = Colony.assignMainRoom(this);
-        //    if (this.mainRoom)
-        //        this.memory.mainRoomName = this.mainRoom.name;
-        //}
         if (this.room != null)
             this.scan();
     }
@@ -947,14 +1062,61 @@ var MyRoom = (function () {
         enumerable: true,
         configurable: true
     });
+    Object.defineProperty(MyRoom.prototype, "myContainers", {
+        get: function () {
+            var _this = this;
+            if (((this._myContainers.time + 100) < Game.time || this.memory.containers == null) && this.room) {
+                var containers = _.map(this.room.find(FIND_STRUCTURES, { filter: function (x) { return x.structureType == STRUCTURE_CONTAINER; } }), function (x) { return new MyContainer(x.id, _this); });
+                this._myContainers = {
+                    time: Game.time,
+                    myContainers: _.indexBy(containers, function (x) { return x.id; })
+                };
+            }
+            return this._myContainers.myContainers;
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Object.defineProperty(MyRoom.prototype, "mySources", {
+        get: function () {
+            var _this = this;
+            if (this._mySources == null) {
+                if (this.memory.sources == null && this.room) {
+                    this._mySources = { time: Game.time, mySources: _.indexBy(_.map(this.room.find(FIND_SOURCES), function (x) { return new MySource(x.id, _this); }), function (x) { return x.id; }) };
+                }
+                else if (this.memory.sources != null) {
+                    this._mySources = { time: Game.time, mySources: _.indexBy(_.map(this.memory.sources, function (x) { return new MySource(x.id, _this); }), function (x) { return x.id; }) };
+                }
+            }
+            if (this._mySources)
+                return this._mySources.mySources;
+            else
+                return {};
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Object.defineProperty(MyRoom.prototype, "mainRoom", {
+        get: function () {
+            if (this._mainRoom == null)
+                this._mainRoom = Colony.mainRooms[this.memory.mainRoomName];
+            return this._mainRoom;
+        },
+        set: function (value) {
+            this._mainRoom = value;
+            this.memory.mainRoomName = value == null ? null : value.name;
+        },
+        enumerable: true,
+        configurable: true
+    });
     MyRoom.prototype.accessMemory = function () {
         if (Colony.memory.rooms == null)
             Colony.memory.rooms = {};
         if (Colony.memory.rooms[this.name] == null)
             Colony.memory.rooms[this.name] = {
                 name: this.name,
-                containers: {},
-                sources: {},
+                containers: null,
+                sources: null,
                 hostiles: false,
                 foreignOwner: null,
                 foreignReserver: null,
@@ -968,42 +1130,6 @@ var MyRoom = (function () {
         if (this.memory.mainRoomDistanceDescriptions == null || _.size(this.memory.mainRoomDistanceDescriptions) == 0)
             return null;
         return Colony.mainRooms[_.min(this.memory.mainRoomDistanceDescriptions, function (x) { return x.distance; }).roomName];
-    };
-    MyRoom.prototype.scanSources = function (room) {
-        if (Object.keys(this.sources).length == 0) {
-            this.sources = {};
-            var sources = room.find(FIND_SOURCES);
-            for (var idx in sources) {
-                var source = sources[idx];
-                this.sources[source.id] = new MySource(source.id, this);
-            }
-        }
-        else {
-            for (var sourceId in this.sources)
-                this.sources[sourceId].scan();
-        }
-    };
-    MyRoom.prototype.scanContainers = function (room) {
-        if (this.containers != null) {
-            for (var idx in this.containers) {
-                var container = Game.getObjectById(this.containers[idx].id);
-                if (!container) {
-                    delete this.containers[this.containers[idx].id];
-                }
-                else {
-                    this.containers[this.containers[idx].id].scan(container);
-                }
-            }
-        }
-        var containers = room.find(FIND_STRUCTURES, { filter: function (s) { return s.structureType == STRUCTURE_CONTAINER; } });
-        for (var idx in containers) {
-            var container = containers[idx];
-            if (!container) {
-                if (this.memory.containers[container.id] == null)
-                    this.memory.containers[container.id] = { id: container.id, pos: container.pos, lastScanTime: Game.time };
-                this.containers[container.id] = new MyContainer(container.id, this);
-            }
-        }
     };
     MyRoom.prototype.scan = function () {
         var room = this.room;
@@ -1019,8 +1145,6 @@ var MyRoom = (function () {
         this.memory.foreignOwner = room.controller != null && room.controller.owner != null && room.controller.owner.username != Colony.myName;
         this.memory.foreignReserver = room.controller != null && room.controller.reservation != null && room.controller.reservation.username != Colony.myName;
         this.memory.lastScanTime = Game.time;
-        this.scanSources(room);
-        this.scanContainers(room);
     };
     MyRoom.prototype.scanForHostiles = function () {
         if (this.room == null)
@@ -1193,7 +1317,6 @@ var MyTower = (function () {
         this.mainRoom = mainRoom;
     }
     MyTower.prototype.tick = function () {
-        var _this = this;
         var closestHostile = this.tower.pos.findClosestByRange(FIND_HOSTILE_CREEPS, { filter: function (e) { return e.owner.username !== 'Source Keeper'; } });
         if (closestHostile != null) {
             this.tower.attack(closestHostile);
@@ -1204,11 +1327,11 @@ var MyTower = (function () {
             this.tower.heal(healTarget);
             return;
         }
-        var repairTarget = this.tower.room.find(FIND_STRUCTURES, { filter: function (x) { return _this.mainRoom.creepManagers.repairManager.targetDelegate(x) && !_this.mainRoom.creepManagers.repairManager.forceStopRepairDelegate(x); } })[0];
-        if (repairTarget != null && this.tower.energy > this.tower.energyCapacity / 2) {
-            this.tower.repair(repairTarget);
-            return;
-        }
+        //var repairTarget = this.tower.room.find<Structure>(FIND_STRUCTURES, { filter: (x: Structure) => this.mainRoom.creepManagers.repairManager.targetDelegate(x) && !this.mainRoom.creepManagers.repairManager.forceStopRepairDelegate(x) })[0];
+        //if (repairTarget != null && this.tower.energy > this.tower.energyCapacity / 2) {
+        //    this.tower.repair(repairTarget);
+        //    return;
+        //}
     };
     return MyTower;
 }());
@@ -1315,13 +1438,6 @@ var RepairManager = (function () {
         this._creeps = { time: 0, creeps: null };
         this._idleCreeps = { time: 0, creeps: null };
         this.maxCreeps = 2;
-        if (this.memory.repairTargets == null || this.memory.emergencyTargets == null) {
-            if (this.memory.repairTargets == null)
-                this.memory.repairTargets = {};
-            if (this.memory.emergencyTargets == null)
-                this.memory.emergencyTargets = {};
-            this.loadRepairTargets();
-        }
     }
     Object.defineProperty(RepairManager.prototype, "memory", {
         get: function () {
@@ -1353,7 +1469,7 @@ var RepairManager = (function () {
         get: function () {
             if (this._idleCreeps.time < Game.time)
                 this._idleCreeps = {
-                    time: Game.time, creeps: _.filter(this.creeps, function (c) { return c.memory.repairTarget == null; })
+                    time: Game.time, creeps: _.filter(this.creeps, function (c) { return c.memory.targetId == null; })
                 };
             return this._creeps.creeps;
         },
@@ -1366,118 +1482,33 @@ var RepairManager = (function () {
         enumerable: true,
         configurable: true
     });
-    RepairManager.prototype.removeFromTargetList = function (target, hashMap) {
-        var list = hashMap[target.pos.roomName];
-        if (list == null)
-            return;
-        /*hashMap[target.pos.roomName] =*/ list.splice(_.findIndex(list, function (x) { return x.id == target.id; }), 1);
+    RepairManager.forceStopRepairDelegate = function (s) {
+        return (s.structureType == STRUCTURE_WALL || s.structureType == STRUCTURE_RAMPART) && s.hits > 1000000 || (s.hits == s.hitsMax);
     };
-    RepairManager.prototype.removeFromTargetLists = function (target) {
-        this.removeFromTargetList(target, this.memory.emergencyTargets);
-        this.removeFromTargetList(target, this.memory.repairTargets);
-    };
-    RepairManager.prototype.forceStopRepairDelegate = function (s) {
-        return (s.structureType == STRUCTURE_WALL || s.structureType == STRUCTURE_RAMPART) && s.hits > 1000000 || (s.hits > 0.9 * s.hitsMax);
-    };
-    RepairManager.prototype.targetDelegate = function (s) {
+    RepairManager.targetDelegate = function (s) {
         return s.structureType != STRUCTURE_RAMPART && s.structureType != STRUCTURE_WALL && s.hits < s.hitsMax || (s.structureType == STRUCTURE_RAMPART || s.structureType == STRUCTURE_WALL) && s.hits < 500000;
     };
-    RepairManager.prototype.emergencyTargetDelegate = function (s) {
+    RepairManager.emergencyTargetDelegate = function (s) {
         return s.hits < s.hitsMax * 0.2 && (s.structureType == STRUCTURE_CONTAINER || s.structureType == STRUCTURE_ROAD) || s.structureType == STRUCTURE_RAMPART && s.hits < 2000;
     };
-    RepairManager.prototype.loadRepairTargets = function (force) {
-        if (force === void 0) { force = false; }
-        if (!force && (Game.time % 100) != 0)
-            return;
-        for (var idx in _.filter(this.mainRoom.allRooms, function (x) { return x.canHarvest(); })) {
-            var myRoom = this.mainRoom.allRooms[idx];
-            var room = myRoom.room;
-            //console.log('repair targets for myroom' + myRoom.name);
-            if (room) {
-                //console.log('repair targets for ' + room.name);
-                this.memory.repairTargets[myRoom.name] = room.find(FIND_STRUCTURES, { filter: this.targetDelegate });
-                this.memory.emergencyTargets[myRoom.name] = _.filter(this.memory.repairTargets[myRoom.name], this.emergencyTargetDelegate);
-            }
-        }
+    RepairManager.emergencyStopDelegate = function (s) {
+        return (s.structureType == STRUCTURE_WALL || s.structureType == STRUCTURE_RAMPART) && s.hits > 20000 || (s.hits > 0.9 * s.hitsMax);
     };
-    RepairManager.prototype.existEmergencyRepairTargets = function () {
-        for (var idx in this.memory.emergencyTargets) {
-            var roomTargets = this.memory.emergencyTargets[idx];
-            if (roomTargets.length > 0)
-                return true;
-        }
-        return false;
-    };
-    RepairManager.prototype.findRepairTargetInList = function (pos, repairTargets) {
-        var sameRoomTarget = this.getClosestSameRoomTargetFor(pos, repairTargets, false);
-        if (sameRoomTarget)
-            return sameRoomTarget;
-        for (var roomName in repairTargets) {
-            if (this.memory.emergencyTargets[roomName].length > 0)
-                return this.memory.emergencyTargets[roomName][0];
-        }
-        return null;
-    };
-    RepairManager.prototype.findRepairTarget = function (pos) {
-        var target = this.findRepairTargetInList(pos, this.memory.emergencyTargets);
-        if (target)
-            return target;
-        else
-            return this.findRepairTargetInList(pos, this.memory.repairTargets);
-    };
-    RepairManager.prototype.getClosestSameRoomTargetFor = function (pos, repairTargets, pathSorting) {
-        if (repairTargets == null || repairTargets[pos.roomName] == null)
-            return null;
-        if (repairTargets[pos.roomName].length == 0)
-            return null;
-        var position = new RoomPosition(pos.x, pos.y, pos.roomName);
-        if (pathSorting)
-            return position.findClosestByPath(repairTargets[pos.roomName]);
-        else
-            return position.findClosestByRange(repairTargets[pos.roomName]);
-    };
-    RepairManager.prototype.checkCreeps = function () {
-        if (this.mainRoom.spawnManager.isBusy)
-            return;
-        if (!this.mainRoom.mainContainer)
-            return;
-        this.loadRepairTargets();
-        for (var idx in this.creeps) {
-            var creep = this.creeps[idx];
-            var targetMemory = creep.memory;
-            if (targetMemory.repairTarget == null)
-                continue;
-            var target = Game.getObjectById(targetMemory.repairTarget.id);
-            if (!target && Game.rooms[targetMemory.repairTarget.pos.roomName]) {
-                this.removeFromTargetLists(targetMemory.repairTarget);
-                targetMemory.repairTarget = null;
-                this.idleCreeps.push(creep);
+    RepairManager.prototype.createNewRepairers = function () {
+        var _loop_2 = function(idx) {
+            var myRoom = this_1.mainRoom.allRooms[idx];
+            var roomCreeps = _.filter(this_1.creeps, function (x) { return x.memory.roomName == myRoom.name; });
+            if (roomCreeps.length < 1) {
+                this_1.mainRoom.spawnManager.AddToQueue(RepairerDefinition.getDefinition(this_1.mainRoom.maxSpawnEnergy).getBody(), { role: 'repairer', roomName: myRoom.name, state: RepairerState.Refilling }, 1);
             }
-            else if (target && !this.emergencyTargetDelegate(target) && !this.forceStopRepairDelegate(target)) {
-                this.removeFromTargetList(targetMemory.repairTarget, this.memory.emergencyTargets);
-            }
-            else if (target && this.forceStopRepairDelegate(target)) {
-                this.removeFromTargetLists(targetMemory.repairTarget);
-                targetMemory.repairTarget = null;
-                this.idleCreeps.push(creep);
-            }
-        }
-        var maxCreeps = ~~_.sum(_.map(this.memory.emergencyTargets, function (x) { return x.length; })) / 10;
-        maxCreeps = maxCreeps < this.maxCreeps ? this.maxCreeps : maxCreeps;
-        if ((this.creeps.length < this.maxCreeps || this.idleCreeps.length > 0)) {
-            for (var idx in this.idleCreeps) {
-                var creepMemory = this.idleCreeps[idx].memory;
-                var repairTarget = this.findRepairTarget(this.idleCreeps[idx].pos);
-                creepMemory.repairTarget = repairTarget;
-            }
-            this.idleCreeps = [];
-            this.mainRoom.spawnManager.AddToQueue(RepairerDefinition.getDefinition(this.mainRoom.maxSpawnEnergy).getBody(), { role: 'repairer' }, this.maxCreeps * (this.existEmergencyRepairTargets() ? 2 : 1) - this.creeps.length);
+        };
+        var this_1 = this;
+        for (var idx in this.mainRoom.allRooms) {
+            _loop_2(idx);
         }
     };
     RepairManager.prototype.tick = function () {
         var _this = this;
-        if (Game.time % 100 == 0)
-            this.loadRepairTargets();
         this.creeps.forEach(function (c) { return new Repairer(c, _this.mainRoom).tick(); });
     };
     return RepairManager;
@@ -1532,9 +1563,9 @@ var HarvestingManager = (function () {
         if (this.mainRoom.mainContainer)
             for (var idx in this.mainRoom.sources) {
                 var sourceInfo = this.mainRoom.sources[idx];
-                if (sourceInfo.memory.keeper || !sourceInfo.myRoom.canHarvest())
+                if (sourceInfo.keeper || !sourceInfo.myRoom.canHarvest())
                     continue;
-                if (!sourceInfo.memory.keeper && sourceInfo.containerMissing()) {
+                if (!sourceInfo.keeper && sourceInfo.containerMissing()) {
                     var path = sourceInfo.pos.findPathTo(this.mainRoom.mainContainer.pos, { ignoreCreeps: true });
                     var containerPosition = new RoomPosition(path[0].x, path[0].y, sourceInfo.pos.roomName);
                     containerPosition.createConstructionSite(STRUCTURE_CONTAINER);
@@ -1544,28 +1575,26 @@ var HarvestingManager = (function () {
     HarvestingManager.prototype.getHarvesterBodyAndCount = function (sourceInfo) {
         if (Memory['verbose'] || this.memory.verbose)
             console.log('MAX_ENERGY: ' + this.mainRoom.maxSpawnEnergy);
-        var partsRequired = Math.ceil((sourceInfo.memory.energyCapacity / ENERGY_REGEN_TIME) / 2) + 1;
-        var maxWorkParts = HarvesterDefinition.getDefinition(this.mainRoom.maxSpawnEnergy, sourceInfo.memory.containerId != null && this.mainRoom.mainContainer != null || sourceInfo.memory.linkId != null).work;
+        var partsRequired = Math.ceil((sourceInfo.energyCapacity / ENERGY_REGEN_TIME) / 2) + 1;
+        var maxWorkParts = HarvesterDefinition.getDefinition(this.mainRoom.maxSpawnEnergy, sourceInfo.requiresCarrier).work;
         if (maxWorkParts >= partsRequired)
-            return { body: HarvesterDefinition.getDefinition(this.mainRoom.maxSpawnEnergy, sourceInfo.memory.containerId != null && this.mainRoom.mainContainer != null || sourceInfo.memory.linkId != null, partsRequired), count: 1 };
+            return { body: HarvesterDefinition.getDefinition(this.mainRoom.maxSpawnEnergy, sourceInfo.requiresCarrier, partsRequired), count: 1 };
         else {
-            var creepCount = Math.min(Math.ceil(partsRequired / maxWorkParts), sourceInfo.memory.harvestingSpots);
+            var creepCount = Math.min(Math.ceil(partsRequired / maxWorkParts), sourceInfo.maxHarvestingSpots);
             partsRequired = Math.min(Math.ceil(partsRequired / creepCount), maxWorkParts);
-            return { body: HarvesterDefinition.getDefinition(this.mainRoom.maxSpawnEnergy, sourceInfo.memory.containerId != null && this.mainRoom.mainContainer != null || sourceInfo.memory.linkId != null, partsRequired), count: creepCount };
+            return { body: HarvesterDefinition.getDefinition(this.mainRoom.maxSpawnEnergy, sourceInfo.requiresCarrier, partsRequired), count: creepCount };
         }
     };
     HarvestingManager.prototype.getSourceCarrierBodyAndCount = function (sourceInfo, maxMiningRate) {
-        var useRoads = (sourceInfo.memory.mainContainerRoadBuiltTo == this.mainRoom.name);
-        var pathLengh = sourceInfo.memory.mainContainerPathLength;
-        if (pathLengh == null)
-            pathLengh = sourceInfo.calculatePathLengthToMainContainer();
+        var useRoads = (this.mainRoom.mainContainer && sourceInfo.roadBuiltToMainContainer == this.mainRoom.mainContainer.id);
+        var pathLengh = sourceInfo.pathLengthToMainContainer;
         if (pathLengh == null) {
             return {
                 body: SourceCarrierDefinition.getDefinition(500),
                 count: 0
             };
         }
-        var sourceRate = sourceInfo.memory.energyCapacity / ENERGY_REGEN_TIME;
+        var sourceRate = sourceInfo.energyCapacity / ENERGY_REGEN_TIME;
         var energyPerTick = maxMiningRate == null ? sourceRate : Math.min(maxMiningRate, sourceRate);
         var requiredCarryModules = Math.ceil(pathLengh * (useRoads ? 2 : 3) * energyPerTick / 50) + 1;
         var maxCarryParts = SourceCarrierDefinition.getDefinition(this.mainRoom.maxSpawnEnergy, requiredCarryModules).carry;
@@ -1580,14 +1609,14 @@ var HarvestingManager = (function () {
     HarvestingManager.prototype.checkCreeps = function () {
         var startCpu;
         var endCpu;
-        if (this.mainRoom.spawnManager.isBusy)
-            return;
+        //        if (this.mainRoom.spawnManager.isBusy)
+        //            return;
         if (Memory['verbose'] || this.memory.verbose)
             console.log('HarvestingManager.checkCreeps()');
         for (var idx in this.mainRoom.sources) {
             var sourceInfo = this.mainRoom.sources[idx];
-            if (sourceInfo.myRoom.memory.mainRoomDistanceDescriptions[this.mainRoom.name].distance >= 2 && !sourceInfo.memory.containerId)
-                continue;
+            //if (sourceInfo.myRoom.memory.mainRoomDistanceDescriptions[this.mainRoom.name].distance >= 2 && !sourceInfo.memory.containerId)
+            //    continue;
             if (Memory['verbose'] || this.memory.verbose)
                 console.log('HarvestingManager.checkCreeps(): Source [' + sourceInfo.id + ']');
             if (!Colony.getRoom(sourceInfo.pos.roomName).canHarvest()) {
@@ -1595,28 +1624,32 @@ var HarvestingManager = (function () {
                     console.log('HarvestingManager.checkCreeps(): We can\'t mine in this room');
                 continue;
             }
-            if (sourceInfo.memory.keeper) {
+            if (sourceInfo.keeper) {
                 if (Memory['verbose'] || this.memory.verbose)
                     console.log('HarvestingManager.checkCreeps(): Skipping the source keeper');
                 continue;
             }
             var harvesters = _.filter(this.harvesterCreeps, function (c) { return c.memory.sourceId == sourceInfo.id; });
             if (Memory['verbose'] || this.memory.verbose)
-                console.log('HarvestingManager.checkCreeps(): Harvesters: ' + harvesters.length + ', Harvesting spots: ' + sourceInfo.memory.harvestingSpots);
+                console.log('HarvestingManager.checkCreeps(): Harvesters: ' + harvesters.length + ', Harvesting spots: ' + sourceInfo.maxHarvestingSpots);
             //if (harvesters.length < sourceInfo.memory.harvestingSpots) {
             if (Memory['verbose'] || this.memory.verbose)
                 console.log('HarvestingManager.checkCreeps(): Add harvester to queue');
             var harvesterRequirements = this.getHarvesterBodyAndCount(sourceInfo);
             if (Memory['verbose'] || this.memory.verbose)
                 console.log('HarvestingManager.checkCreeps(): Requirements-cound: ' + harvesterRequirements.count + ' Requirements- body: ' + JSON.stringify(harvesterRequirements.body));
-            this.mainRoom.spawnManager.AddToQueue(harvesterRequirements.body.getBody(), { role: 'harvester', sourceId: sourceInfo.id }, harvesterRequirements.count - harvesters.length + (sourceInfo.memory.containerId == null ? 1 : 0));
+            this.mainRoom.spawnManager.AddToQueue(harvesterRequirements.body.getBody(), { role: 'harvester', state: HarvesterState.Harvesting, sourceId: sourceInfo.id }, harvesterRequirements.count - harvesters.length + (!sourceInfo.requiresCarrier ? 0 : 0));
             //}
             //let miningRate = _.sum(_.map(harvesters, h => Body.getFromCreep(h).getHarvestingRate()));
             if (Memory['verbose'] || this.memory.verbose)
                 console.log('Start checking source carriers');
             if (Memory['trace'])
                 startCpu = Game.cpu.getUsed();
-            if (sourceInfo.memory.containerId && this.mainRoom.mainContainer && sourceInfo.memory.containerId != this.mainRoom.mainContainer.id && sourceInfo.memory.linkId == null) {
+            if (Memory['verbose'] || this.memory.verbose) {
+                console.log('Requires carrier: ' + sourceInfo.requiresCarrier);
+                console.log('Has Link: ' + sourceInfo.hasLink);
+            }
+            if (sourceInfo.requiresCarrier && !sourceInfo.hasLink) {
                 if (Memory['verbose'] || this.memory.verbose)
                     console.log('Checking source carriers for ' + sourceInfo.id);
                 var miningRate = harvesterRequirements.body.work * 2 * harvesterRequirements.count;
@@ -1726,25 +1759,25 @@ var ReservationManager = (function () {
             return;
         }
         var rooms = _.filter(this.mainRoom.connectedRooms, function (r) { return r.canHarvest() == true && !r.memory.hostiles && (r.room != null && r.room.controller != null); });
-        var _loop_2 = function() {
+        var _loop_3 = function() {
             var myRoom = rooms[idx];
             if (Memory['verbose'] == true)
                 console.log('ReservationManager.checkCreep: 1 Room ' + myRoom.name);
-            if (myRoom.memory.mainRoomDistanceDescriptions[this_1.mainRoom.name].distance >= 2 && !_.any(myRoom.sources, function (x) { return x.memory.containerId; }))
+            if (myRoom.memory.mainRoomDistanceDescriptions[this_2.mainRoom.name].distance >= 2 && !_.any(myRoom.mySources, function (x) { return x.requiresCarrier; }))
                 return "continue";
             var room = myRoom.room;
             if (room && room.controller.reservation != null && room.controller.reservation.ticksToEnd > 1000)
                 return "continue";
             if (Memory['verbose'] == true)
                 console.log('ReservationManager.checkCreep: 2 Room ' + myRoom.name);
-            if (_.filter(this_1.creeps, function (x) { return x.memory.targetRoomName == myRoom.name; }).length == 0) {
-                this_1.mainRoom.spawnManager.AddToQueue([CLAIM, CLAIM, MOVE, MOVE], { role: 'reserver', targetRoomName: myRoom.name });
+            if (_.filter(this_2.creeps, function (x) { return x.memory.targetRoomName == myRoom.name; }).length == 0) {
+                this_2.mainRoom.spawnManager.AddToQueue([CLAIM, CLAIM, MOVE, MOVE], { role: 'reserver', targetRoomName: myRoom.name });
             }
         };
-        var this_1 = this;
+        var this_2 = this;
         for (var idx in rooms) {
-            var state_2 = _loop_2();
-            if (state_2 === "continue") continue;
+            var state_3 = _loop_3();
+            if (state_3 === "continue") continue;
         }
     };
     ReservationManager.prototype.tick = function () {
@@ -1808,15 +1841,12 @@ var RoadConstructionManager = (function () {
             return;
         if (!this.mainRoom.mainContainer)
             return;
-        var sources = _.filter(this.mainRoom.sources, function (x) { return x.memory.containerId != null && (x.memory.mainContainerRoadBuiltTo != _this.mainRoom.name || (Game.time % 500 == 0)) && x.myRoom.canHarvest(); });
+        var sources = _.filter(this.mainRoom.sources, function (x) { return !x.keeper && x.sourceDropOffContainer != null && (x.roadBuiltToMainContainer != _this.mainRoom.name || (Game.time % 500 == 0)) && x.myRoom.canHarvest(); });
         for (var sourceIdx = 0; sourceIdx < sources.length; sourceIdx++) {
-            var source = sources[sourceIdx];
-            var sourceContainer = Game.getObjectById(source.memory.containerId);
-            if (!sourceContainer)
-                continue;
-            var path = PathFinder.search(this.mainRoom.mainContainer.pos, { pos: sourceContainer.pos, range: 1 }, { swampCost: 2 });
+            var mySource = sources[sourceIdx];
+            var path = PathFinder.search(this.mainRoom.mainContainer.pos, { pos: mySource.sourceDropOffContainer.pos, range: 1 }, { swampCost: 2 });
             this.constructRoad(path.path, 0);
-            source.memory.mainContainerRoadBuiltTo = this.mainRoom.name;
+            mySource.roadBuiltToMainContainer = this.mainRoom.name;
             break;
         }
     };
@@ -1878,9 +1908,13 @@ var Scout = (function () {
             //let path = this.creep.pos.findPathTo(new RoomPosition(25, 25, this.memory.targetRoomName), { ignoreDestructibleStructures: true });
             this.creep.moveTo(new RoomPosition(25, 25, this.memory.targetPosition.roomName));
         }
-        var myRoom = Colony.getRoom(pos.roomName);
-        if (myRoom.memory.lastScanTime < Game.time - 100)
-            myRoom.scan();
+        if (pos.roomName == this.memory.targetPosition.roomName) {
+            var myRoom = Colony.getRoom(pos.roomName);
+            if (myRoom.memory.lastScanTime < Game.time - 100)
+                myRoom.scan();
+            if (myRoom.memory.foreignOwner)
+                this.creep.suicide();
+        }
     };
     return Scout;
 }());
@@ -1970,18 +2004,18 @@ var ClaimingManager = (function () {
         if (myRoom == null)
             return false;
         var needCreeps = false;
-        var sources = _.filter(myRoom.sources, function (x) { return x.memory.keeper == false; });
-        var _loop_3 = function(idx) {
+        var sources = _.filter(myRoom.mySources, function (x) { return x.keeper == false; });
+        var _loop_4 = function(idx) {
             var mySource = sources[idx];
-            var creepCount = _.filter(this_2.spawnConstructors, function (x) { return x.memory.sourceId == mySource.id; }).length;
+            var creepCount = _.filter(this_3.spawnConstructors, function (x) { return x.memory.sourceId == mySource.id; }).length;
             if (creepCount < 2) {
-                Colony.spawnCreep(['work', 'work', 'work', 'work', 'work', 'carry', 'carry', 'carry', 'carry', 'carry', 'carry', 'carry', 'carry', 'carry', 'carry', 'move', 'move', 'move', 'move', 'move'], { handledByColony: true, claimingManager: this_2.roomName, role: 'spawnConstructor', targetPosition: this_2.targetPosition, sourceId: mySource.id }, 2 - creepCount);
+                Colony.spawnCreep(['work', 'work', 'work', 'work', 'work', 'carry', 'carry', 'carry', 'carry', 'carry', 'carry', 'carry', 'carry', 'carry', 'carry', 'move', 'move', 'move', 'move', 'move'], { handledByColony: true, claimingManager: this_3.roomName, role: 'spawnConstructor', targetPosition: this_3.targetPosition, sourceId: mySource.id }, 2 - creepCount);
                 needCreeps = true;
             }
         };
-        var this_2 = this;
+        var this_3 = this;
         for (var idx in sources) {
-            _loop_3(idx);
+            _loop_4(idx);
         }
         return !needCreeps;
     };
@@ -2155,16 +2189,71 @@ var InvasionManager = (function () {
     return InvasionManager;
 }());
 exports.InvasionManager = InvasionManager;
+var TraceResult = (function () {
+    function TraceResult() {
+        this.usedCpu = 0;
+        this.startCPU = 0;
+        this.count = 0;
+    }
+    TraceResult.prototype.stop = function () {
+        this.usedCpu += (Game.cpu.getUsed() - this.startCPU);
+        this.count++;
+    };
+    return TraceResult;
+}());
+var Tracer = (function () {
+    function Tracer(name) {
+        this.name = name;
+        this.results = {};
+    }
+    ;
+    Tracer.prototype.start = function (name) {
+        var traceResult = this.results[name];
+        if (traceResult == null) {
+            traceResult = new TraceResult();
+            traceResult.name = name;
+            this.results[name] = traceResult;
+        }
+        traceResult.startCPU = Game.cpu.getUsed();
+        return traceResult;
+    };
+    Tracer.prototype.print = function () {
+        if (Memory['tracer'] == true || Memory['tracer'] == 'true') {
+            console.log();
+            for (var i in this.results) {
+                var result = this.results[i];
+                console.log('Trace CPU Used: ' + result.usedCpu.toFixed(2) + ' Count: ' + result.count + ': ' + this.name + ': ' + result.name);
+            }
+        }
+    };
+    return Tracer;
+}());
+exports.Tracer = Tracer;
+var MySourceMemory = (function () {
+    function MySourceMemory() {
+    }
+    return MySourceMemory;
+}());
+exports.MySourceMemory = MySourceMemory;
+var RoomPos = (function () {
+    function RoomPos() {
+    }
+    RoomPos.fromObj = function (obj) {
+        return new RoomPosition(obj.x, obj.y, obj.roomName);
+    };
+    return RoomPos;
+}());
+exports.RoomPos = RoomPos;
 var Body = (function () {
     function Body() {
     }
     Body.getFromCreep = function (creep) {
         var body = new Body();
-        var _loop_4 = function(part) {
+        var _loop_5 = function(part) {
             body[BODYPARTS_ALL[part]] = _.filter(creep.body, function (x) { return x.type == BODYPARTS_ALL[part]; }).length;
         };
         for (var part in BODYPARTS_ALL) {
-            _loop_4(part);
+            _loop_5(part);
         }
         return body;
     };
@@ -2200,11 +2289,9 @@ exports.Body = Body;
 var Constructor = (function () {
     function Constructor(creep, mainRoom) {
         this.creep = creep;
-        this.memory = this.creep.memory;
         this.mainRoom = mainRoom;
         this.target = Game.getObjectById(this.memory.targetId);
         if (this.target != null) {
-            this.creep.memory.targetPosition = this.target.pos;
             this.targetPosition = this.target.pos;
             this.memory.targetPosition = this.targetPosition;
         }
@@ -2219,9 +2306,17 @@ var Constructor = (function () {
             }
         }
     }
+    Object.defineProperty(Constructor.prototype, "memory", {
+        get: function () { return this.creep.memory; },
+        enumerable: true,
+        configurable: true
+    });
     Constructor.prototype.construct = function () {
         if (this.target != null) {
-            if (this.creep.build(this.target) == ERR_NOT_IN_RANGE)
+            var result = this.creep.build(this.target);
+            if (result == ERR_RCL_NOT_ENOUGH)
+                this.target.remove();
+            else if (result == ERR_NOT_IN_RANGE)
                 this.creep.moveTo(this.target);
         }
         else {
@@ -2234,8 +2329,6 @@ var Constructor = (function () {
     };
     Constructor.prototype.tick = function () {
         var _this = this;
-        this.memory = this.creep.memory;
-        //this.creep.say('construct');
         if (this.creep.carry.energy > 0) {
             if (this.targetPosition != null)
                 this.construct();
@@ -2381,40 +2474,84 @@ var UpgraderDefinition;
     }
     UpgraderDefinition.getDefinition = getDefinition;
 })(UpgraderDefinition = exports.UpgraderDefinition || (exports.UpgraderDefinition = {}));
+(function (RepairerState) {
+    RepairerState[RepairerState["Refilling"] = 0] = "Refilling";
+    RepairerState[RepairerState["Repairing"] = 1] = "Repairing";
+})(exports.RepairerState || (exports.RepairerState = {}));
+var RepairerState = exports.RepairerState;
 var Repairer = (function () {
     function Repairer(creep, mainRoom) {
         this.creep = creep;
         this.mainRoom = mainRoom;
-        this.memory = this.creep.memory;
     }
-    Repairer.prototype.refill = function () {
-        var container = this.mainRoom.mainContainer;
-        if (container && container.transfer(this.creep, RESOURCE_ENERGY) == ERR_NOT_IN_RANGE)
-            this.creep.moveTo(container);
+    Object.defineProperty(Repairer.prototype, "memory", {
+        get: function () { return this.creep.memory; },
+        enumerable: true,
+        configurable: true
+    });
+    Repairer.prototype.getEmergencyTarget = function () {
+        return this.creep.pos.findClosestByRange(FIND_STRUCTURES, { filter: RepairManager.emergencyTargetDelegate });
     };
     Repairer.prototype.tick = function () {
-        //this.creep.say('repair');
-        this.memory = this.creep.memory;
-        if (this.creep.carry.energy == 0) {
-            this.refill();
+        if (this.memory.state == RepairerState.Repairing && this.creep.carry.energy == 0) {
+            this.memory.state = RepairerState.Refilling;
+            this.memory.fillupContainerId = null;
+        }
+        else if (this.memory.state == RepairerState.Refilling && this.creep.carry.energy == this.creep.carryCapacity)
+            this.memory.state = RepairerState.Repairing;
+        if (this.memory.state == RepairerState.Repairing) {
+            if (this.creep.room.name != this.memory.roomName) {
+                this.creep.moveTo(new RoomPosition(25, 25, this.memory.roomName));
+            }
+            if (this.creep.room.name == this.memory.roomName && this.memory.targetId == null) {
+                var target = this.getEmergencyTarget();
+                if (target) {
+                    this.memory.targetId = target.id;
+                    this.memory.isEmergency = true;
+                }
+                else {
+                    target = this.creep.pos.findClosestByRange(FIND_STRUCTURES, { filter: RepairManager.targetDelegate });
+                    if (target) {
+                        this.memory.targetId = target.id;
+                        this.memory.isEmergency = false;
+                    }
+                }
+            }
+            if (this.memory.targetId != null) {
+                var structure = Game.getObjectById(this.memory.targetId);
+                if (structure == null) {
+                    this.memory.targetId = null;
+                }
+                else {
+                    if (!this.creep.pos.isNearTo(structure))
+                        this.creep.moveTo(structure);
+                    this.creep.repair(structure);
+                    if (this.memory.isEmergency && RepairManager.emergencyStopDelegate(structure))
+                        this.memory.isEmergency = false;
+                    if (RepairManager.forceStopRepairDelegate(structure) || this.memory.isEmergency == false && this.getEmergencyTarget != null)
+                        this.memory.targetId = null;
+                }
+            }
         }
         else {
-            var repairTarget = null;
-            this.memory.repairTarget && (repairTarget = Game.getObjectById(this.memory.repairTarget.id));
-            if (repairTarget) {
-                var result = this.creep.repair(repairTarget);
-                if (result == ERR_NOT_IN_RANGE)
-                    this.creep.moveTo(repairTarget);
+            if (this.memory.fillupContainerId == null) {
+                var container_1 = null;
+                if (this.creep.room.name == this.mainRoom.name) {
+                    container_1 = this.mainRoom.mainContainer;
+                }
+                else {
+                    container_1 = this.creep.pos.findClosestByRange(FIND_STRUCTURES, { filter: function (x) { return x.structureType == STRUCTURE_CONTAINER || x.structureType == STRUCTURE_STORAGE; } });
+                }
+                if (container_1 != null) {
+                    this.memory.fillupContainerId = container_1.id;
+                }
             }
-            else if (this.memory.repairTarget && this.creep.room.name != this.memory.repairTarget.pos.roomName) {
-                this.creep.moveTo(new RoomPosition(this.memory.repairTarget.pos.x, this.memory.repairTarget.pos.y, this.memory.repairTarget.pos.roomName));
-            }
+            var container = Game.getObjectById(this.memory.fillupContainerId);
+            if (container == null)
+                this.memory.fillupContainerId = null;
             else {
-                repairTarget = this.creep.pos.findClosestByRange(FIND_STRUCTURES, {
-                    filter: function (x) { return x.hits < x.hitsMax; }
-                });
-                if (repairTarget && this.creep.repair(repairTarget) == ERR_NOT_FOUND)
-                    this.creep.moveTo(repairTarget);
+                if (container.transfer(this.creep, RESOURCE_ENERGY) == ERR_NOT_IN_RANGE)
+                    this.creep.moveTo(container);
             }
         }
     };
@@ -2461,97 +2598,92 @@ var RepairerDefinition;
     }
     RepairerDefinition.getDefinition = getDefinition;
 })(RepairerDefinition = exports.RepairerDefinition || (exports.RepairerDefinition = {}));
+(function (HarvesterState) {
+    HarvesterState[HarvesterState["Harvesting"] = 0] = "Harvesting";
+    HarvesterState[HarvesterState["Delivering"] = 1] = "Delivering";
+})(exports.HarvesterState || (exports.HarvesterState = {}));
+var HarvesterState = exports.HarvesterState;
 var Harvester = (function () {
     function Harvester(creep, mainRoom) {
         this.creep = creep;
         this.mainRoom = mainRoom;
-        this.memory = creep.memory;
-        this.loadFromMemory();
+        this._source = { time: -1, source: null };
+        this._mySource = { time: -1, mySource: null };
     }
-    Harvester.prototype.getSourcePosition = function () {
-        this.source = Game.getObjectById(this.sourceId);
-        if (this.source == null)
-            this.sourcePosition = this.source.pos;
+    Object.defineProperty(Harvester.prototype, "memory", {
+        get: function () { return this.creep.memory; },
+        enumerable: true,
+        configurable: true
+    });
+    Object.defineProperty(Harvester.prototype, "source", {
+        get: function () {
+            if (this._source.time < Game.time)
+                this._source = {
+                    time: Game.time, source: Game.getObjectById(this.memory.sourceId)
+                };
+            return this._source.source;
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Object.defineProperty(Harvester.prototype, "mySource", {
+        get: function () {
+            if (this._mySource.time < Game.time)
+                this._mySource = {
+                    time: Game.time, mySource: this.mainRoom.sources[this.memory.sourceId]
+                };
+            return this._mySource.mySource;
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Harvester.prototype.deliver = function (dontMove) {
+        if (dontMove === void 0) { dontMove = false; }
+        if (this.mySource.dropOffStructure == null)
+            return;
+        if (this.creep.room.name == this.mySource.dropOffStructure.pos.roomName) {
+            if (this.creep.transfer(this.mySource.dropOffStructure, RESOURCE_ENERGY) == ERR_NOT_IN_RANGE && !dontMove)
+                this.creep.moveTo(this.mySource.dropOffStructure);
+        }
         else
-            this.sourcePosition = this.mainRoom.sources[this.sourceId].pos;
+            this.creep.moveTo(this.mySource.dropOffStructure);
     };
     Harvester.prototype.harvest = function () {
-        var source = Game.getObjectById(this.sourceId);
-        if (source != null) {
-            if (this.creep.harvest(source) == ERR_NOT_IN_RANGE)
-                this.creep.moveTo(source);
-            this.sourceContainerDropOff(true);
+        if (this.source == null) {
+            this.creep.moveTo(this.mySource);
         }
         else {
-            this.creep.moveTo(this.sourcePosition);
+            if (this.creep.harvest(this.source) == ERR_NOT_IN_RANGE)
+                this.creep.moveTo(this.source);
+            else if (!this.mySource.nearByConstructionSite)
+                this.deliver(true);
         }
     };
-    Harvester.prototype.sourceContainerDropOff = function (dontMove) {
-        if (dontMove === void 0) { dontMove = false; }
-        //this.creep.say('test');
-        var container = null;
-        this.mainRoom.sources[this.sourceId].memory.linkId && (container = Game.getObjectById(this.mainRoom.sources[this.sourceId].memory.linkId));
-        if (container == null) {
-            if (this.mainRoom.creepManagers.harvestingManager.sourceCarrierCreeps.length == 0 || this.mainRoom.creepManagers.spawnFillManager.creeps.length == 0)
-                return false;
-            this.mainRoom.sources[this.sourceId].memory.containerId && (container = Game.getObjectById(this.mainRoom.sources[this.sourceId].memory.containerId));
-        }
-        if (container) {
-            var result = this.creep.transfer(container, RESOURCE_ENERGY);
-            if (result == ERR_NOT_IN_RANGE && !dontMove)
-                this.creep.moveTo(container);
-            return true;
-        }
-        return false;
-    };
-    Harvester.prototype.dropOff = function () {
-        if (!this.sourceContainerDropOff()) {
-            var dropOffContainer = this.mainRoom.mainContainer;
-            if (dropOffContainer == null || this.mainRoom.creepManagers.spawnFillManager.creeps.length == 0) {
-                //this.creep.say('test');
-                var spawns = this.mainRoom.room.find(FIND_MY_SPAWNS, { filter: function (x) { return x.energy < x.energyCapacity; } });
-                for (var spawnName in spawns) {
-                    dropOffContainer = spawns[spawnName];
-                }
-            }
-            if (dropOffContainer) {
-                if (this.creep.transfer(dropOffContainer, RESOURCE_ENERGY) == ERR_NOT_IN_RANGE)
-                    this.creep.moveTo(dropOffContainer);
-            }
-            else if (this.memory.doConstructions) {
-                var nearestConstructionSite = this.creep.pos.findClosestByRange(FIND_CONSTRUCTION_SITES);
-                if (this.creep.build(nearestConstructionSite) == ERR_NOT_IN_RANGE)
-                    this.creep.moveTo(nearestConstructionSite);
-            }
-        }
+    Harvester.prototype.construct = function () {
+        if (!this.mySource.nearByConstructionSite)
+            return;
+        if (this.creep.build(this.mySource.nearByConstructionSite) == ERR_NOT_IN_RANGE)
+            this.creep.moveTo(this.mySource.nearByConstructionSite);
     };
     Harvester.prototype.tick = function () {
-        this.memory = this.creep.memory;
-        if (!this.mainRoom.sources[this.sourceId])
+        if (this.mySource == null) {
+            this.creep.say('NoMySource');
             return;
-        if (this.memory.state == null) {
-            if (this.creep.carry.energy <= this.creep.carryCapacity)
-                this.memory.state = 'harvesting';
-            else
-                this.memory.state = 'delivering';
         }
-        if (this.memory.state == 'harvesting' && this.creep.carry.energy == this.creep.carryCapacity)
-            this.memory.state = 'delivering';
-        else if (this.memory.state == 'delivering' && this.creep.carry.energy == 0)
-            this.memory.state = 'harvesting';
-        if (this.memory.state == 'harvesting') {
+        if (this.memory.state == null)
+            this.memory.state = HarvesterState.Harvesting;
+        if (this.memory.state == HarvesterState.Harvesting && this.creep.carry.energy < this.creep.carryCapacity)
             this.harvest();
+        else if (this.memory.state == HarvesterState.Harvesting && this.creep.carry.energy == this.creep.carryCapacity)
+            this.memory.state = HarvesterState.Delivering;
+        if (this.memory.state == HarvesterState.Delivering && this.creep.carry.energy > 0) {
+            if (this.source && this.mySource.nearByConstructionSite && this.mainRoom.mainContainer)
+                this.construct();
+            else
+                this.deliver();
         }
-        else {
-            this.dropOff();
-        }
-    };
-    Harvester.prototype.loadFromMemory = function () {
-        this.sourceId = this.memory.sourceId;
-        this.mainRoom = Colony.mainRooms[this.memory.mainRoomName];
-    };
-    Harvester.prototype.saveToMemory = function () {
-        this.memory.mainRoomName = this.mainRoom.name;
+        else if (this.memory.state == HarvesterState.Delivering && this.creep.carry.energy == 0)
+            this.memory.state = HarvesterState.Harvesting;
     };
     return Harvester;
 }());
@@ -2617,17 +2749,44 @@ var SourceCarrier = (function () {
     function SourceCarrier(creep, mainRoom) {
         this.creep = creep;
         this.mainRoom = mainRoom;
-        this.memory = this.creep.memory;
-        this.mySource = this.mainRoom.sources[this.memory.sourceId];
+        this._source = { time: 0, source: null };
+        this._mySource = { time: 0, mySource: null };
     }
+    Object.defineProperty(SourceCarrier.prototype, "memory", {
+        get: function () { return this.creep.memory; },
+        enumerable: true,
+        configurable: true
+    });
+    Object.defineProperty(SourceCarrier.prototype, "source", {
+        get: function () {
+            if (this._source.time < Game.time)
+                this._source = {
+                    time: Game.time, source: Game.getObjectById(this.memory.sourceId)
+                };
+            return this._source.source;
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Object.defineProperty(SourceCarrier.prototype, "mySource", {
+        get: function () {
+            if (this._mySource.time < Game.time)
+                this._mySource = {
+                    time: Game.time, mySource: this.mainRoom.sources[this.memory.sourceId]
+                };
+            return this._mySource.mySource;
+        },
+        enumerable: true,
+        configurable: true
+    });
     SourceCarrier.prototype.pickUp = function () {
-        this.memory = this.creep.memory;
-        if (this.mySource.pos.roomName != this.creep.room.name)
-            this.creep.moveTo(this.mySource);
+        if (!this.mySource.sourceDropOffContainer)
+            return;
+        if (this.mySource.sourceDropOffContainer.pos.roomName != this.creep.pos.roomName)
+            this.creep.moveTo(this.mySource.sourceDropOffContainer);
         else {
-            this.sourceContainer = Game.getObjectById(this.mySource.memory.containerId);
-            if (this.sourceContainer && this.sourceContainer.transfer(this.creep, RESOURCE_ENERGY) == ERR_NOT_IN_RANGE)
-                this.creep.moveTo(this.sourceContainer);
+            if (this.mySource.sourceDropOffContainer && this.mySource.sourceDropOffContainer.transfer(this.creep, RESOURCE_ENERGY) == ERR_NOT_IN_RANGE)
+                this.creep.moveTo(this.mySource.sourceDropOffContainer);
         }
     };
     SourceCarrier.prototype.deliver = function () {
@@ -2938,6 +3097,11 @@ var GameManager;
         Colony.initialize(colonyMemory);
         var endCpu = Game.cpu.getUsed();
         console.log('Booting: ' + (endCpu - startCpu).toFixed(2));
+        console.log();
+        console.log('Boot tracers :');
+        for (var idx in Colony.tracers) {
+            Colony.tracers[idx].print();
+        }
     }
     GameManager.globalBootstrap = globalBootstrap;
     function loop() {
@@ -2955,6 +3119,11 @@ var GameManager;
         if (Memory['verbose'])
             console.log('MainLoop');
         Colony.tick();
+        console.log();
+        console.log('Loop tracers :');
+        for (var idx in Colony.tracers) {
+            Colony.tracers[idx].print();
+        }
         var endCpu = Game.cpu.getUsed();
         console.log('Time: ' + Game.time + ' CPU: ' + (endCpu - startCpu).toFixed(2) + ' Bucket: ' + Game.cpu.bucket);
     }
@@ -2965,16 +3134,16 @@ var GameManager;
 */
 // Any modules that you use that modify the game's prototypes should be require'd 
 // before you require the profiler. 
-var profiler = require('screeps-profiler');
+//var profiler = require('screeps-profiler');
 // This line monkey patches the global prototypes. 
-profiler.enable();
+//profiler.enable();
 GameManager.globalBootstrap();
 // This doesn't look really nice, but Screeps' system expects this method in main.js to run the application.
 // If we have this line, we can make sure that globals bootstrap and game loop work.
 // http://support.screeps.com/hc/en-us/articles/204825672-New-main-loop-architecture
 module.exports.loop = function () {
-    profiler.wrap(function () {
-        console.log();
-        GameManager.loop();
-    });
+    //profiler.wrap(function () {
+    console.log();
+    GameManager.loop();
+    //});
 };

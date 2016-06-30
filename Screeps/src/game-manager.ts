@@ -16,6 +16,7 @@ export namespace GameManager {
         // Use this bootstrap wisely. You can cache some of your stuff to save CPU
         // You should extend prototypes before game loop in here.
 
+
         if (Memory['reset'] == true) {
             Memory['reset'] = false;
             Memory['colony'] = {};
@@ -34,6 +35,12 @@ export namespace GameManager {
 
         let endCpu = Game.cpu.getUsed();
         console.log('Booting: ' + (endCpu - startCpu).toFixed(2));
+
+        console.log();
+        console.log('Boot tracers :');
+        for (let idx in Colony.tracers) {
+            Colony.tracers[idx].print();
+        }
     }
 
     export function loop() {
@@ -56,6 +63,14 @@ export namespace GameManager {
             console.log('MainLoop');
 
         Colony.tick();
+        
+
+        console.log();
+        console.log('Loop tracers :');
+        for (let idx in Colony.tracers) {
+            Colony.tracers[idx].print();
+        }
+
         let endCpu = Game.cpu.getUsed();
         console.log('Time: ' + Game.time + ' CPU: ' + (endCpu - startCpu).toFixed(2) + ' Bucket: ' + Game.cpu.bucket);
     }

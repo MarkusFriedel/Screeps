@@ -29,7 +29,7 @@ export class ReservationManager {
             let myRoom = rooms[idx];
             if (Memory['verbose'] == true)
                 console.log('ReservationManager.checkCreep: 1 Room ' + myRoom.name);
-            if (myRoom.memory.mainRoomDistanceDescriptions[this.mainRoom.name].distance >= 2 && !_.any(myRoom.sources, x => x.memory.containerId))
+            if (myRoom.memory.mainRoomDistanceDescriptions[this.mainRoom.name].distance >= 2 && !_.any(myRoom.mySources, x => x.requiresCarrier))
                 continue;
             let room = myRoom.room;
             if (room && room.controller.reservation != null && room.controller.reservation.ticksToEnd > 1000)
