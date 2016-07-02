@@ -6,6 +6,9 @@ import {ClaimingManager} from "./claimingManager";
 
 import {InvasionManager} from "./invasionManager";
 import {Tracer} from "../tracer";
+import {Body} from "../components/creeps/body";
+
+import {RoomAssignmentHandler} from "./roomAssignment";
 
 export namespace Colony {
 
@@ -70,12 +73,15 @@ export namespace Colony {
     }
 
 
-    export function spawnCreep(body, memory, count = 1) {
-        for (let roomName in mainRooms) {
-            let mainRoom = mainRooms[roomName];
-            mainRoom.spawnManager.AddToQueue(body, memory, count);
-            break;
+    export function spawnCreep(requestRoom: MyRoom, body: Body, memory, count = 1) {
+        console.log('Colony.spawnCreep costs: ' + body.costs);
+        let mainRoom = _.sortBy(_.filter(mainRooms, x => x.maxSpawnEnergy > body.costs), x => requestRoom.memory.mainRoomDistanceDescriptions[x.name].distance)[0];
+        if (mainRoom) {
+            mainRoom.spawnManager.AddToQueue(body.getBody(), memory, count);
+            return true;
         }
+        else
+            return false;
     }
 
     export function createScouts() {
@@ -94,7 +100,9 @@ export namespace Colony {
         }
     }
 
-    export function rearrangeRooms() {
+
+
+    export function requestCreep() {
 
     }
 
@@ -153,23 +161,29 @@ export namespace Colony {
             myRoom.memory.mainRoomDistanceDescriptions[mainRoom.name] = { roomName: mainRoom.name, distance: distance };
         }
         let mainRoomCandidates = _.sortBy(_.map(_.filter(myRoom.memory.mainRoomDistanceDescriptions, (x) => x.distance <= 1), function (y) { return { distance: y.distance, mainRoom: mainRooms[y.roomName] }; }), z => [z.distance.toString(), (10 - z.mainRoom.room.controller.level).toString()].join('_'));
-        if (mainRoomCandidates.length > 0 && !myRoom.memory.foreignOwner && (mainRoomCandidates[0].distance <= 1 || mainRoomCandidates[0].mainRoom.room.controller.level >= 6)) {
-            myRoom.mainRoom = mainRoomCandidates[0].mainRoom;
-            myRoom.memory.mainRoomName = mainRoomCandidates[0].mainRoom.name;
-        }
-        else {
-            myRoom.mainRoom = null;
-        }
+        //if (mainRoomCandidates.length > 0 && !myRoom.memory.foreignOwner && (mainRoomCandidates[0].distance <= 1 || mainRoomCandidates[0].mainRoom.room.controller.level >= 6)) {
+        //    myRoom.mainRoom = mainRoomCandidates[0].mainRoom;
+        //    myRoom.memory.mainRoomName = mainRoomCandidates[0].mainRoom.name;
+        //}
+        //else {
+        //    myRoom.mainRoom = null;
+        //}
     }
 
     function handleClaimingManagers() {
         if (Memory['trace'])
             var startCpu = Game.cpu.getUsed();
 
-        let flags = _.filter(Game.flags, (x) => x.memory.claim == 'true' && !mainRooms[x.pos.roomName])
+        let flags = _.filter(Game.flags, (x) => x.memory.claim == true && !mainRooms[x.pos.roomName])
+
+        console.log("Claiming Manager: Found " + flags.length + " flags");
 
         for (let idx in flags) {
-            claimingManagers[flags[idx].pos.roomName] = new ClaimingManager(flags[idx].pos);
+            console.log('Claiming Manager: GCL: ' + Game.gcl.level);
+            console.log('Claiming Manager: MainRooms: ' + _.size(mainRooms));
+            console.log('Claiming Manager: ClaimingManagers: ' + _.size(claimingManagers));
+            if (Game.gcl.level > _.size(mainRooms) + _.size(claimingManagers))
+                claimingManagers[flags[idx].pos.roomName] = new ClaimingManager(flags[idx].pos);
         }
 
         for (let idx in claimingManagers) {
@@ -221,7 +235,10 @@ export namespace Colony {
             let idx = ~~((Game.time % (roomArray.length * 10)) / 10);
             let myRoom = roomArray[idx];
             calculateDistances(myRoom);
+
+
         }
+
         if (Memory['trace']) {
             endCpu = Game.cpu.getUsed();
             console.log('Colony.Calculate distances to MainRooms: ' + (endCpu - startCpu).toFixed(2));
@@ -243,7 +260,6 @@ export namespace Colony {
         handleClaimingManagers();
         handleInvasionManagers();
 
-
         createScouts();
 
         for (let roomName in mainRooms)
@@ -264,6 +280,30 @@ export namespace Colony {
             console.log('Colony: Handle scouts ' + (endCpu - startCpu).toFixed(2));
         }
 
+
+        if ((Game.time % 500 == 0) || Memory['forceReassignment'] == true || Memory['forceReassignment'] == 'true') {
+            try {
+                
+                let result = new RoomAssignmentHandler(rooms, mainRooms).getAssignments();
+
+                let stringResult = _.map(result, x => {
+                    return {
+                        mainRoom: x.mainRoom.name,
+                        rooms: _.map(x.myRooms, y => y.name)
+                    }
+                });
+                _.forEach(rooms, (x) => x.mainRoom = null);
+
+                _.forEach(result, (x) => _.forEach(x.myRooms, (y) => y.mainRoom = x.mainRoom));
+
+                Memory['RoomAssignment'] = stringResult;
+                Memory['forceReassignment'] = false;
+            }
+            catch (e) {
+                console.log('ERRROR: ROOMASSIGNMENT ' + e.stack);
+                Memory['RoomAssignmentError'] = JSON.parse(JSON.stringify(e));
+            }
+        }
 
     }
 

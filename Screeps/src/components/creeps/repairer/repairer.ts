@@ -22,9 +22,13 @@ export class Repairer {
     }
 
     public tick() {
+        if (this.creep.room.name == this.memory.roomName &&(this.creep.pos.x == 0 || this.creep.pos.x == 49 || this.creep.pos.y == 0 || this.creep.pos.y == 49))
+            this.creep.moveTo(new RoomPosition(25,25,this.creep.room.name));
+
         if (this.memory.state == RepairerState.Repairing && this.creep.carry.energy == 0) {
             this.memory.state = RepairerState.Refilling;
             this.memory.fillupContainerId = null;
+            this.memory.targetId = null;
         }
         else if (this.memory.state == RepairerState.Refilling && this.creep.carry.energy == this.creep.carryCapacity)
             this.memory.state = RepairerState.Repairing;
@@ -49,6 +53,13 @@ export class Repairer {
                         this.memory.targetId = target.id;
                         this.memory.isEmergency = false;
                     }
+                    else {
+                        target = this.creep.pos.findClosestByRange<Structure>(FIND_STRUCTURES, { filter: (x:Structure) => !RepairManager.forceStopRepairDelegate(x) && x.hits<x.hitsMax });
+                        if (target) {
+                            this.memory.targetId = target.id;
+                            this.memory.isEmergency = false;
+                        }
+                    }
                 }
             }
             if (this.memory.targetId != null) {
@@ -64,7 +75,7 @@ export class Repairer {
                     if (this.memory.isEmergency && RepairManager.emergencyStopDelegate(structure))
                         this.memory.isEmergency = false;
 
-                    if (RepairManager.forceStopRepairDelegate(structure) || this.memory.isEmergency == false && this.getEmergencyTarget != null)
+                    if (RepairManager.forceStopRepairDelegate(structure) || this.memory.isEmergency == false && this.getEmergencyTarget() != null)
                         this.memory.targetId = null;
                 }
             }
@@ -88,7 +99,7 @@ export class Repairer {
 
             if (container == null)
                 this.memory.fillupContainerId = null;
-            else {
+            else if (container.store.energy > this.creep.carryCapacity) {
                 if (container.transfer(this.creep, RESOURCE_ENERGY) == ERR_NOT_IN_RANGE)
                     this.creep.moveTo(container);
             }

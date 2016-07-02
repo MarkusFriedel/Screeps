@@ -1,6 +1,7 @@
 ﻿import {Config} from "./../../config/config";
 import {MainRoom} from "../rooms/mainRoom";
 import {RepairManager} from "../rooms/repairManager";
+import {Body} from "../creeps/body";
 
 export class MyTower {
 
@@ -13,7 +14,7 @@ export class MyTower {
     }
 
     public tick() {
-        var closestHostile = this.tower.pos.findClosestByRange<Creep>(FIND_HOSTILE_CREEPS, { filter: (e) => e.owner.username !== 'Source Keeper' });
+        var closestHostile = this.tower.pos.findClosestByRange<Creep>(FIND_HOSTILE_CREEPS, { filter: (e: Creep) => e.owner.username !== 'Source Keeper' && Body.getFromCreep(e).isMilitary() });
 
         if (closestHostile != null) {
             this.tower.attack(closestHostile);

@@ -15,7 +15,7 @@ export class SpawnFiller {
         if (!this.mainRoom)
             return;
         let mainContainer = this.mainRoom.mainContainer;
-        if (mainContainer != null) {
+        if (mainContainer != null && mainContainer.store.energy>0) {
             if (mainContainer.transfer(this.creep, RESOURCE_ENERGY) == ERR_NOT_IN_RANGE)
                 this.creep.moveTo(mainContainer);
         }

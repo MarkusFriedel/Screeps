@@ -8,16 +8,18 @@ export namespace UpgraderDefinition {
         let remainingEnergy = maxEnergy;// Math.min(maxEnergy, 1500);
 
         var basicModuleCount = ~~(remainingEnergy / 300);
+        if (basicModuleCount * 4 > 50) {
+            basicModuleCount = Math.floor(50 / 4);
+        }
         body.work = basicModuleCount * 2;
         body.carry = basicModuleCount * 1;
         body.move = basicModuleCount * 1;
 
-        if (basicModuleCount * 4 > 50)
-            basicModuleCount = Math.floor(50 / 4);
+        
 
         var remaining = maxEnergy - basicModuleCount * 300;
 
-        while (remaining >= 100) {
+        while (remaining >= 100 && body.getBody().length <= 45) {
             if (remaining >= 300) {
                 body.work++; body.carry++; body.carry++; body.carry++; body.move++;
                 remaining -= 300;
@@ -35,7 +37,7 @@ export namespace UpgraderDefinition {
         }
 
         if (minCarry)
-            body.carry = 2;
+            body.carry = Math.min(Math.floor(body.getBody().length/5),body.carry);
         
         return body;
     }

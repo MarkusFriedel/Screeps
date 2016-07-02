@@ -61,18 +61,22 @@ export class HarvestingManager {
     }
 
 
-    getHarvesterBodyAndCount(sourceInfo: MySource) {
+    getHarvesterBodyAndCount(sourceInfo: MySource, noLocalRestriction=false) {
         if (Memory['verbose'] || this.memory.verbose)
             console.log('MAX_ENERGY: ' + this.mainRoom.maxSpawnEnergy);
+
+        let mainRoom = noLocalRestriction ? _.max(_.values<MainRoom>(Colony.mainRooms), (x) => x.maxSpawnEnergy) : this.mainRoom;
+
         let partsRequired = Math.ceil((sourceInfo.energyCapacity / ENERGY_REGEN_TIME) / 2) + 1;
-        let maxWorkParts = HarvesterDefinition.getDefinition(this.mainRoom.maxSpawnEnergy, sourceInfo.requiresCarrier).work;
+
+        let maxWorkParts = HarvesterDefinition.getDefinition(mainRoom.maxSpawnEnergy, sourceInfo.requiresCarrier).work;
 
         if (maxWorkParts >= partsRequired)
-            return { body: HarvesterDefinition.getDefinition(this.mainRoom.maxSpawnEnergy, sourceInfo.requiresCarrier, partsRequired), count: 1 };
+            return { body: HarvesterDefinition.getDefinition(mainRoom.maxSpawnEnergy, sourceInfo.requiresCarrier, partsRequired), count: 1 };
         else {
             let creepCount = Math.min(Math.ceil(partsRequired / maxWorkParts), sourceInfo.maxHarvestingSpots);
             partsRequired = Math.min(Math.ceil(partsRequired / creepCount), maxWorkParts);
-            return { body: HarvesterDefinition.getDefinition(this.mainRoom.maxSpawnEnergy, sourceInfo.requiresCarrier, partsRequired), count: creepCount };
+            return { body: HarvesterDefinition.getDefinition(mainRoom.maxSpawnEnergy, sourceInfo.requiresCarrier, partsRequired), count: creepCount };
         }
     }
 
@@ -139,9 +143,19 @@ export class HarvestingManager {
                 console.log('HarvestingManager.checkCreeps(): Add harvester to queue');
             
             let harvesterRequirements = this.getHarvesterBodyAndCount(sourceInfo);
-            if (Memory['verbose'] || this.memory.verbose)
-                console.log('HarvestingManager.checkCreeps(): Requirements-cound: ' + harvesterRequirements.count + ' Requirements- body: ' + JSON.stringify(harvesterRequirements.body));
-            this.mainRoom.spawnManager.AddToQueue(harvesterRequirements.body.getBody(), { role: 'harvester', state: HarvesterState.Harvesting, sourceId: sourceInfo.id }, harvesterRequirements.count - harvesters.length + (!sourceInfo.requiresCarrier ? 0 : 0));
+            let requestedCreep = false;
+            if (harvesterRequirements.body.getHarvestingRate() * harvesterRequirements.count < sourceInfo.energyCapacity / ENERGY_REGEN_TIME) {
+                let requestHarvesterRequirements = this.getHarvesterBodyAndCount(sourceInfo, true);
+                requestedCreep = Colony.spawnCreep(this.mainRoom.myRoom, requestHarvesterRequirements.body, { role: 'harvester', state: HarvesterState.Harvesting, sourceId: sourceInfo.id, mainRoomName: this.mainRoom.name }, requestHarvesterRequirements.count - harvesters.length + (!sourceInfo.requiresCarrier ? 0 : 0));
+                if (Memory['verbose'] || this.memory.verbose)
+                    console.log('HarvestingManager.checkCreeps(): Requested harvester: ' + (requestedCreep ? 'sucessfull':'failed'));
+            }
+            if (!requestedCreep) {
+                if (Memory['verbose'] || this.memory.verbose)
+                    console.log('HarvestingManager.checkCreeps(): Requirements-cound: ' + harvesterRequirements.count + ' Requirements- body: ' + JSON.stringify(harvesterRequirements.body));
+                let livingHarvesters = _.filter(harvesters, x => (x.ticksToLive > sourceInfo.pathLengthToMainContainer || x.ticksToLive === undefined));
+                this.mainRoom.spawnManager.AddToQueue(harvesterRequirements.body.getBody(), { role: 'harvester', state: HarvesterState.Harvesting, sourceId: sourceInfo.id }, harvesterRequirements.count - livingHarvesters.length + (!sourceInfo.requiresCarrier ? 0 : 0));
+            }
             //}
 
             //let miningRate = _.sum(_.map(harvesters, h => Body.getFromCreep(h).getHarvestingRate()));
@@ -170,8 +184,8 @@ export class HarvestingManager {
     }
 
     public tick() {
-        this.harvesterCreeps.forEach((c) => { try { new Harvester(c, this.mainRoom).tick() } catch (e) { c.say('ERROR'); Memory['error'] = e; console.log(e);} });
-        this.sourceCarrierCreeps.forEach((c) => { try { new SourceCarrier(c, this.mainRoom).tick() } catch (e) { c.say('ERROR'); Memory['error'] = e; console.log(e); } });
+        this.harvesterCreeps.forEach((c) => { try { new Harvester(c, this.mainRoom).tick() } catch (e) { c.say('ERROR'); Memory['error'] = e; console.log(e.stack);} });
+        this.sourceCarrierCreeps.forEach((c) => { try { new SourceCarrier(c, this.mainRoom).tick() } catch (e) { c.say('ERROR'); Memory['error'] = e; console.log(e.stack); } });
     }
 
 }

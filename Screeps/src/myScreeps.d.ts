@@ -207,17 +207,22 @@ interface CreepTarget {
 
 }
 
-
+interface DistanceDescription {
+    roomName: string;
+    distance: number;
+}
 
 interface MainRoomDistanceDescriptions {
-    [roomName: string]: { roomName: string, distance: number };
+    [roomName: string]: DistanceDescription;
 }
 
 interface ClaimingManagerMemory {
     targetPosition: RoomPosition;
+    verbose: boolean;
 }
 
 interface InvasionManagerMemory {
     targetRoomName: string;
+    verbose: boolean;
 }
 

@@ -43,19 +43,19 @@ export class RepairManager {
     }
 
     public static forceStopRepairDelegate(s: Structure): boolean {
-        return (s.structureType == STRUCTURE_WALL || s.structureType == STRUCTURE_RAMPART) && s.hits > 1000000 || (s.hits == s.hitsMax);
+        return (s.structureType == STRUCTURE_WALL || s.structureType == STRUCTURE_RAMPART) && s.hits > 600000 || (s.hits >= s.hitsMax);
     }
 
     public static targetDelegate(s: Structure): boolean {
-        return s.structureType != STRUCTURE_RAMPART && s.structureType != STRUCTURE_WALL && s.hits < 0.5*s.hitsMax || (s.structureType == STRUCTURE_RAMPART || s.structureType == STRUCTURE_WALL) && s.hits < 500000
+        return (s.structureType != STRUCTURE_RAMPART && s.structureType != STRUCTURE_WALL && s.hits < 0.5 * s.hitsMax || (s.structureType == STRUCTURE_RAMPART || s.structureType == STRUCTURE_WALL) && s.hits < 500000) && s.hits < s.hitsMax
     }
 
     public static emergencyTargetDelegate(s: Structure): boolean {
-        return s.hits < s.hitsMax * 0.2 && s.structureType == STRUCTURE_CONTAINER || s.hits<2000 && s.structureType == STRUCTURE_ROAD || s.structureType == STRUCTURE_RAMPART && s.hits < 5000;
+        return (s.hits < s.hitsMax * 0.2 && s.structureType == STRUCTURE_CONTAINER || s.hits < 1000 && s.structureType == STRUCTURE_ROAD || s.structureType == STRUCTURE_RAMPART && s.hits < 5000) && s.hits < s.hitsMax;
     }
 
     public static emergencyStopDelegate(s: Structure): boolean {
-        return (s.structureType == STRUCTURE_WALL || s.structureType == STRUCTURE_RAMPART) && s.hits > 20000 || s.hits < s.hitsMax && s.structureType == STRUCTURE_ROAD || s.hits > 0.5 * s.hitsMax && s.structureType == STRUCTURE_CONTAINER;
+        return ((s.structureType == STRUCTURE_WALL || s.structureType == STRUCTURE_RAMPART) && s.hits > 20000 || s.hits >= s.hitsMax && s.structureType == STRUCTURE_ROAD || s.hits > 0.5 * s.hitsMax && s.structureType == STRUCTURE_CONTAINER) || s.hits >= s.hitsMax;
     }
 
 
@@ -66,13 +66,13 @@ export class RepairManager {
     }
 
     public createNewRepairers() {
-        if (this.mainRoom.spawnManager.isBusy)
+        if (this.mainRoom.spawnManager.isBusy || !this.mainRoom.mainContainer)
             return;
         for (let idx in this.mainRoom.allRooms) {
             let myRoom = this.mainRoom.allRooms[idx];
 
             let roomCreeps = _.filter(this.creeps, x => x.memory.roomName == myRoom.name);
-            if (roomCreeps.length < 1) {
+            if (roomCreeps.length < (myRoom.name == this.mainRoom.name ? Math.min(2, _.size(this.mainRoom.sources)) : 1)) {
                 this.mainRoom.spawnManager.AddToQueue(RepairerDefinition.getDefinition(this.mainRoom.maxSpawnEnergy).getBody(), { role: 'repairer', roomName: myRoom.name, state: RepairerState.Refilling }, 1);
             }
 

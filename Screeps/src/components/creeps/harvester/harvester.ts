@@ -46,7 +46,19 @@ export class Harvester {
     }
 
     harvest() {
-
+        if (this.mySource == null) {
+            let myRoom = _.filter(Colony.rooms, x => _.any(x.mySources, y => y.id == this.memory.sourceId))[0];
+            if (myRoom != null && myRoom.mainRoom != null) {
+                this.mainRoom = myRoom.mainRoom;
+                this.memory.mainRoomName = this.mainRoom.name;
+                this._mySource.time = -1;
+            }
+            else {
+                this.creep.say('NoMySource');
+                this.creep.suicide();
+                return;
+            }
+        }
         if (this.source == null) {
             this.creep.moveTo(this.mySource);
         }
@@ -72,7 +84,7 @@ export class Harvester {
         if (target == null)
             return;
 
-        if (this.creep.repair(target) == ERR_NOT_IN_RANGE)
+        if (this.creep.repair(target) != OK)
             this.memory.state == HarvesterState.Delivering;
     }
 
@@ -81,10 +93,7 @@ export class Harvester {
     }
 
     public tick() {
-        if (this.mySource == null) {
-            this.creep.say('NoMySource');
-            return;
-        }
+
 
         if (this.memory.state == null || this.creep.memory.state == 'harvesting')
             this.memory.state = HarvesterState.Harvesting;
@@ -100,7 +109,7 @@ export class Harvester {
             else
                 this.memory.state = HarvesterState.Delivering;
         }
-        else if (this.memory.state == HarvesterState.Repairing && (this.creep.carry.energy<10 || !this.mySource.dropOffStructure || (<Structure>this.mySource.dropOffStructure).hits == (<Structure>this.mySource.dropOffStructure).hitsMax))
+        else if (this.memory.state == HarvesterState.Repairing && (this.creep.carry.energy < 10 || !this.mySource.sourceDropOffContainer || (<Structure>this.mySource.sourceDropOffContainer).hits == (<Structure>this.mySource.sourceDropOffContainer).hitsMax))
             this.memory.state = HarvesterState.Delivering;
 
         if (this.memory.state == HarvesterState.Delivering && this.creep.carry.energy > 0) {

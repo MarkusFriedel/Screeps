@@ -82,7 +82,8 @@ export class SpawnManager {
                 if (Memory['verbose'] || this.memory.verbose)
                     console.log('[' + this.mainRoom.name + '] ' +'SpawnManager.spawn(): Spawn is not busy');
                 let creepMemory = <CreepMemory>queueItem.memory;
-                creepMemory.mainRoomName = this.mainRoom.name;
+                if (!creepMemory.mainRoomName)
+                    creepMemory.mainRoomName = this.mainRoom.name;
                 var result = spawn.createCreep(queueItem.body, null, creepMemory);
                 if (Memory['verbose'] || this.memory.verbose)
                     console.log('[' + this.mainRoom.name + '] ' +'SpawnManager.spawn(): Spawn result: ' + result);

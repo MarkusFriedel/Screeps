@@ -6,22 +6,33 @@
             body[BODYPARTS_ALL[part]] = _.filter(creep.body, x => x.type == BODYPARTS_ALL[part]).length;
         }
         return body;
-
     }
 
-    move: number;
-    work: number;
-    attack: number;
-    carry: number;
-    heal: number;
-    ranged_attack: number;
-    tough: number;
-    claim: number;
+    public get costs() {
+        let costs = 0;
+        costs += this.move * BODYPART_COST[MOVE];
+        costs += this.work * BODYPART_COST[WORK];
+        costs += this.attack * BODYPART_COST[ATTACK];
+        costs += this.carry * BODYPART_COST[CARRY];
+        costs += this.heal * BODYPART_COST[HEAL];
+        costs += this.ranged_attack * BODYPART_COST[RANGED_ATTACK];
+        costs += this.tough * BODYPART_COST[TOUGH];
+        costs += this.claim * BODYPART_COST[CLAIM];
+        return costs;
+    }
+
+    move: number=0;
+    work: number = 0;
+    attack: number = 0;
+    carry: number = 0;
+    heal: number = 0;
+    ranged_attack: number = 0;
+    tough: number = 0;
+    claim: number = 0;
 
     getHarvestingRate() {
         return this.work * 2;
     }
-
 
     isMilitary() {
         return (this.heal + this.ranged_attack + this.attack) > 0;

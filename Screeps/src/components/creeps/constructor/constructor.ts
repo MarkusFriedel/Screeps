@@ -30,11 +30,16 @@ export class Constructor {
     construct() {
         
         if (this.target != null) {
-            let result = this.creep.build(this.target);
-            if (result == ERR_RCL_NOT_ENOUGH)
-                this.target.remove();
-            else if (result == ERR_NOT_IN_RANGE)
+            if (this.creep.pos.x == 0 || this.creep.pos.x == 49 || this.creep.pos.y == 0 || this.creep.pos.y == 49)
                 this.creep.moveTo(this.target);
+            else {
+
+                let result = this.creep.build(this.target);
+                if (result == ERR_RCL_NOT_ENOUGH)
+                    this.target.remove();
+                else if (result == ERR_NOT_IN_RANGE)
+                    this.creep.moveTo(this.target);
+            }
         }
         else {
             this.creep.moveTo(this.targetPosition);
@@ -42,15 +47,13 @@ export class Constructor {
     }
 
     upgrade() {
-        if (this.creep.upgradeController(this.creep.room.controller) == ERR_NOT_IN_RANGE)
-            this.creep.moveTo(this.creep.room.controller);
+        if (this.creep.upgradeController(this.mainRoom.room.controller) == ERR_NOT_IN_RANGE)
+            this.creep.moveTo(this.mainRoom.room.controller);
     }
 
     public tick() {
-        
-
         if (this.creep.carry.energy > 0) {
-            if (this.targetPosition != null)
+            if (this.targetPosition != null || this.mainRoom.room.controller.ticksToDowngrade<1000)
                 this.construct();
             else
                 this.upgrade();

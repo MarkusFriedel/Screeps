@@ -37,9 +37,10 @@ export class MyRoom {
         return this._myContainers.myContainers;
     }
 
-    _mySources: { time: number, mySources: { [id: string]: MySource; } } = null;
+    private _mySources: { time: number, mySources: { [id: string]: MySource; } } = null;
 
     public get mySources(): { [id: string]: MySource; } {
+        //return _.indexBy(_.map(this.room.find<Source>(FIND_SOURCES), x => new MySource(x.id, this)), (x) => x.id);
         if (this._mySources == null) {
             if (this.memory.sources == null && this.room) {
                 this._mySources = { time: Game.time, mySources: _.indexBy(_.map(this.room.find<Source>(FIND_SOURCES), x => new MySource(x.id, this)), (x) => x.id) };
@@ -51,9 +52,10 @@ export class MyRoom {
         if (this._mySources)
             return this._mySources.mySources;
         else return {};
+    }
 
-
-
+    public get useableSources() {
+        return _.filter(this.mySources, x => !x.keeper);
     }
 
     private _mainRoom: MainRoom = null;

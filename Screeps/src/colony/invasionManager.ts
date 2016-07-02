@@ -3,6 +3,7 @@ import {MyRoom} from "../components/rooms/myRoom";
 import {DefenderDefinition} from "../components/creeps/defender/defenderDefinition";
 import {Body} from "../components/creeps/body";
 import {Invader} from "../components/creeps/invader/invader";
+import {MainRoom} from "../components/rooms/mainRoom";
 
 export class InvasionManager {
 
@@ -15,7 +16,8 @@ export class InvasionManager {
             Colony.memory.invasionManagers = {};
         if (Colony.memory.invasionManagers[this.roomName] == null)
             Colony.memory.invasionManagers[this.roomName] = {
-                targetRoomName: this.roomName
+                targetRoomName: this.roomName,
+                verbose:false
             }
         return Colony.memory.invasionManagers[this.roomName];
     }
@@ -37,10 +39,12 @@ export class InvasionManager {
                 if (myRoom && myRoom.getClosestMainRoom()) {
                     let mainRoom = myRoom.getClosestMainRoom();
 
-                    mainRoom.spawnManager.AddToQueue(['move','work'], { handledByColony: true, invasionManager: this.roomName, role: 'scout', targetPosition: new RoomPosition(25, 25, this.roomName) },1,true);
+                    mainRoom.spawnManager.AddToQueue(['move', 'work'], { handledByColony: true, invasionManager: this.roomName, role: 'scout', targetPosition: new RoomPosition(25, 25, this.roomName) }, 1, true);
                 }
-                else
-                    Colony.spawnCreep(['move','work'], { handledByColony: true, invasionManager: this.roomName, role: 'scout', targetPosition: new RoomPosition(25, 25, this.roomName) }, 1);
+                else {
+                    let mainRoom = _.sortBy(_.values<MainRoom>(Colony.mainRooms), x => Game.map.getRoomLinearDistance(x.name, this.roomName))[0];
+                    mainRoom.spawnManager.AddToQueue(['move', 'work'], { handledByColony: true, invasionManager: this.roomName, role: 'scout', targetPosition: new RoomPosition(25, 25, this.roomName) }, 1);
+                }
             }
             return false;
         }

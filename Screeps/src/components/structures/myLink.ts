@@ -32,12 +32,12 @@ export class MyLink {
 
 
 
-        let drain = this.nearSource;
+        let drain = this.nearSource || this.nextToStorage;
         let fill = this.nextToStorage || this.nextToTower || this.nearController;
 
         if (drain && fill) {
-            this.maxLevel = 400;
-            this.minLevel = 250;
+            this.maxLevel = 600;
+            this.minLevel = 500;
         }
         else if (drain) {
             this.maxLevel = 0;

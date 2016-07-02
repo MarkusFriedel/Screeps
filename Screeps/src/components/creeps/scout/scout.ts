@@ -12,6 +12,8 @@ export class Scout {
     }
 
     public tick() {
+        this.creep.say('SCOUT');
+
         this.memory = <ScoutMemory>this.creep.memory;
         
         let pos = this.creep.pos;

@@ -2596,6 +2596,7 @@
     <TypeScriptCompile Include="src\colony\claimingManager.ts" />
     <TypeScriptCompile Include="src\colony\colony.ts" />
     <TypeScriptCompile Include="src\colony\invasionManager.ts" />
+    <TypeScriptCompile Include="src\colony\roomAssignment.ts" />
     <TypeScriptCompile Include="src\components\creeps\body.ts" />
     <TypeScriptCompile Include="src\components\creeps\constructor\constructor.ts" />
     <TypeScriptCompile Include="src\components\creeps\constructor\constructorDefinition.ts" />

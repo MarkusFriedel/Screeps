@@ -53,17 +53,22 @@ export class MainRoom {
             };
         return this._creeps.creeps;
     }
-
+    _mainContainerId: string;
     _mainContainer: { time: number, mainContainer: Container | Storage } = { time: -1, mainContainer: null };
     public get mainContainer(): Container | Storage {
-        if (this._mainContainer.time + 100 < Game.time)
-            this._mainContainer = {
-                time: Game.time, mainContainer: this.checkAndPlaceStorage()
-            };
+        if (this._mainContainer.time < Game.time) {
+            if (this._mainContainer.time + 100 < Game.time || this._mainContainerId == null) {
+                this._mainContainer = {
+                    time: Game.time, mainContainer: this.checkAndPlaceStorage()
+                };
+            }
+            else
+                this._mainContainer = { time: Game.time, mainContainer: Game.getObjectById<Container | Storage>(this._mainContainerId) }
+        }
         return this._mainContainer.mainContainer;
     }
 
-    _spawns: { time: number, spawns: Array<Spawn> } = { time: -1, spawns:null };
+    _spawns: { time: number, spawns: Array<Spawn> } = { time: -1, spawns: null };
     public get spawns(): Array<Spawn> {
         if (this._spawns.time < Game.time)
             this._spawns = {
@@ -88,7 +93,7 @@ export class MainRoom {
                 defenseManager: null,
                 reservationManager: null,
                 roadConstructionManager: null,
-                mainContainerId:null
+                mainContainerId: null
             };
         return Colony.memory.mainRooms[this.name];
     }
@@ -195,7 +200,7 @@ export class MainRoom {
     }
 
     getAllSources() {
-        var sources = this.myRoom.mySources;
+        var sources = _.indexBy(_.map(this.myRoom.mySources, x => x), x => x.id);
         for (var roomIdx in _.filter(this.connectedRooms, x => x.canHarvest))
             for (var sourceIdx in this.connectedRooms[roomIdx].mySources)
                 sources[this.connectedRooms[roomIdx].mySources[sourceIdx].id] = this.connectedRooms[roomIdx].mySources[sourceIdx];
@@ -350,7 +355,7 @@ export class MainRoom {
             }
         }
         else
-            return mainContainer;        
+            return mainContainer;
     }
 
 
@@ -404,7 +409,7 @@ export class MainRoom {
             console.log('HarvestingManager.checkCreeps: ' + (endCpu - startCpu).toFixed(2));
         }
 
-        
+
         if (Memory['trace'])
             startCpu = Game.cpu.getUsed();
         this.creepManagers.repairManager.createNewRepairers();

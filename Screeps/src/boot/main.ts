@@ -15,10 +15,10 @@ declare var module: any;
 
 // Any modules that you use that modify the game's prototypes should be require'd 
 // before you require the profiler. 
-//var profiler = require('screeps-profiler');
+var profiler = require('screeps-profiler');
 
 // This line monkey patches the global prototypes. 
-//profiler.enable();
+profiler.enable();
 
 GameManager.globalBootstrap();
 

@@ -49,7 +49,7 @@ export class RoadConstructionManager {
     }
 
     buildHarvestPaths() {
-        if (_.filter(Game.constructionSites, (x) => x.structureType == STRUCTURE_ROAD).length > 0)
+        if (_.filter(Game.constructionSites, (x) => x.structureType == STRUCTURE_ROAD).length > 50)
             return;
 
         if (!this.mainRoom.mainContainer)
@@ -65,10 +65,17 @@ export class RoadConstructionManager {
             mySource.roadBuiltToMainContainer = this.mainRoom.name;
             break;            
         }
+    }
 
-        
+    buildControllerRoad() {
+        if (_.filter(Game.constructionSites, (x) => x.structureType == STRUCTURE_ROAD).length > 0)
+            return;
 
+        if (!this.mainRoom.mainContainer)
+            return;
 
+        let path = PathFinder.search(this.mainRoom.mainContainer.pos, { pos: this.mainRoom.room.controller.pos, range: 1 }, { swampCost: 2 });
+        this.constructRoad(path.path, 0);
     }
 
 
@@ -78,11 +85,14 @@ export class RoadConstructionManager {
             this.memory.remainingPath = null;
             this.constructRoad(remainingPath);
         }
-        else if (Game.time % 50 == 0 && !(Game.time % 100==0 )) {
+        else if (Game.time % 50 == 0 && !(Game.time % 100 == 0)) {
             this.buildExtensionRoads();
         }
-        else if (Game.time % 100 == 0) {
+        else if (Game.time % 100 == 0 && !(Game.time % 200 == 0)) {
             this.buildHarvestPaths();
+        }
+        else if (Game.time % 200 == 0) {
+            this.buildControllerRoad();
         }
     }
 }

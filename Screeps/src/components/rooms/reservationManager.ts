@@ -1,5 +1,7 @@
 ﻿import {MainRoom} from "./mainRoom";
 import {Reserver} from "../creeps/reserver/reserver";
+import {Colony} from "../../colony/colony";
+import {Body} from "../creeps/body";
 
 export class ReservationManager {
     _creeps: { time: number, creeps: Array<Creep> } = { time: 0, creeps: null };
@@ -15,29 +17,30 @@ export class ReservationManager {
     }
 
     public checkCreeps() {
-        if (this.mainRoom.spawnManager.isBusy ||  this.mainRoom.room.energyAvailable < 1300)
+        let mainRoom = this.mainRoom;
+        if (this.mainRoom.spawnManager.isBusy)
             return;
+
         if (Memory['verbose'] == true)
             console.log('ReservationManager.checkCreep');
-        if (this.mainRoom.maxSpawnEnergy < 1300) {
-            if (Memory['verbose'] == true)
-                console.log('ReservationManager.checkCreep: Max Energy too low, ' + this.mainRoom.maxSpawnEnergy);
-            return;
-        }
-        let rooms = _.filter(this.mainRoom.connectedRooms, (r) => r.canHarvest() == true && !r.memory.hostiles && (r.room != null && r.room.controller != null));
+        let rooms = _.filter(this.mainRoom.connectedRooms, (r) => r.canHarvest() == true && !r.memory.hostiles && (r.room != null && r.room.controller != null && r.useableSources.length > 0));
         for (var idx in rooms) {
             let myRoom = rooms[idx];
             if (Memory['verbose'] == true)
                 console.log('ReservationManager.checkCreep: 1 Room ' + myRoom.name);
-            if (myRoom.memory.mainRoomDistanceDescriptions[this.mainRoom.name].distance >= 2 && !_.any(myRoom.mySources, x => x.requiresCarrier))
+            if (myRoom.memory.mainRoomDistanceDescriptions[this.mainRoom.name].distance >= 3 && !_.any(myRoom.mySources, x => x.requiresCarrier))
                 continue;
             let room = myRoom.room;
-            if (room && room.controller.reservation != null && room.controller.reservation.ticksToEnd > 10000)
+            if (room && room.controller.reservation != null && room.controller.reservation.ticksToEnd > 4500)
                 continue;
             if (Memory['verbose'] == true)
                 console.log('ReservationManager.checkCreep: 2 Room ' + myRoom.name);
-            if (_.filter(this.creeps, (x) => (<ReserverMemory>x.memory).targetRoomName == myRoom.name).length == 0) {
-                this.mainRoom.spawnManager.AddToQueue([CLAIM, CLAIM, MOVE, MOVE], { role: 'reserver', targetRoomName: myRoom.name },1,true);
+            if (this.mainRoom.maxSpawnEnergy < 650)
+                return;
+            let requiredCount =this.mainRoom.maxSpawnEnergy < 1300 ? 2 : 1;
+
+            if (_.filter(this.creeps, (x) => (<ReserverMemory>x.memory).targetRoomName == myRoom.name).length < requiredCount) {
+                    this.mainRoom.spawnManager.AddToQueue(requiredCount > 1 ? [CLAIM,MOVE] :[CLAIM, CLAIM, MOVE, MOVE], { role: 'reserver', targetRoomName: myRoom.name }, 1, true);
             }
         }
     }
