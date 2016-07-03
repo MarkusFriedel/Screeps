@@ -70,8 +70,10 @@ export class SourceCarrier {
                 return;
             }
         }
+        let energy = null;
+        if (Game.time % 5 == 0)
+            energy = this.creep.pos.findInRange<Resource>(FIND_DROPPED_RESOURCES, 3)[0];
 
-        let energy = this.creep.pos.findInRange<Resource>(FIND_DROPPED_RESOURCES, 4)[0];
         if (energy != null && this.creep.carry.energy < this.creep.carryCapacity) {
             if (this.creep.pickup(energy) == ERR_NOT_IN_RANGE)
                 this.creep.moveTo(energy);

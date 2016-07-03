@@ -45,19 +45,24 @@ export class HarvestingManager {
     }
 
     public placeSourceContainers() {
-        if (Game.time % 50 != 0)
-            return;
-        if (this.mainRoom.mainContainer)
-            for (var idx in this.mainRoom.sources) {
-                var sourceInfo = this.mainRoom.sources[idx];
-                if (sourceInfo.keeper || !sourceInfo.myRoom.canHarvest())
-                    continue;
-                if (!sourceInfo.keeper && sourceInfo.containerMissing()) {
-                    var path = sourceInfo.pos.findPathTo(this.mainRoom.mainContainer.pos, { ignoreCreeps: true });
-                    var containerPosition = new RoomPosition(path[0].x, path[0].y, sourceInfo.pos.roomName);
-                    containerPosition.createConstructionSite(STRUCTURE_CONTAINER);
+        try {
+            if (Game.time % 50 != 0)
+                return;
+            if (this.mainRoom.mainContainer)
+                for (var idx in this.mainRoom.sources) {
+                    var sourceInfo = this.mainRoom.sources[idx];
+                    if (sourceInfo.keeper || !sourceInfo.myRoom.canHarvest())
+                        continue;
+                    if (!sourceInfo.keeper && sourceInfo.containerMissing()) {
+                        var path = sourceInfo.pos.findPathTo(this.mainRoom.mainContainer.pos, { ignoreCreeps: true });
+                        var containerPosition = new RoomPosition(path[0].x, path[0].y, sourceInfo.pos.roomName);
+                        containerPosition.createConstructionSite(STRUCTURE_CONTAINER);
+                    }
                 }
-            }
+        }
+        catch (e) {
+            console.log(e.stack);
+        }
     }
 
 

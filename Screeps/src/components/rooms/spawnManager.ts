@@ -22,8 +22,8 @@ export class SpawnManager {
     }
 
     public get isBusy(): boolean {
-        return false;
-        //return _.every(this.spawns, x => x.spawning);
+        //return false;
+        return _.every(this.spawns, x => x.spawning);
     }
 
     _spawns: { time: number, spawns: Array<Spawn> } = { time: 0, spawns: null };
@@ -55,6 +55,9 @@ export class SpawnManager {
     }
 
     public spawn() {
+        if (this.isBusy)
+            return;
+
         if (Memory['verbose'] || this.memory.verbose)
             console.log('[' + this.mainRoom.name + '] ' + 'SpawnManager.spawn(): queue.length is ' + this.queue.length);
         if (Memory['debug'] || this.memory.debug)
@@ -62,7 +65,6 @@ export class SpawnManager {
 
         if (this.queue.length == 0) {
             this.isIdle = true;
-
             return;
         }
         for (let idx in this.spawns) {

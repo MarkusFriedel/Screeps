@@ -863,6 +863,7 @@ var Colony;
         }
     }
     Colony.getRoom = getRoom;
+    var forbidden = ['E15S26', 'E15S27', 'E15S28', 'E15S29', 'E11S25', 'E12S25', 'E13S25', 'E14S25', 'E15S25'];
     function assignMainRoom(room) {
         calculateDistances(room);
         return room.mainRoom;
@@ -870,7 +871,7 @@ var Colony;
     Colony.assignMainRoom = assignMainRoom;
     function shouldSendScout(roomName) {
         var myRoom = getRoom(roomName);
-        var result = !Game.map.isRoomProtected(roomName) && !(myRoom != null && myRoom.mainRoom)
+        var result = !Game.map.isRoomProtected(roomName) && !(myRoom != null && myRoom.mainRoom) && !(_.any(forbidden, function (x) { return x == roomName; }))
             && (myRoom != null && !myRoom.memory.hostiles && !myRoom.memory.foreignOwner && !myRoom.memory.foreignReserver || (Game.time % 2000) == 0);
         return result;
     }
@@ -1224,8 +1225,8 @@ var SpawnManager = (function () {
     };
     Object.defineProperty(SpawnManager.prototype, "isBusy", {
         get: function () {
-            return false;
-            //return _.every(this.spawns, x => x.spawning);
+            //return false;
+            return _.every(this.spawns, function (x) { return x.spawning; });
         },
         enumerable: true,
         configurable: true
@@ -1255,6 +1256,8 @@ var SpawnManager = (function () {
         }
     };
     SpawnManager.prototype.spawn = function () {
+        if (this.isBusy)
+            return;
         if (Memory['verbose'] || this.memory.verbose)
             console.log('[' + this.mainRoom.name + '] ' + 'SpawnManager.spawn(): queue.length is ' + this.queue.length);
         if (Memory['debug'] || this.memory.debug)
@@ -1464,7 +1467,7 @@ var UpgradeManager = (function () {
     UpgradeManager.prototype.checkCreeps = function () {
         if (this.mainRoom.spawnManager.isBusy)
             return;
-        if (this.mainRoom.mainContainer != null && this.mainRoom.room.energyAvailable == Game.rooms[this.mainRoom.name].energyCapacityAvailable && this.mainRoom.spawnManager.queue.length == 0 && (this.creeps.length < 1 || this.mainRoom.mainContainer.store.energy == this.mainRoom.mainContainer.storeCapacity || this.mainRoom.mainContainer.store.enery > 200000)) {
+        if (this.mainRoom.mainContainer != null && this.mainRoom.room.energyAvailable == this.mainRoom.room.energyCapacityAvailable && this.mainRoom.spawnManager.queue.length < 1 && (this.creeps.length < 1 || this.mainRoom.mainContainer.store.energy == this.mainRoom.mainContainer.storeCapacity || this.mainRoom.mainContainer.store.energy > 300000)) {
             this.mainRoom.spawnManager.AddToQueue(UpgraderDefinition.getDefinition(this.mainRoom.maxSpawnEnergy, _.any(this.mainRoom.links, function (x) { return x.nearController; })).getBody(), { role: 'upgrader' }, 1);
         }
     };
@@ -1543,9 +1546,11 @@ var RepairManager = (function () {
             return;
         var _loop_2 = function(idx) {
             var myRoom = this_1.mainRoom.allRooms[idx];
-            var roomCreeps = _.filter(this_1.creeps, function (x) { return x.memory.roomName == myRoom.name; });
-            if (roomCreeps.length < (myRoom.name == this_1.mainRoom.name ? Math.min(2, _.size(this_1.mainRoom.sources)) : 1)) {
-                this_1.mainRoom.spawnManager.AddToQueue(RepairerDefinition.getDefinition(this_1.mainRoom.maxSpawnEnergy).getBody(), { role: 'repairer', roomName: myRoom.name, state: RepairerState.Refilling }, 1);
+            if (myRoom.room && myRoom.room.find(FIND_STRUCTURES, { filter: RepairManager.targetDelegate }).length > 0) {
+                var roomCreeps = _.filter(this_1.creeps, function (x) { return x.memory.roomName == myRoom.name; });
+                if (roomCreeps.length < (myRoom.name == this_1.mainRoom.name ? Math.min(2, _.size(this_1.mainRoom.sources)) : 1)) {
+                    this_1.mainRoom.spawnManager.AddToQueue(RepairerDefinition.getDefinition(this_1.mainRoom.maxSpawnEnergy).getBody(), { role: 'repairer', roomName: myRoom.name, state: RepairerState.Refilling }, 1);
+                }
             }
         };
         var this_1 = this;
@@ -1604,19 +1609,24 @@ var HarvestingManager = (function () {
         configurable: true
     });
     HarvestingManager.prototype.placeSourceContainers = function () {
-        if (Game.time % 50 != 0)
-            return;
-        if (this.mainRoom.mainContainer)
-            for (var idx in this.mainRoom.sources) {
-                var sourceInfo = this.mainRoom.sources[idx];
-                if (sourceInfo.keeper || !sourceInfo.myRoom.canHarvest())
-                    continue;
-                if (!sourceInfo.keeper && sourceInfo.containerMissing()) {
-                    var path = sourceInfo.pos.findPathTo(this.mainRoom.mainContainer.pos, { ignoreCreeps: true });
-                    var containerPosition = new RoomPosition(path[0].x, path[0].y, sourceInfo.pos.roomName);
-                    containerPosition.createConstructionSite(STRUCTURE_CONTAINER);
+        try {
+            if (Game.time % 50 != 0)
+                return;
+            if (this.mainRoom.mainContainer)
+                for (var idx in this.mainRoom.sources) {
+                    var sourceInfo = this.mainRoom.sources[idx];
+                    if (sourceInfo.keeper || !sourceInfo.myRoom.canHarvest())
+                        continue;
+                    if (!sourceInfo.keeper && sourceInfo.containerMissing()) {
+                        var path = sourceInfo.pos.findPathTo(this.mainRoom.mainContainer.pos, { ignoreCreeps: true });
+                        var containerPosition = new RoomPosition(path[0].x, path[0].y, sourceInfo.pos.roomName);
+                        containerPosition.createConstructionSite(STRUCTURE_CONTAINER);
+                    }
                 }
-            }
+        }
+        catch (e) {
+            console.log(e.stack);
+        }
     };
     HarvestingManager.prototype.getHarvesterBodyAndCount = function (sourceInfo, noLocalRestriction) {
         if (noLocalRestriction === void 0) { noLocalRestriction = false; }
@@ -1988,7 +1998,9 @@ var Scout = (function () {
         var pos = this.creep.pos;
         if (this.memory.targetPosition != null && (pos.roomName != this.memory.targetPosition.roomName || pos.x < 10 || pos.x > 40 || pos.y < 10 || pos.y > 40)) {
             //let path = this.creep.pos.findPathTo(new RoomPosition(25, 25, this.memory.targetRoomName), { ignoreDestructibleStructures: true });
-            this.creep.moveTo(new RoomPosition(25, 25, this.memory.targetPosition.roomName));
+            var result = this.creep.moveTo(new RoomPosition(25, 25, this.memory.targetPosition.roomName), { reusePath: 50 });
+            if (result == ERR_NO_PATH)
+                this.creep.suicide();
         }
         if (this.memory.targetPosition && pos.roomName == this.memory.targetPosition.roomName) {
             var myRoom = Colony.getRoom(pos.roomName);
@@ -2491,7 +2503,7 @@ var RoomAssignmentHandler = (function () {
     RoomAssignmentHandler.prototype.assignRoomsByMinDistance = function () {
         var _this = this;
         _.forEach(_.sortByAll(_.values(this.roomsToAssign), function (x) { return [_.min(x.memory.mainRoomDistanceDescriptions, function (y) { return y.distance; }).distance, (10 - x.useableSources.length)]; }, ['asc', 'desc']), function (myRoom) {
-            var possibleMainRooms = _.filter(myRoom.memory.mainRoomDistanceDescriptions, function (x) { return (x.distance <= MAXDISTANCE) && (x.distance <= 1 || x.distance == 2 && myRoom.useableSources.length > 1) && _this.assignments[x.roomName].canAssignRoom(myRoom); });
+            var possibleMainRooms = _.filter(myRoom.memory.mainRoomDistanceDescriptions, function (x) { return (x.distance <= MAXDISTANCE) && (x.distance <= 2 || x.distance == 2 && myRoom.useableSources.length > 1) && _this.assignments[x.roomName].canAssignRoom(myRoom); });
             console.log('Room: [' + myRoom.name + '] Distances to MainRooms [' + _.map(possibleMainRooms, function (x) { return x.roomName + ' ' + x.distance; }).join(', ') + ']');
             //console.log('Room: [' + myRoom.name + '] Possible MainRooms [' + _.map(possibleMainRooms, x => x.roomName).join(', ') + ']');
             var sorted = _.sortBy(possibleMainRooms, function (x) { return x.distance; });
@@ -2508,7 +2520,7 @@ var RoomAssignmentHandler = (function () {
         var mainRoomCandidates = {};
         _.forEach(this.roomsToAssign, function (myRoom) {
             _.forEach(myRoom.memory.mainRoomDistanceDescriptions, function (distanceDescription) {
-                if ((distanceDescription.distance <= 1 || distanceDescription.distance == 2 && myRoom.useableSources.length > 1) && _this.assignments[distanceDescription.roomName].canAssignRoom(myRoom)) {
+                if ((distanceDescription.distance <= 2 || distanceDescription.distance == 2 && myRoom.useableSources.length > 1) && _this.assignments[distanceDescription.roomName].canAssignRoom(myRoom)) {
                     if (mainRoomCandidates[distanceDescription.roomName] == null)
                         mainRoomCandidates[distanceDescription.roomName] = {
                             mainRoom: _this.mainRooms[distanceDescription.roomName],
@@ -2781,7 +2793,7 @@ var ConstructorDefinition;
         body.work = 1;
         body.carry = 2;
         body.move = 2;
-        var remainingEnergy = Math.min(maxEnergy, 1400);
+        var remainingEnergy = Math.min(maxEnergy, 800);
         var remaining = remainingEnergy - 300;
         if (remaining >= 50) {
             body.carry++;
@@ -2826,25 +2838,32 @@ var Upgrader = (function () {
         else {
             if (!this.mainRoom)
                 return;
-            var link = _.map(_.filter(this.mainRoom.links, function (x) { return x.nearController == true; }), function (x) { return x.link; })[0];
-            if (link) {
-                if (link.transferEnergy(this.creep) == ERR_NOT_IN_RANGE)
-                    this.creep.moveTo(link);
+            var energy = this.creep.pos.findInRange(FIND_DROPPED_RESOURCES, 4)[0];
+            if (energy != null && this.creep.carry.energy < this.creep.carryCapacity) {
+                if (this.creep.pickup(energy) == ERR_NOT_IN_RANGE)
+                    this.creep.moveTo(energy);
             }
             else {
-                var mainContainer = this.mainRoom.mainContainer;
-                if (mainContainer != null) {
-                    if (mainContainer.store.energy > 200)
-                        if (mainContainer.transfer(this.creep, RESOURCE_ENERGY) == ERR_NOT_IN_RANGE)
-                            this.creep.moveTo(mainContainer);
+                var link = _.map(_.filter(this.mainRoom.links, function (x) { return x.nearController == true; }), function (x) { return x.link; })[0];
+                if (link) {
+                    if (link.transferEnergy(this.creep) == ERR_NOT_IN_RANGE)
+                        this.creep.moveTo(link);
                 }
                 else {
-                    if (this.mainRoom.spawnManager.isIdle) {
-                        for (var spawnName in Game.spawns) {
-                            var spawn = Game.spawns[spawnName];
+                    var mainContainer = this.mainRoom.mainContainer;
+                    if (mainContainer != null) {
+                        if (mainContainer.store.energy > 200)
+                            if (mainContainer.transfer(this.creep, RESOURCE_ENERGY) == ERR_NOT_IN_RANGE)
+                                this.creep.moveTo(mainContainer);
+                    }
+                    else {
+                        if (this.mainRoom.spawnManager.isIdle) {
+                            for (var spawnName in Game.spawns) {
+                                var spawn = Game.spawns[spawnName];
+                            }
+                            if (spawn.transferEnergy(this.creep) == ERR_NOT_IN_RANGE)
+                                this.creep.moveTo(spawn);
                         }
-                        if (spawn.transferEnergy(this.creep) == ERR_NOT_IN_RANGE)
-                            this.creep.moveTo(spawn);
                     }
                 }
             }
@@ -3146,7 +3165,9 @@ var SourceCarrier = (function () {
                 return;
             }
         }
-        var energy = this.creep.pos.findInRange(FIND_DROPPED_RESOURCES, 4)[0];
+        var energy = null;
+        if (Game.time % 5 == 0)
+            energy = this.creep.pos.findInRange(FIND_DROPPED_RESOURCES, 3)[0];
         if (energy != null && this.creep.carry.energy < this.creep.carryCapacity) {
             if (this.creep.pickup(energy) == ERR_NOT_IN_RANGE)
                 this.creep.moveTo(energy);
@@ -3204,10 +3225,17 @@ var SpawnFiller = (function () {
     SpawnFiller.prototype.refill = function () {
         if (!this.mainRoom)
             return;
-        var mainContainer = this.mainRoom.mainContainer;
-        if (mainContainer != null && mainContainer.store.energy > 0) {
-            if (mainContainer.transfer(this.creep, RESOURCE_ENERGY) == ERR_NOT_IN_RANGE)
-                this.creep.moveTo(mainContainer);
+        var energy = this.creep.pos.findInRange(FIND_DROPPED_RESOURCES, 4)[0];
+        if (energy != null && this.creep.carry.energy < this.creep.carryCapacity) {
+            if (this.creep.pickup(energy) == ERR_NOT_IN_RANGE)
+                this.creep.moveTo(energy);
+        }
+        else {
+            var mainContainer = this.mainRoom.mainContainer;
+            if (mainContainer != null && mainContainer.store.energy > 0) {
+                if (mainContainer.transfer(this.creep, RESOURCE_ENERGY) == ERR_NOT_IN_RANGE)
+                    this.creep.moveTo(mainContainer);
+            }
         }
     };
     SpawnFiller.prototype.tick = function () {
@@ -3231,7 +3259,7 @@ var SpawnFillerDefinition;
 (function (SpawnFillerDefinition) {
     function getDefinition(maxEnergy) {
         var body = new Body();
-        var remainingEnergy = Math.min(maxEnergy, 1500);
+        var remainingEnergy = Math.min(maxEnergy, 1200);
         var basicModuleCount = ~~(remainingEnergy / 150);
         basicModuleCount = (basicModuleCount > 8) ? 8 : basicModuleCount;
         body.carry = 2 * basicModuleCount;

@@ -71,9 +71,12 @@ export class RepairManager {
         for (let idx in this.mainRoom.allRooms) {
             let myRoom = this.mainRoom.allRooms[idx];
 
-            let roomCreeps = _.filter(this.creeps, x => x.memory.roomName == myRoom.name);
-            if (roomCreeps.length < (myRoom.name == this.mainRoom.name ? Math.min(2, _.size(this.mainRoom.sources)) : 1)) {
-                this.mainRoom.spawnManager.AddToQueue(RepairerDefinition.getDefinition(this.mainRoom.maxSpawnEnergy).getBody(), { role: 'repairer', roomName: myRoom.name, state: RepairerState.Refilling }, 1);
+            if (myRoom.room && myRoom.room.find(FIND_STRUCTURES, { filter: RepairManager.targetDelegate }).length>0) {
+
+                let roomCreeps = _.filter(this.creeps, x => x.memory.roomName == myRoom.name);
+                if (roomCreeps.length < (myRoom.name == this.mainRoom.name ? Math.min(2, _.size(this.mainRoom.sources)) : 1)) {
+                    this.mainRoom.spawnManager.AddToQueue(RepairerDefinition.getDefinition(this.mainRoom.maxSpawnEnergy).getBody(), { role: 'repairer', roomName: myRoom.name, state: RepairerState.Refilling }, 1);
+                }
             }
 
         }

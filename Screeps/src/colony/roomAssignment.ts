@@ -83,7 +83,7 @@ export class RoomAssignmentHandler {
 
     private assignRoomsByMinDistance() {
         _.forEach(_.sortByAll(_.values<MyRoom>(this.roomsToAssign), x => [_.min(x.memory.mainRoomDistanceDescriptions, y => y.distance).distance, (10 - x.useableSources.length)], ['asc', 'desc']), (myRoom) => {
-            let possibleMainRooms = _.filter(myRoom.memory.mainRoomDistanceDescriptions, x => (x.distance <= MAXDISTANCE) && (x.distance <= 1 || x.distance == 2 && myRoom.useableSources.length >1) && this.assignments[x.roomName].canAssignRoom(myRoom));
+            let possibleMainRooms = _.filter(myRoom.memory.mainRoomDistanceDescriptions, x => (x.distance <= MAXDISTANCE) && (x.distance <= 2 || x.distance == 2 && myRoom.useableSources.length >1) && this.assignments[x.roomName].canAssignRoom(myRoom));
             console.log('Room: [' + myRoom.name + '] Distances to MainRooms [' + _.map(possibleMainRooms, x => x.roomName + ' ' + x.distance).join(', ') + ']');
             //console.log('Room: [' + myRoom.name + '] Possible MainRooms [' + _.map(possibleMainRooms, x => x.roomName).join(', ') + ']');
             let sorted = _.sortBy(possibleMainRooms, x => x.distance);
@@ -107,7 +107,7 @@ export class RoomAssignmentHandler {
         } = {};
         _.forEach(this.roomsToAssign, (myRoom) => {
             _.forEach(myRoom.memory.mainRoomDistanceDescriptions, (distanceDescription) => {
-                if ((distanceDescription.distance <= 1 || distanceDescription.distance == 2 && myRoom.useableSources.length>1) && this.assignments[distanceDescription.roomName].canAssignRoom(myRoom)) {
+                if ((distanceDescription.distance <= 2 || distanceDescription.distance == 2 && myRoom.useableSources.length>1) && this.assignments[distanceDescription.roomName].canAssignRoom(myRoom)) {
                     if (mainRoomCandidates[distanceDescription.roomName] == null)
                         mainRoomCandidates[distanceDescription.roomName] = {
                             mainRoom: this.mainRooms[distanceDescription.roomName],

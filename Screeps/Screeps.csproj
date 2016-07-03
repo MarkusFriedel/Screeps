@@ -2628,6 +2628,7 @@
     <TypeScriptCompile Include="src\components\rooms\spawnFillManager.ts" />
     <TypeScriptCompile Include="src\components\rooms\mainRoom.ts" />
     <TypeScriptCompile Include="src\components\rooms\myRoom.ts" />
+    <TypeScriptCompile Include="src\components\rooms\towerManager.ts" />
     <TypeScriptCompile Include="src\components\rooms\upgradeManager.ts" />
     <TypeScriptCompile Include="src\components\sources\mySource.ts" />
     <TypeScriptCompile Include="src\components\rooms\spawnManager.ts" />

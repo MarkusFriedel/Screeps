@@ -14,10 +14,19 @@ export class SpawnFiller {
     refill() {
         if (!this.mainRoom)
             return;
-        let mainContainer = this.mainRoom.mainContainer;
-        if (mainContainer != null && mainContainer.store.energy>0) {
-            if (mainContainer.transfer(this.creep, RESOURCE_ENERGY) == ERR_NOT_IN_RANGE)
-                this.creep.moveTo(mainContainer);
+
+        let energy = this.creep.pos.findInRange<Resource>(FIND_DROPPED_RESOURCES, 4)[0];
+        if (energy != null && this.creep.carry.energy < this.creep.carryCapacity) {
+            if (this.creep.pickup(energy) == ERR_NOT_IN_RANGE)
+                this.creep.moveTo(energy);
+        }
+        else {
+
+            let mainContainer = this.mainRoom.mainContainer;
+            if (mainContainer != null && mainContainer.store.energy > 0) {
+                if (mainContainer.transfer(this.creep, RESOURCE_ENERGY) == ERR_NOT_IN_RANGE)
+                    this.creep.moveTo(mainContainer);
+            }
         }
     }
 

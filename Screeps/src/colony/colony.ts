@@ -55,7 +55,7 @@ export namespace Colony {
 
 
 
-
+    var forbidden: Array < string > = ['E15S26', 'E15S27', 'E15S28', 'E15S29', 'E11S25', 'E12S25', 'E13S25', 'E14S25', 'E15S25'];
 
 
     export function assignMainRoom(room: MyRoom): MainRoom {
@@ -66,7 +66,7 @@ export namespace Colony {
     function shouldSendScout(roomName): boolean {
         var myRoom = getRoom(roomName);
         var result =
-            !Game.map.isRoomProtected(roomName) && !(myRoom != null && myRoom.mainRoom)
+            !Game.map.isRoomProtected(roomName) && !(myRoom != null && myRoom.mainRoom) && !(_.any(forbidden, x => x == roomName))
             && (myRoom != null && !myRoom.memory.hostiles && !myRoom.memory.foreignOwner && !myRoom.memory.foreignReserver || (Game.time % 2000) == 0);
 
         return result;
