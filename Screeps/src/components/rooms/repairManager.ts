@@ -1,9 +1,7 @@
-﻿import {MainRoom} from "./mainRoom";
-import {Repairer} from "../creeps/repairer/repairer";
-import {RepairerDefinition} from "../creeps/repairer/repairerDefinition";
-//import {ObjectWithMemory} from "../../objectWithMemory";
+﻿/// <reference path="../creeps/repairer/repairerDefinition.ts" />
+/// <reference path="../creeps/repairer/repairer.ts" />
 
-export class RepairManager {
+class RepairManager implements RepairManagerInterface {
 
     public get memory(): RepairManagerMemory {
         return this.accessMemory();
@@ -75,7 +73,7 @@ export class RepairManager {
 
                 let roomCreeps = _.filter(this.creeps, x => x.memory.roomName == myRoom.name);
                 if (roomCreeps.length < (myRoom.name == this.mainRoom.name ? Math.min(2, _.size(this.mainRoom.sources)) : 1)) {
-                    this.mainRoom.spawnManager.AddToQueue(RepairerDefinition.getDefinition(this.mainRoom.maxSpawnEnergy).getBody(), { role: 'repairer', roomName: myRoom.name, state: RepairerState.Refilling }, 1);
+                    this.mainRoom.spawnManager.addToQueue(RepairerDefinition.getDefinition(this.mainRoom.maxSpawnEnergy).getBody(), { role: 'repairer', roomName: myRoom.name, state: RepairerState.Refilling }, 1);
                 }
             }
 

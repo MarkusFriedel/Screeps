@@ -1,6 +1,4 @@
-﻿import {Body} from "../body";
-
-export namespace DefenderDefinition {
+﻿namespace DefenderDefinition {
 
     export function getDefinition(maxEnergy: number) {
         let body = new Body();

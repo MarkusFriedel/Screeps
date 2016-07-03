@@ -1,11 +1,6 @@
-﻿import {Colony} from "./colony";
-import {MyRoom} from "../components/rooms/myRoom";
-import {DefenderDefinition} from "../components/creeps/defender/defenderDefinition";
-import {Body} from "../components/creeps/body";
-import {Invader} from "../components/creeps/invader/invader";
-import {MainRoom} from "../components/rooms/mainRoom";
+﻿/// <reference path="../components/creeps/invader/invader.ts" />
 
-export class InvasionManager {
+class InvasionManager implements InvasionManagerInterface {
 
     public get memory(): InvasionManagerMemory {
         return this.accessMemory();
@@ -32,18 +27,18 @@ export class InvasionManager {
         this.memory.targetRoomName = roomName;
     }
 
-    checkScouts(myRoom: MyRoom) {
+    checkScouts(myRoom: MyRoomInterface) {
         if (myRoom == null || myRoom.memory.lastScanTime < Game.time - 500) {
             if (this.scouts.length == 0) {
 
-                if (myRoom && myRoom.getClosestMainRoom()) {
-                    let mainRoom = myRoom.getClosestMainRoom();
+                if (myRoom && myRoom.closestMainRoom) {
+                    let mainRoom = myRoom.closestMainRoom;
 
-                    mainRoom.spawnManager.AddToQueue(['move', 'work'], { handledByColony: true, invasionManager: this.roomName, role: 'scout', targetPosition: new RoomPosition(25, 25, this.roomName) }, 1, true);
+                    mainRoom.spawnManager.addToQueue(['move', 'work'], { handledByColony: true, invasionManager: this.roomName, role: 'scout', targetPosition: new RoomPosition(25, 25, this.roomName) }, 1, true);
                 }
                 else {
-                    let mainRoom = _.sortBy(_.values<MainRoom>(Colony.mainRooms), x => Game.map.getRoomLinearDistance(x.name, this.roomName))[0];
-                    mainRoom.spawnManager.AddToQueue(['move', 'work'], { handledByColony: true, invasionManager: this.roomName, role: 'scout', targetPosition: new RoomPosition(25, 25, this.roomName) }, 1);
+                    let mainRoom = _.sortBy(_.values<MainRoomInterface>(Colony.mainRooms), x => Game.map.getRoomLinearDistance(x.name, this.roomName))[0];
+                    mainRoom.spawnManager.addToQueue(['move', 'work'], { handledByColony: true, invasionManager: this.roomName, role: 'scout', targetPosition: new RoomPosition(25, 25, this.roomName) }, 1);
                 }
             }
             return false;
@@ -52,33 +47,33 @@ export class InvasionManager {
             return true;
     }
 
-    checkInvaders(myRoom: MyRoom, rallyFlag: Flag) {
+    checkInvaders(myRoom: MyRoomInterface, rallyFlag: Flag) {
         if (myRoom == null)
             return false;
         let creepsRequired = 5;
         console.log('check invaders');
 
         if (this.invaders.length < creepsRequired) {
-            let mainRoom = myRoom.getClosestMainRoom();
+            let mainRoom = myRoom.closestMainRoom;
             if (mainRoom == null)
                 return false;
 
             let idleInvaders = _.filter(Game.creeps, x => x.memory.handledByColony && x.memory.role == 'invader' && x.memory.subRole == 'attacker' && x.memory.invasionManager == null);
             idleInvaders.forEach(x => x.memory = { handledByColony: true, invasionManager: this.roomName, targetRoomName: this.roomName, role: 'invader', state: 'rally', subRole: 'attacker', rallyPoint: rallyFlag.pos });
             if (idleInvaders.length == 0)
-                mainRoom.spawnManager.AddToQueue(DefenderDefinition.getDefinition(mainRoom.maxSpawnEnergy).getBody(), { handledByColony: true, invasionManager: this.roomName, targetRoomName: this.roomName, role: 'invader', state: 'rally', subRole: 'attacker', rallyPoint: rallyFlag.pos }, creepsRequired - this.invaders.length);
+                mainRoom.spawnManager.addToQueue(DefenderDefinition.getDefinition(mainRoom.maxSpawnEnergy).getBody(), { handledByColony: true, invasionManager: this.roomName, targetRoomName: this.roomName, role: 'invader', state: 'rally', subRole: 'attacker', rallyPoint: rallyFlag.pos }, creepsRequired - this.invaders.length);
             return false;
         }
         else return true;
     }
 
-    checkDismantlers(myRoom: MyRoom, rallyFlag: Flag) {
+    checkDismantlers(myRoom: MyRoomInterface, rallyFlag: Flag) {
         if (myRoom == null)
             return false;
         let creepsRequired = 5;
 
         if (this.dismantlers.length < creepsRequired) {
-            let mainRoom = myRoom.getClosestMainRoom();
+            let mainRoom = myRoom.closestMainRoom;
             if (mainRoom == null)
                 return false;
             let idleInvaders = _.filter(Game.creeps, x => x.memory.handledByColony && x.memory.role == 'invader' && x.memory.subRole == 'dismantler' && x.memory.invasionManager == null);
@@ -90,7 +85,7 @@ export class InvasionManager {
                 let body = new Body();
                 body.work = moduleCount;
                 body.move = moduleCount;
-                mainRoom.spawnManager.AddToQueue(body.getBody(), { handledByColony: true, invasionManager: this.roomName, targetRoomName: this.roomName, role: 'invader', state: 'rally', subRole: 'dismantler', rallyPoint: rallyFlag.pos }, creepsRequired - this.dismantlers.length);
+                mainRoom.spawnManager.addToQueue(body.getBody(), { handledByColony: true, invasionManager: this.roomName, targetRoomName: this.roomName, role: 'invader', state: 'rally', subRole: 'dismantler', rallyPoint: rallyFlag.pos }, creepsRequired - this.dismantlers.length);
             }
             return false;
         }

@@ -1,5 +1,4 @@
-import {Config} from "./config/config";
-import {Colony} from "./colony/colony";
+/// <reference path="./colony/colony.ts" />
 
 /**
  * Singleton object.
@@ -7,7 +6,7 @@ import {Colony} from "./colony/colony";
  * Namespace's are like internal modules in your Typescript application. Since GameManager doesn't need multiple instances
  * we can use it as singleton.
  */
-export namespace GameManager {
+namespace GameManager {
 
     export function globalBootstrap() {
         // Set up your global objects.

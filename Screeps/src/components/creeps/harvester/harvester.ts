@@ -1,14 +1,7 @@
-﻿import {MySource} from "../../sources/mySource";
-import {MainRoom} from "../../rooms/mainRoom";
-import {Colony}from "../../../colony/colony";
+﻿/// <reference path="../../../colony/colony.ts" />
 
-export enum HarvesterState {
-    Harvesting,
-    Delivering,
-    Repairing
-}
 
-export class Harvester {
+class Harvester {
     public get memory(): HarvesterMemory { return this.creep.memory; }
 
     _source: { time: number, source: Source } = { time: -1, source: null };
@@ -20,8 +13,8 @@ export class Harvester {
         return this._source.source;
     }
 
-    _mySource: { time: number, mySource: MySource } = { time: -1, mySource: null };
-    public get mySource(): MySource {
+    _mySource: { time: number, mySource: MySourceInterface } = { time: -1, mySource: null };
+    public get mySource(): MySourceInterface {
         if (this._mySource.time < Game.time)
             this._mySource = {
                 time: Game.time, mySource: this.mainRoom.sources[this.memory.sourceId]
@@ -29,7 +22,7 @@ export class Harvester {
         return this._mySource.mySource;
     }
 
-    constructor(public creep: Creep, public mainRoom: MainRoom) {
+    constructor(public creep: Creep, public mainRoom: MainRoomInterface) {
     }
 
 

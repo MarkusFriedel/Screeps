@@ -1,8 +1,7 @@
-﻿import {MainRoom} from "./mainRoom";
-import {Constructor} from "../creeps/constructor/constructor";
-import {ConstructorDefinition} from "../creeps/constructor/constructorDefinition";
+﻿/// <reference path="../creeps/constructor/constructorDefinition.ts" />
+/// <reference path="../creeps/constructor/constructor.ts" />
 
-export class ConstructionManager {
+class ConstructionManager implements ConstructionManagerInterface {
 
     _creeps: { time: number, creeps: Array<Creep> } = { time: 0, creeps: null };
     public get creeps(): Array<Creep> {
@@ -57,7 +56,7 @@ export class ConstructionManager {
             }
             this.idleCreeps = [];
 
-            this.mainRoom.spawnManager.AddToQueue(ConstructorDefinition.getDefinition(this.mainRoom.maxSpawnEnergy).getBody(), { role: 'constructor', targetId: constructionSite.id, targetPosition: constructionSite.pos }, Math.min(this.maxCreeps, _.size(this.mainRoom.sources)) - this.creeps.length);
+            this.mainRoom.spawnManager.addToQueue(ConstructorDefinition.getDefinition(this.mainRoom.maxSpawnEnergy).getBody(), { role: 'constructor', targetId: constructionSite.id, targetPosition: constructionSite.pos }, Math.min(this.maxCreeps, _.size(this.mainRoom.sources)) - this.creeps.length);
         }
     }
 

@@ -1,13 +1,8 @@
-﻿import {MySource} from "../../sources/mySource";
-import {MainRoom} from "../../rooms/mainRoom";
+﻿class Defender {
 
-export class Defender {
-
-    creep: Creep;
-    mainRoom: MainRoom;
     memory: DefenderMemory;
 
-    constructor(creep: Creep, mainRoom: MainRoom) {
+    constructor(public creep: Creep, public mainRoom: MainRoomInterface) {
         this.creep = creep;
         this.mainRoom = mainRoom;
         this.memory = <DefenderMemory>this.creep.memory;

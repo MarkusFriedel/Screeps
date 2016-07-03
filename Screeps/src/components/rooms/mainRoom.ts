@@ -1,24 +1,18 @@
-﻿import {MyRoom} from "./myRoom";
-import {MySource} from "../sources/mySource";
-import {SpawnManager} from "./spawnManager";
-import {Colony} from "../../colony/colony";
-/// <reference path='./src/objectWithMemory.ts' />
-//import {ObjectWithMemory} from "../../objectWithMemory";
+﻿/// <reference path="../structures/myLink.ts" />
+/// <reference path="./spawnManager.ts" />
+/// <reference path="./spawnManager.ts" />
+/// <reference path="./constructionManager.ts" />
+/// <reference path="./repairManager.ts" />
+/// <reference path="./upgradeManager.ts" />
+/// <reference path="./spawnFillManager.ts" />
+/// <reference path="./harvestingManager.ts" />
+/// <reference path="./defenseManager.ts" />
+/// <reference path="./reservationManager.ts" />
+/// <reference path="./linkFillerManager.ts" />
+/// <reference path="./roadConstructionManager.ts" />
+/// <reference path="../structures/myTower.ts" />
 
-import {MyLink} from "../structures/myLink";
-
-import {MyTower} from "../structures/myTower";
-import {ConstructionManager} from "./constructionManager";
-import {UpgradeManager} from "./upgradeManager";
-import {RepairManager} from "./repairManager";
-import {HarvestingManager} from "./harvestingManager";
-import {SpawnFillManager} from "./spawnFillManager";
-import {DefenseManager} from "./defenseManager";
-import {ReservationManager} from "./reservationManager";
-import {RoadConstructionManager} from "./roadConstructionManager";
-import {LinkFillerManager} from "./linkFillerManager";
-
-export class MainRoom {
+class MainRoom implements MainRoomInterface {
 
     public get memory(): MainRoomMemory {
         return this.accessMemory();
@@ -99,17 +93,17 @@ export class MainRoom {
     }
 
     name: string;
-    myRoom: MyRoom;
-    connectedRooms: Array<MyRoom>;
-    allRooms: Array<MyRoom>;
+    myRoom: MyRoomInterface;
+    connectedRooms: Array<MyRoomInterface>;
+    allRooms: Array<MyRoomInterface>;
     mainPosition: RoomPosition; //Usually location of the first spawn
-    spawnManager: SpawnManager;
-    roadConstructionManager: RoadConstructionManager;
+    spawnManager: SpawnManagerInterface;
+    roadConstructionManager: RoadConstructionManagerInterface;
     extensionCount: number;
-    links: Array<MyLink>;
+    links: Array<MyLinkInterface>;
 
     sources: {
-        [id: string]: MySource;
+        [id: string]: MySourceInterface;
     };
 
 

@@ -1,6 +1,4 @@
-﻿import {Body} from "../body";
-
-export namespace LinkFillerDefinition {
+﻿namespace LinkFillerDefinition {
 
     export function getDefinition() {
         let body = new Body();

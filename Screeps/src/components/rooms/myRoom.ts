@@ -1,12 +1,7 @@
-﻿import {Config} from "./../../config/config";
-import {MySource} from "../sources/mySource";
-import {MyContainer} from "../structures/myContainer";
-import {MainRoom} from "./mainRoom";
-import {Colony} from "../../colony/colony";
-//import {ObjectWithMemory} from "../../objectWithMemory";
+﻿/// <reference path="../sources/mySource.ts" />
+/// <reference path="../structures/myContainer.ts" />
 
-
-export class MyRoom {
+class MyRoom implements MyRoomInterface {
 
     public get memory(): MyRoomMemory {
         return this.accessMemory();
@@ -23,10 +18,10 @@ export class MyRoom {
 
     _myContainers: {
         time: number,
-        myContainers: { [id: string]: MyContainer; }
+        myContainers: { [id: string]: MyContainerInterface; }
     } = { time: -101, myContainers: {} };
 
-    public get myContainers(): { [id: string]: MyContainer; } {
+    public get myContainers(): { [id: string]: MyContainerInterface; } {
         if (((this._myContainers.time + 100) < Game.time || this.memory.containers == null) && this.room) {
             let containers = _.map(this.room.find<Container>(FIND_STRUCTURES, { filter: (x: Structure) => x.structureType == STRUCTURE_CONTAINER }), x => new MyContainer(x.id, this));
             this._myContainers = {
@@ -37,9 +32,13 @@ export class MyRoom {
         return this._myContainers.myContainers;
     }
 
-    private _mySources: { time: number, mySources: { [id: string]: MySource; } } = null;
+    public get canHarvest() {
+        return (this.mainRoom && this.name == this.mainRoom.name || !(this.memory.foreignOwner || this.memory.foreignReserver));
+    }
 
-    public get mySources(): { [id: string]: MySource; } {
+    private _mySources: { time: number, mySources: { [id: string]: MySourceInterface; } } = null;
+
+    public get mySources(): { [id: string]: MySourceInterface; } {
         //return _.indexBy(_.map(this.room.find<Source>(FIND_SOURCES), x => new MySource(x.id, this)), (x) => x.id);
         if (this._mySources == null) {
             if (this.memory.sources == null && this.room) {
@@ -55,16 +54,16 @@ export class MyRoom {
     }
 
     public get useableSources() {
-        return _.filter(this.mySources, x => !x.keeper);
+        return _.filter(this.mySources, x => !x.hasKeeper);
     }
 
-    private _mainRoom: MainRoom = null;
+    private _mainRoom: MainRoomInterface = null;
     public get mainRoom() {
         if (this._mainRoom == null)
             this._mainRoom = Colony.mainRooms[this.memory.mainRoomName];
         return this._mainRoom;
     }
-    public set mainRoom(value: MainRoom) {
+    public set mainRoom(value: MainRoomInterface) {
         this._mainRoom = value;
         this.memory.mainRoomName = value == null ? null : value.name;
     }
@@ -100,7 +99,7 @@ export class MyRoom {
             this.scan();
     }
 
-    getClosestMainRoom() {
+    public get closestMainRoom() {
         if (this.memory.mainRoomDistanceDescriptions == null || _.size(this.memory.mainRoomDistanceDescriptions) == 0)
             return null;
         return Colony.mainRooms[_.min(this.memory.mainRoomDistanceDescriptions, x => x.distance).roomName];
@@ -133,9 +132,7 @@ export class MyRoom {
     }
 
 
-    canHarvest() {
-        return (this.mainRoom && this.name == this.mainRoom.name || !(this.memory.foreignOwner || this.memory.foreignReserver));
-    }
+    
 
 
 }

@@ -1,7 +1,4 @@
-﻿import {MySource} from "../../sources/mySource";
-import {MainRoom} from "../../rooms/mainRoom";
-
-export class SpawnFiller {
+﻿class SpawnFiller {
 
     creep: Creep;
     mainRoom: MainRoom;

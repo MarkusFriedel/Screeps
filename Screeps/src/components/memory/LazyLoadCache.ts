@@ -1,4 +1,4 @@
-﻿export class LazyLoadCache<T> {
+﻿class LazyLoadCache<T> {
     private memoryAccessor: () => T;
 
     private cache: T;

@@ -1,11 +1,6 @@
-﻿import {MainRoom} from "./mainRoom";
+﻿
 
-export interface SpawnQueueItem {
-    body: string[];
-    memory: any;
-}
-
-export class SpawnManager {
+class SpawnManager implements SpawnManagerInterface {
 
     public get memory(): SpawnManagerMemory {
         return this.accessMemory();
@@ -37,13 +32,12 @@ export class SpawnManager {
 
     queue: SpawnQueueItem[] = [];
     isIdle: boolean;
-    mainRoom: MainRoom;
 
-    constructor(mainRoom: MainRoom, memory: SpawnManagerMemory) {
+    constructor(public mainRoom: MainRoomInterface, memory: SpawnManagerMemory) {
         this.mainRoom = mainRoom;
     }
 
-    public AddToQueue(body: string[], memory: any, count: number = 1, priority:boolean=false) {
+    public addToQueue(body: string[], memory: any, count: number = 1, priority:boolean=false) {
         if (Memory['verbose'] || this.memory.verbose &&count>0)
             console.log('[' + this.mainRoom.name + '] ' + 'SpawnManager.AddToQueue(): ' + memory['role'] + ': ' + count);
         for (let i = 0; i < count; i++) {

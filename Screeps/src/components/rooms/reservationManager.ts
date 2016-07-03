@@ -1,9 +1,6 @@
-﻿import {MainRoom} from "./mainRoom";
-import {Reserver} from "../creeps/reserver/reserver";
-import {Colony} from "../../colony/colony";
-import {Body} from "../creeps/body";
+﻿/// <reference path="../creeps/reserver/reserver.ts" />
 
-export class ReservationManager {
+class ReservationManager implements ReservationManagerInterface {
     _creeps: { time: number, creeps: Array<Creep> } = { time: 0, creeps: null };
     public get creeps(): Array<Creep> {
         if (this._creeps.time < Game.time)
@@ -23,7 +20,7 @@ export class ReservationManager {
 
         if (Memory['verbose'] == true)
             console.log('ReservationManager.checkCreep');
-        let rooms = _.filter(this.mainRoom.connectedRooms, (r) => r.canHarvest() == true && !r.memory.hostiles && (r.room != null && r.room.controller != null && r.useableSources.length > 0));
+        let rooms = _.filter(this.mainRoom.connectedRooms, (r) => r.canHarvest == true && !r.memory.hostiles && (r.room != null && r.room.controller != null && r.useableSources.length > 0));
         for (var idx in rooms) {
             let myRoom = rooms[idx];
             if (Memory['verbose'] == true)
@@ -40,7 +37,7 @@ export class ReservationManager {
             let requiredCount =this.mainRoom.maxSpawnEnergy < 1300 ? 2 : 1;
 
             if (_.filter(this.creeps, (x) => (<ReserverMemory>x.memory).targetRoomName == myRoom.name).length < requiredCount) {
-                    this.mainRoom.spawnManager.AddToQueue(requiredCount > 1 ? [CLAIM,MOVE] :[CLAIM, CLAIM, MOVE, MOVE], { role: 'reserver', targetRoomName: myRoom.name }, 1, true);
+                    this.mainRoom.spawnManager.addToQueue(requiredCount > 1 ? [CLAIM,MOVE] :[CLAIM, CLAIM, MOVE, MOVE], { role: 'reserver', targetRoomName: myRoom.name }, 1, true);
             }
         }
     }

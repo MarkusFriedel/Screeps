@@ -1,6 +1,4 @@
-﻿import {Body} from "../body";
-
-export namespace SpawnFillerDefinition {
+﻿namespace SpawnFillerDefinition {
 
     export function getDefinition(maxEnergy: number) {
         let body = new Body();

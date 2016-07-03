@@ -1,8 +1,7 @@
-﻿import {MainRoom} from "./mainRoom";
-import {SpawnFiller} from "../creeps/spawnFiller/spawnFiller";
-import {SpawnFillerDefinition} from "../creeps/spawnFiller/spawnFillerDefinition";
+﻿/// <reference path="../creeps/spawnFiller/spawnFillerDefinition.ts" />
+/// <reference path="../creeps/spawnFiller/spawnFiller.ts" />
 
-export class SpawnFillManager {
+class SpawnFillManager implements SpawnFillManagerInterface {
 
     _creeps: { time: number, creeps: Array<Creep> } = { time: 0, creeps: null };
     public get creeps(): Array<Creep> {
@@ -20,7 +19,7 @@ export class SpawnFillManager {
         if (this.mainRoom.spawnManager.isBusy)
             return;
         if (this.mainRoom.mainContainer != null && _.size(_.filter(this.mainRoom.creeps, (c) => c.memory.role == 'spawnFiller' && (c.ticksToLive > 70 || c.ticksToLive === undefined))) < 2) {
-            this.mainRoom.spawnManager.AddToQueue(SpawnFillerDefinition.getDefinition(this.mainRoom.maxSpawnEnergy).getBody(), { role: 'spawnFiller' }, 1,true);
+            this.mainRoom.spawnManager.addToQueue(SpawnFillerDefinition.getDefinition(this.mainRoom.maxSpawnEnergy).getBody(), { role: 'spawnFiller' }, 1,true);
         }
     }
 

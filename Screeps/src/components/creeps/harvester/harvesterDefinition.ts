@@ -1,6 +1,4 @@
-﻿import {Body} from "../body";
-
-export namespace HarvesterDefinition {
+﻿namespace HarvesterDefinition {
 
     function getHarvesterDefinition(maxEnergy: number, maxWorkParts: number) {
         let body = new Body();

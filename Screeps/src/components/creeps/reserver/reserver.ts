@@ -1,6 +1,4 @@
-﻿import {MainRoom} from "../../rooms/mainRoom";
-
-export class Reserver {
+﻿class Reserver {
 
     creep: Creep;
     mainRoom: MainRoom;

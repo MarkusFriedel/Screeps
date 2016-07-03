@@ -1,8 +1,4 @@
-﻿import {MySource} from "../../sources/mySource";
-import {MainRoom} from "../../rooms/mainRoom";
-import {Body} from "../body";
-
-export class Invader {
+﻿class Invader {
 
     creep: Creep;
     memory: InvaderMemory;

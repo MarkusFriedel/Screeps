@@ -1,7 +1,4 @@
-﻿import {Colony} from "../../../colony/colony";
-
-
-export class Scout {
+﻿class Scout {
 
     creep: Creep;
     memory: ScoutMemory;

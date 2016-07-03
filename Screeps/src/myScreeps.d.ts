@@ -52,7 +52,7 @@ interface RoomPositionMemory {
     roomName: string;
 }
 
-interface IMySourceMemory {
+interface MySourceMemoryInterface {
     id: string;
     pos: RoomPositionMemory;
     energyCapacity: number;
@@ -76,7 +76,7 @@ interface MyRoomMemory {
     name: string;
     lastScanTime: number;
     sources: {
-        [id: string]: IMySourceMemory;
+        [id: string]: MySourceMemoryInterface;
     }
     containers: {
         [id: string]: MyContainerMemory;
@@ -122,7 +122,7 @@ interface SpawnFillManagerMemory {
 }
 
 interface SpawnManagerMemory {
-    queue:any;
+    queue: any;
     debug: boolean;
     verbose: boolean;
 }
@@ -149,10 +149,10 @@ interface ScoutMemory extends CreepMemory {
     targetPosition: RoomPosition;
 }
 
-declare enum HarvesterState {
+declare const enum HarvesterState {
     Harvesting = 0,
     Delivering = 1,
-    Repairing=2
+    Repairing = 2
 }
 interface HarvesterMemory extends CreepMemory {
     sourceId: string;
@@ -166,7 +166,7 @@ interface SourceCarrierMemory extends CreepMemory {
 interface DefenderMemory extends CreepMemory {
     targetRoomName: string;
 }
-declare enum RepairerState {
+declare const enum RepairerState {
     Refilling = 0,
     Repairing = 1
 }
@@ -224,5 +224,164 @@ interface ClaimingManagerMemory {
 interface InvasionManagerMemory {
     targetRoomName: string;
     verbose: boolean;
+}
+
+interface MySourceInterface {
+    id: string;
+    room: Room;
+    source: Source;
+    sourceDropOffContainer: {
+        id: string, pos: RoomPosition
+    };
+    dropOffStructure: {
+        id: string, pos: RoomPosition
+    };
+    nearByConstructionSite: ConstructionSite;
+    pos: RoomPosition;
+    hasKeeper: boolean;
+    roadBuiltToMainContainer:string;
+    pathLengthToMainContainer: number;
+    requiresCarrier: boolean;
+    energyCapacity: number;
+    hasLink: boolean;
+    myRoom: MyRoomInterface;
+    containerMissing: boolean;
+    maxHarvestingSpots: number;
+}
+
+interface MyContainerInterface {
+
+}
+
+interface MyRoomInterface {
+    name: string;
+    room: Room;
+    myContainers: { [id: string]: MyContainerInterface; };
+    mySources: { [id: string]: MySourceInterface; };
+    useableSources: MySourceInterface[];
+    mainRoom: MainRoomInterface;
+    memory: MyRoomMemory;
+    canHarvest: boolean;
+    scanForHostiles();
+    scan();
+    closestMainRoom: MainRoomInterface;
+    exits: ExitDescription;
+}
+
+interface SpawnQueueItem {
+    body: string[];
+    memory: any;
+}
+
+interface SpawnManagerInterface {
+    isBusy: boolean;
+    spawns: Array<Spawn>;
+    queue: Array<SpawnQueueItem>;
+    isIdle: boolean;
+    mainRoom: MainRoomInterface;
+    addToQueue(body: string[], memory: any, count?: number, priority?: boolean);
+    spawn();
+}
+
+interface RoadConstructionManagerInterface {
+    tick();
+}
+
+interface MyLinkInterface {
+    id: string;
+    tick();
+    link: Link;
+    nextToStorage: boolean;
+    nearController: boolean;
+    nextToTower: boolean;
+    maxLevel: number;
+    minLevel: number;
+}
+
+interface MainRoomInterface {
+    name: string;
+    room: Room;
+    maxSpawnEnergy: number;
+    creeps: Array<Creep>;
+    mainContainer: Container | Storage;
+    spawns: Array<Spawn>;
+    spawnManager: SpawnManagerInterface;
+    myRoom: MyRoomInterface;
+    allRooms: Array<MyRoomInterface>;
+    mainPosition: RoomPosition;
+    roadConstructionManager: RoadConstructionManagerInterface;
+    extensionCount: number;
+    links: Array<MyLinkInterface>;
+    sources: {
+        [id: string]: MySourceInterface;
+    };
+    memory: MainRoomMemory;
+    tick();
+    creepManagers: {
+        constructionManager: ConstructionManagerInterface,
+        repairManager: RepairManagerInterface,
+        upgradeManager: UpgradeManagerInterface,
+        spawnFillManager: SpawnFillManagerInterface,
+        harvestingManager: HarvestingManagerInterface,
+        defenseManager: DefenseManagerInterface,
+        reservationManager: ReservationManagerInterface,
+        linkFillerManager: LinkFillerManagerInterface
+    };
+}
+
+interface ClaimingManagerInterface {
+    tick();
+}
+
+interface InvasionManagerInterface {
+    roomName: string;
+}
+
+interface ConstructionManagerInterface {
+
+}
+
+interface RepairManagerInterface {
+
+}
+interface UpgradeManagerInterface {
+
+}
+interface SpawnFillManagerInterface {
+    creeps: Array<Creep>;
+}
+interface HarvestingManagerInterface {
+    sourceCarrierCreeps: Array<Creep>;
+    harvesterCreeps: Array<Creep>;
+}
+interface DefenseManagerInterface {
+
+}
+interface ReservationManagerInterface {
+
+}
+interface LinkFillerManagerInterface {
+
+}
+
+interface RoomAssignmentInterface {
+    canAssignRoom(myRoom: MyRoomInterface): boolean;
+    tryAddRoom(myRoom: MyRoomInterface): boolean;
+    assignedRooms: Array<MyRoomInterface>;
+    freeMetric: number;
+    mainRoom: MainRoomInterface;
+}
+
+interface BodyInterface {
+    costs: number;
+    getBody(): Array<string>;
+}
+
+interface RoomAssignmentHandlerInterface {
+
+}
+
+interface TowerManagerInterface {
+
 }
 

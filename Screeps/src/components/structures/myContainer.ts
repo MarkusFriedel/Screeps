@@ -1,8 +1,4 @@
-﻿import {Config} from "./../../config/config";
-import {MyRoom} from "../rooms/myRoom";
-//import {ObjectWithMemory} from "../../objectWithMemory";
-
-export class MyContainer {
+﻿class MyContainer implements MyContainerInterface {
 
     public get memory(): MyContainerMemory {
         return this.accessMemory();

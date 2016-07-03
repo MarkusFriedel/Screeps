@@ -1,13 +1,11 @@
-﻿import {MainRoom} from "../../rooms/mainRoom";
-
-export class Constructor {
+﻿class Constructor {
     public get memory(): ConstructorMemory { return this.creep.memory; }
     target: ConstructionSite;
     targetPosition: RoomPosition;
 
 
 
-    constructor(public creep: Creep, public mainRoom: MainRoom) {
+    constructor(public creep: Creep, public mainRoom: MainRoomInterface) {
 
         this.target = Game.getObjectById<ConstructionSite>(this.memory.targetId);
         if (this.target != null) {

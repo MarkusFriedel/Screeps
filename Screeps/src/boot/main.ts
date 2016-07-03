@@ -1,3 +1,5 @@
+/// <reference path="../game-manager.ts" />
+
 declare function require(string): any;
 /**
  * Application bootstrap.
@@ -6,7 +8,6 @@ declare function require(string): any;
  *
  * Write your code to GameManager class in ./src/start/game-manager.ts
  */
-import {GameManager} from './../game-manager';
 declare var module: any;
 
 /*

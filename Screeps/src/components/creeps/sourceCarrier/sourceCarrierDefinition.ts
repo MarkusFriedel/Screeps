@@ -1,6 +1,4 @@
-﻿import {Body} from "../body";
-
-export namespace SourceCarrierDefinition {
+﻿namespace SourceCarrierDefinition {
 
     export function getDefinition(maxEnergy: number,maxCarryParts:number=50) {
         let body = new Body();

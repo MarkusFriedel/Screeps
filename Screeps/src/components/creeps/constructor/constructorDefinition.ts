@@ -1,6 +1,6 @@
-﻿import {Body} from "../body";
+﻿/// <reference path="../body.ts" />
 
-export namespace ConstructorDefinition {
+namespace ConstructorDefinition {
 
     export function getDefinition(maxEnergy: number) {
         let body = new Body();

@@ -1,6 +1,4 @@
-﻿import {MainRoom} from "../../rooms/mainRoom";
-
-export class LinkFiller {
+﻿class LinkFiller {
 
     creep: Creep;
     mainRoom: MainRoom;

@@ -10,7 +10,7 @@
     }
 }
 
-export class Tracer {
+class Tracer {
     private results: { [name: string]: TraceResult } = {};
 
     constructor(public name: string) { };

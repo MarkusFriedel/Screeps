@@ -1,7 +1,9 @@
 "use strict";
 
 var gulp = require('gulp');
-var tsproject = require( 'tsproject' );
+var tsproject = require('tsproject');
+//var ts = require('gulp-typescript');
+//var tsProject = ts.createProject('tsconfig.json');
 var https = require('https');
 var fs = require('fs');
 var secrets = require('./secrets.js');
@@ -16,7 +18,7 @@ gulp.task('upload-sim', ['compile'], function () {
     var email = secrets.email,
         password = secrets.password,
         data = {
-            branch: 'default',
+            branch: 'sim',
             modules: {
                 main: fs.readFileSync('./dist/main.js', { encoding: "utf8" }),
                 'screeps-profiler': fs.readFileSync('./src/screeps-profiler.js',{encoding:"utf8"})

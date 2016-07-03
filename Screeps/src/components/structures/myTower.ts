@@ -1,9 +1,4 @@
-﻿import {Config} from "./../../config/config";
-import {MainRoom} from "../rooms/mainRoom";
-import {RepairManager} from "../rooms/repairManager";
-import {Body} from "../creeps/body";
-
-export class MyTower {
+﻿class MyTower {
 
     tower: Tower;
     mainRoom: MainRoom;

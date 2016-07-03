@@ -1,14 +1,22 @@
-﻿import {Config} from "./../../config/config";
-import {MyRoom} from "../rooms/myRoom";
-import {MainRoom} from "../rooms/mainRoom";
-import {MySourceMemory} from "./mySourceMemory";
-import {RoomPos} from "../../helpers";
-import {Tracer} from "../../tracer";
-import {Colony} from "../../colony/colony";
-//import {ObjectWithMemory} from "../../objectWithMemory";
+﻿/// <reference path="../../tracer.ts" />
+/// <reference path="../../memoryObject.ts" />
+/// <reference path="../../helpers.ts" />
 
+class MySourceMemory implements MySourceMemoryInterface {
+    id: string;
+    pos: RoomPositionMemory;
+    energyCapacity: number;
+    keeper: boolean;
+    harvestingSpots: number;
+    mainContainerRoadBuiltTo: string;
+    mainContainerPathLength: number;
+    hasSourceDropOff: boolean;
+    hasLink: boolean;
+    dropOffStructure: cachedProperty<{ id: string, pos: RoomPosition }>;
+    sourceDropOffContainer: cachedProperty<{ id: string, pos: RoomPosition }>
+}
 
-export class MySource {
+class MySource extends MemoryObject implements MySourceInterface  {
 
     private get memory(): MySourceMemory {
         return this.accessMemory();
@@ -68,7 +76,7 @@ export class MySource {
             let structure: { id: string, pos: RoomPosition } = null;
             if (this.memory.sourceDropOffContainer.value)
                 structure = Game.getObjectById<Structure>(this.memory.sourceDropOffContainer.value.id);
-            if (structure == null && this.memory.sourceDropOffContainer && this.memory.sourceDropOffContainer.value!=null)
+            if (structure == null && this.memory.sourceDropOffContainer && this.memory.sourceDropOffContainer.value != null)
                 structure = {
                     id: this.memory.sourceDropOffContainer.value.id,
                     pos: RoomPos.fromObj(this.memory.sourceDropOffContainer.value.pos)
@@ -131,7 +139,7 @@ export class MySource {
         }
     }
 
-    public get keeper(): boolean {
+    public get hasKeeper(): boolean {
         let trace = this.tracer.start('Property keeper');
         if (this.memory.keeper != null) {
             trace.stop();
@@ -193,6 +201,7 @@ export class MySource {
     }
 
     constructor(public id: string, public myRoom: MyRoom) {
+        super();
         this.tracer = new Tracer('MySource ' + id);
         Colony.tracers.push(this.tracer);
 
@@ -213,7 +222,7 @@ export class MySource {
         return 9 - walls;
     }
 
-    public containerMissing() {
+    public get containerMissing() {
         if (this.requiresCarrier || this.hasLink)
             return false;
 
@@ -238,7 +247,7 @@ export class MySource {
         })[0];
 
         if (this.myRoom.mainRoom.creepManagers.harvestingManager.sourceCarrierCreeps.length > 0) {
-            
+
 
             let sourceDropOff = this.getSourceDropOffContainer();
             if (sourceDropOff && sourceDropOff.structureType == STRUCTURE_STORAGE)

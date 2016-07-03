@@ -1,8 +1,7 @@
-﻿import {MainRoom} from "./mainRoom";
-import {Upgrader} from "../creeps/upgrader/upgrader";
-import {UpgraderDefinition} from "../creeps/upgrader/upgraderDefinition";
+﻿/// <reference path="../creeps/upgrader/upgraderDefinition.ts" />
+/// <reference path="../creeps/upgrader/upgrader.ts" />
 
-export class UpgradeManager {
+class UpgradeManager implements UpgradeManagerInterface {
 
     _creeps: { time: number, creeps: Array<Creep> } = { time: 0, creeps: null };
     public get creeps(): Array<Creep> {
@@ -21,7 +20,7 @@ export class UpgradeManager {
         if (this.mainRoom.spawnManager.isBusy)
             return;
         if (this.mainRoom.mainContainer != null && this.mainRoom.room.energyAvailable == this.mainRoom.room.energyCapacityAvailable && this.mainRoom.spawnManager.queue.length < 1 && (this.creeps.length < 1 || this.mainRoom.mainContainer.store.energy == this.mainRoom.mainContainer.storeCapacity || this.mainRoom.mainContainer.store.energy > 300000)) {
-            this.mainRoom.spawnManager.AddToQueue(UpgraderDefinition.getDefinition(this.mainRoom.maxSpawnEnergy, _.any(this.mainRoom.links, x => x.nearController)).getBody(), { role: 'upgrader' }, 1);
+            this.mainRoom.spawnManager.addToQueue(UpgraderDefinition.getDefinition(this.mainRoom.maxSpawnEnergy, _.any(this.mainRoom.links, x => x.nearController)).getBody(), { role: 'upgrader' }, 1);
         }
     }
 

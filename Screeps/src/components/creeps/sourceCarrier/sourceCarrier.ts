@@ -1,8 +1,6 @@
-﻿import {MySource} from "../../sources/mySource";
-import {MainRoom} from "../../rooms/mainRoom";
-import {Colony}from "../../../colony/colony";
+﻿/// <reference path="../../../colony/colony.ts" />
 
-export class SourceCarrier {
+class SourceCarrier {
     public get memory(): SourceCarrierMemory { return this.creep.memory; }
 
     _source: { time: number, source: Source } = { time: 0, source: null };
@@ -14,8 +12,8 @@ export class SourceCarrier {
         return this._source.source;
     }
 
-    _mySource: { time: number, mySource: MySource } = { time: 0, mySource: null };
-    public get mySource(): MySource {
+    _mySource: { time: number, mySource: MySourceInterface } = { time: 0, mySource: null };
+    public get mySource(): MySourceInterface {
         if (this._mySource.time < Game.time)
             this._mySource = {
                 time: Game.time, mySource: this.mainRoom.sources[this.memory.sourceId]
@@ -24,7 +22,7 @@ export class SourceCarrier {
     }
 
 
-    constructor(public creep: Creep, public mainRoom: MainRoom) {
+    constructor(public creep: Creep, public mainRoom: MainRoomInterface) {
     }
 
     pickUp() {

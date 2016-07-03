@@ -1,6 +1,4 @@
-﻿import {MainRoom} from "./mainRoom";
-
-export class RoadConstructionManager {
+﻿class RoadConstructionManager implements RoadConstructionManagerInterface {
 
     public get memory(): RoadConstructionManagerMemory {
         return this.accessMemory();
@@ -55,7 +53,7 @@ export class RoadConstructionManager {
         if (!this.mainRoom.mainContainer)
             return;
 
-        let sources = _.filter(this.mainRoom.sources, (x) => !x.keeper && x.sourceDropOffContainer != null && (x.roadBuiltToMainContainer != this.mainRoom.name || (Game.time % 500 == 0)) && x.myRoom.canHarvest());
+        let sources = _.filter(this.mainRoom.sources, (x) => !x.hasKeeper && x.sourceDropOffContainer != null && (x.roadBuiltToMainContainer != this.mainRoom.name || (Game.time % 500 == 0)) && x.myRoom.canHarvest);
 
         for (let sourceIdx = 0; sourceIdx < sources.length; sourceIdx++) {
             let mySource = sources[sourceIdx];

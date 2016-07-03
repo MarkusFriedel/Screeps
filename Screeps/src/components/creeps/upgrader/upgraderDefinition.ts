@@ -1,6 +1,4 @@
-﻿import {Body} from "../body";
-
-export namespace UpgraderDefinition {
+﻿namespace UpgraderDefinition {
 
     export function getDefinition(maxEnergy: number,minCarry=false) {
         let body = new Body();

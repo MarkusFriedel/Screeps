@@ -1,4 +1,4 @@
-﻿export class Body {
+﻿class Body implements BodyInterface {
 
     static getFromCreep(creep: Creep) {
         let body = new Body();

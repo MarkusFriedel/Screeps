@@ -1,14 +1,5 @@
-﻿import {MySource} from "../../sources/mySource";
-import {MainRoom} from "../../rooms/mainRoom";
-import {RepairManager} from "../../rooms/repairManager";
-
-
-export enum RepairerState {
-    Refilling,
-    Repairing
-}
-
-export class Repairer {
+﻿
+class Repairer {
 
     public get memory(): RepairerMemory { return this.creep.memory; }
 

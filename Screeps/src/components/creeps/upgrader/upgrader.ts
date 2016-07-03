@@ -1,6 +1,4 @@
-﻿import {MainRoom} from "../../rooms/mainRoom";
-
-export class Upgrader {
+﻿class Upgrader {
 
     creep: Creep;
     mainRoom: MainRoom;

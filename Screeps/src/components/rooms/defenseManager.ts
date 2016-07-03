@@ -1,8 +1,7 @@
-﻿import {MainRoom} from "./mainRoom";
-import {Defender} from "../creeps/defender/defender";
-import {DefenderDefinition} from "../creeps/defender/defenderDefinition";
+﻿/// <reference path="../creeps/defender/defenderDefinition.ts" />
+/// <reference path="../creeps/defender/defender.ts" />
 
-export class DefenseManager {
+class DefenseManager implements DefenseManagerInterface {
 
     _creeps: { time: number, creeps: Array<Creep> } = { time: 0, creeps: null };
     public get creeps(): Array<Creep> {
@@ -23,7 +22,7 @@ export class DefenseManager {
         if (this.mainRoom.spawnManager.isBusy)
             return;
         if (_.filter(this.mainRoom.allRooms, (r) => !r.memory.foreignOwner && !r.memory.foreignReserver&& r.memory.hostiles && r.canHarvest).length > 0 && this.creeps.length < this.maxCreeps) {
-            this.mainRoom.spawnManager.AddToQueue(DefenderDefinition.getDefinition(this.mainRoom.maxSpawnEnergy).getBody(), { role: 'defender' }, this.maxCreeps - this.creeps.length);
+            this.mainRoom.spawnManager.addToQueue(DefenderDefinition.getDefinition(this.mainRoom.maxSpawnEnergy).getBody(), { role: 'defender' }, this.maxCreeps - this.creeps.length);
         }
     }
 

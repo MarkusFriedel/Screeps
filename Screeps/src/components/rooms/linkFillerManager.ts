@@ -1,8 +1,7 @@
-﻿import {MainRoom} from "./mainRoom";
-import {LinkFiller} from "../creeps/linkFiller/linkFiller";
-import {LinkFillerDefinition} from "../creeps/linkFiller/linkFillerDefinition";
+﻿/// <reference path="../creeps/linkFiller/linkFillerDefinition.ts" />
+/// <reference path="../creeps/linkFiller/linkFiller.ts" />
 
-export class LinkFillerManager {
+class LinkFillerManager implements LinkFillerManagerInterface {
     _creeps: { time: number, creeps: Array<Creep> } = { time: 0, creeps: null };
     public get creeps(): Array<Creep> {
         if (this._creeps.time < Game.time)
@@ -19,7 +18,7 @@ export class LinkFillerManager {
         if (this.mainRoom.spawnManager.isBusy)
             return;
         if (this.creeps.length == 0 && this.mainRoom.links.length>0) {
-            this.mainRoom.spawnManager.AddToQueue(LinkFillerDefinition.getDefinition().getBody(), { role: 'linkFiller' });
+            this.mainRoom.spawnManager.addToQueue(LinkFillerDefinition.getDefinition().getBody(), { role: 'linkFiller' });
 
         }
     }

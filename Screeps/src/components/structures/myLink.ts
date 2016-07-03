@@ -1,6 +1,4 @@
-﻿import {MainRoom} from "../rooms/MainRoom";
-
-export class MyLink {
+﻿class MyLink implements MyLinkInterface {
 
     _link: { time: number, link: Link } = { time: 0, link: null };
     public get link(): Link {

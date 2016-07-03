@@ -1,6 +1,4 @@
-﻿import {MainRoom} from "./mainRoom";
-
-export class TowerManager {
+﻿class TowerManager implements TowerManagerInterface {
     public get memory(): HarvestingManagerMemory {
         return this.accessMemory();
     }
@@ -14,7 +12,7 @@ export class TowerManager {
         return this.mainRoom.memory.harvestingManager;
     }
 
-    constructor(public mainRoom: MainRoom) {
+    constructor(public mainRoom: MainRoomInterface) {
 
     }
 }

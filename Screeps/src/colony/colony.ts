@@ -1,16 +1,13 @@
-﻿import {MainRoom} from "../components/rooms/mainRoom";
-import {MyRoom} from "../components/rooms/myRoom";
-import {Scout} from "../components/creeps/scout/scout";
+﻿/// <reference path="./claimingManager.ts" />
+/// <reference path="./invasionManager.ts" />
+/// <reference path="./roomAssignment.ts" />
+/// <reference path="../components/rooms/mainRoom.ts" />
+/// <reference path="../components/rooms/myRoom.ts" />
+/// <reference path="../components/creeps/scout/scout.ts" />
 
-import {ClaimingManager} from "./claimingManager";
+/// <reference path="../tracer.ts" />
 
-import {InvasionManager} from "./invasionManager";
-import {Tracer} from "../tracer";
-import {Body} from "../components/creeps/body";
-
-import {RoomAssignmentHandler} from "./roomAssignment";
-
-export namespace Colony {
+namespace Colony {
 
     export var tracers: Array<Tracer> = [];
 
@@ -19,19 +16,19 @@ export namespace Colony {
     export var memory: ColonyMemory;
 
     export var mainRooms: {
-        [roomName: string]: MainRoom;
+        [roomName: string]: MainRoomInterface;
     } = {};
 
     export var rooms: {
-        [roomName: string]: MyRoom;
+        [roomName: string]: MyRoomInterface;
     } = {};
 
     export var claimingManagers: {
-        [roomName: string]: ClaimingManager;
+        [roomName: string]: ClaimingManagerInterface;
     } = {};
 
     export var invasionManagers: {
-        [roomName: string]: InvasionManager;
+        [roomName: string]: InvasionManagerInterface;
     } = {};
 
     export function getRoom(roomName: string) {
@@ -55,10 +52,10 @@ export namespace Colony {
 
 
 
-    var forbidden: Array < string > = ['E15S26', 'E15S27', 'E15S28', 'E15S29', 'E11S25', 'E12S25', 'E13S25', 'E14S25', 'E15S25'];
+    var forbidden: Array<string> = ['E15S26', 'E15S27', 'E15S28', 'E15S29', 'E11S25', 'E12S25', 'E13S25', 'E14S25', 'E15S25'];
 
 
-    export function assignMainRoom(room: MyRoom): MainRoom {
+    export function assignMainRoom(room: MyRoomInterface): MainRoomInterface {
         calculateDistances(room);
         return room.mainRoom;
     }
@@ -73,11 +70,11 @@ export namespace Colony {
     }
 
 
-    export function spawnCreep(requestRoom: MyRoom, body: Body, memory, count = 1) {
+    export function spawnCreep(requestRoom: MyRoomInterface, body: BodyInterface, memory, count = 1) {
         console.log('Colony.spawnCreep costs: ' + body.costs);
         let mainRoom = _.sortBy(_.filter(mainRooms, x => x.maxSpawnEnergy > body.costs), x => requestRoom.memory.mainRoomDistanceDescriptions[x.name].distance)[0];
         if (mainRoom) {
-            mainRoom.spawnManager.AddToQueue(body.getBody(), memory, count);
+            mainRoom.spawnManager.addToQueue(body.getBody(), memory, count);
             return true;
         }
         else
@@ -87,13 +84,16 @@ export namespace Colony {
     export function createScouts() {
         let myRooms = _.filter(rooms, x => x.mainRoom != null);
         for (let idx in myRooms) {
-            if (!Game.map.isRoomProtected(myRooms[idx].name)) {
+            if (!Game.map.isRoomProtected(myRooms[idx].name) && myRooms[idx].mainRoom.spawnManager.isBusy == false) {
                 let myRoom = myRooms[idx];
                 let exits = myRoom.exits;
+                if (Memory['exits'] == null)
+                    Memory['exits'] = {};
                 for (let exitDirection in exits) {
+                    Memory['exits'][myRoom.name] = exits;
                     let targetRoomName = exits[exitDirection];
                     if (shouldSendScout(targetRoomName) && _.filter(Game.creeps, (c) => (<ScoutMemory>c.memory).role == 'scout' && (<ScoutMemory>c.memory).handledByColony == true && (<ScoutMemory>c.memory).targetPosition != null && (<ScoutMemory>c.memory).targetPosition.roomName == targetRoomName).length == 0) {
-                        myRoom.mainRoom.spawnManager.AddToQueue(['move'], <ScoutMemory>{ handledByColony: true, role: 'scout', mainRoomName: null, targetPosition: new RoomPosition(25, 25, targetRoomName) });
+                        myRoom.mainRoom.spawnManager.addToQueue(['move'], <ScoutMemory>{ handledByColony: true, role: 'scout', mainRoomName: null, targetPosition: { x: 25, y: 25, roomName: targetRoomName } });
                     }
                 }
             }
@@ -146,8 +146,8 @@ export namespace Colony {
         }
     }
 
-    function calculateDistances(myRoom: MyRoom) {
-        if (MyRoom == null)
+    function calculateDistances(myRoom: MyRoomInterface) {
+        if (myRoom == null)
             return;
         for (let mainIdx in mainRooms) {
             let mainRoom = mainRooms[mainIdx];
@@ -228,7 +228,7 @@ export namespace Colony {
         if (Memory['trace'])
             startCpu = Game.cpu.getUsed();
         if (Game.time % 10 == 0) {
-            let roomArray: Array<MyRoom> = [];
+            let roomArray: Array<MyRoomInterface> = [];
             for (let x in rooms)
                 roomArray.push(rooms[x]);
 
@@ -283,7 +283,7 @@ export namespace Colony {
 
         if ((Game.time % 500 == 0) || Memory['forceReassignment'] == true || Memory['forceReassignment'] == 'true') {
             try {
-                
+
                 let result = new RoomAssignmentHandler(rooms, mainRooms).getAssignments();
 
                 let stringResult = _.map(result, x => {

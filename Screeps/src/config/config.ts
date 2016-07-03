@@ -1,4 +1,4 @@
-export namespace Config {
+namespace Config {
 
     // APPLICATION CORE CONFIGURATION
     /**

@@ -1,12 +1,7 @@
-﻿import {Colony} from "./colony";
-import {MyRoom} from "../components/rooms/myRoom";
-import {MySource} from "../components/sources/mySource";
-import {MainRoom} from "../components/rooms/mainRoom";
-import {Body} from "../components/creeps/body";
-//import {MySource} from "../components/sources/mySource";
+﻿/// <reference path="../components/creeps/body.ts" />
+/// <reference path="../components/rooms/mainRoom.ts" />
 
-
-export class ClaimingManager {
+class ClaimingManager implements ClaimingManagerInterface {
 
     public get memory(): ClaimingManagerMemory {
         return this.accessMemory();
@@ -81,18 +76,18 @@ export class ClaimingManager {
         }
     }
 
-    checkScouts(myRoom: MyRoom) {
+    checkScouts(myRoom: MyRoomInterface) {
         if (Memory['verbose'] || this.memory.verbose)
             console.log('Claiming Manager[' + this.roomName + '].checkScouts()');
         if (myRoom == null || myRoom.memory.lastScanTime < Game.time - 500) {
             if (this.scouts.length == 0) {
-                let mainRoom: MainRoom = null;
+                let mainRoom: MainRoomInterface = null;
                 if (myRoom == null)
-                    mainRoom= _.sortBy(_.values<MainRoom>(Colony.mainRooms), x => Game.map.getRoomLinearDistance(x.name, this.targetPosition.roomName))[0];
+                    mainRoom= _.sortBy(_.values<MainRoomInterface>(Colony.mainRooms), x => Game.map.getRoomLinearDistance(x.name, this.targetPosition.roomName))[0];
                 else
-                    mainRoom = myRoom.getClosestMainRoom();
+                    mainRoom = myRoom.closestMainRoom;
                 if (mainRoom)
-                    mainRoom.spawnManager.AddToQueue(['move'], { handledByColony: true, claimingManager: this.roomName, role: 'scout', targetPosition: this.targetPosition });
+                    mainRoom.spawnManager.addToQueue(['move'], { handledByColony: true, claimingManager: this.roomName, role: 'scout', targetPosition: this.targetPosition });
             }
             return false;
         }
@@ -100,7 +95,7 @@ export class ClaimingManager {
             return true;
     }
 
-    checkClaimer(myRoom: MyRoom) {
+    checkClaimer(myRoom: MyRoomInterface) {
         if (this.claimers.length == 0) {
             let body = new Body();
             body.claim = 1;
@@ -111,22 +106,22 @@ export class ClaimingManager {
         return true;
     }
 
-    checkSpawnConstructors(myRoom: MyRoom) {
+    checkSpawnConstructors(myRoom: MyRoomInterface) {
         if (Memory['verbose'] || this.memory.verbose)
             console.log('Claiming Manager[' + this.roomName + '].checkSpawnConstructors()');
         if (myRoom == null)
             return false;
-        let mainRoom = myRoom.getClosestMainRoom();
+        let mainRoom = myRoom.closestMainRoom;
         if (mainRoom == null)
             return false;
 
         let needCreeps = false;
-        let sources = _.filter(myRoom.mySources, x => x.keeper == false);
+        let sources = _.filter(myRoom.mySources, x => x.hasKeeper == false);
         for (let idx in sources) {
             let mySource = sources[idx];
             let creepCount = _.filter(this.spawnConstructors, (x) => x.memory.sourceId == mySource.id).length;
             if (creepCount < 1) {
-                mainRoom.spawnManager.AddToQueue(['work', 'work', 'work', 'work', 'work', 'carry', 'carry', 'carry', 'carry', 'carry', 'carry', 'carry', 'carry', 'carry', 'carry', 'move', 'move', 'move', 'move', 'move'], { handledByColony: true, claimingManager: this.roomName, role: 'spawnConstructor', targetPosition: this.targetPosition, sourceId: mySource.id }, 2 - creepCount);
+                mainRoom.spawnManager.addToQueue(['work', 'work', 'work', 'work', 'work', 'carry', 'carry', 'carry', 'carry', 'carry', 'carry', 'carry', 'carry', 'carry', 'carry', 'move', 'move', 'move', 'move', 'move'], { handledByColony: true, claimingManager: this.roomName, role: 'spawnConstructor', targetPosition: this.targetPosition, sourceId: mySource.id }, 2 - creepCount);
                 needCreeps = true;
             }
         }
@@ -147,7 +142,7 @@ export class ClaimingManager {
         for (let idx in this.claimers)
             this.claimers[idx].suicide();
 
-        let sourceArray = _.values<MySource>(myRoom.mySources);
+        let sourceArray = _.values<MySourceInterface>(myRoom.mySources);
 
         for (let idx = 0; idx < this.spawnConstructors.length; idx++) {
             let creep = this.spawnConstructors[idx];
