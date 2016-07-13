@@ -28,6 +28,9 @@ interface ColonyMemory {
     }
 }
 
+interface TowerManagerMemory {
+
+}
 
 
 interface MainRoomMemory {
@@ -42,14 +45,20 @@ interface MainRoomMemory {
     defenseManager: DefenseManagerMemory;
     reservationManager: ReservationManagerMemory;
     roadConstructionManager: RoadConstructionManagerMemory;
+    towerManager: TowerManagerMemory;
     mainContainerId: string;
-
+    terminalManager: TerminalManagerInterface;
+    labManager: LabManagerMemory;
 }
 
 interface RoomPositionMemory {
     x: number;
     y: number;
     roomName: string;
+}
+
+interface LabManagerMemory {
+    labs: { [id: string]: LabMemory };
 }
 
 interface MySourceMemoryInterface {
@@ -163,6 +172,12 @@ interface SourceCarrierMemory extends CreepMemory {
     sourceId: string;
 }
 
+interface MineralHarvesterMemory extends CreepMemory {
+}
+
+interface MineralCarrierMemory extends CreepMemory {
+}
+
 interface DefenderMemory extends CreepMemory {
     targetRoomName: string;
 }
@@ -201,6 +216,23 @@ interface TowerMemory {
     repairTarget: RepairTarget;
     healTarget: CreepTarget;
     attackTarget: CreepTarget;
+}
+
+declare const enum LabMode {
+    available=0,
+    import = 1,
+    reaction = 2,
+    publish = 4
+}
+
+interface LabMemory {
+    resource: string;
+    mode: LabMode;
+    reactionLabIds: string[];
+}
+
+interface LabManagerMemory {
+
 }
 
 interface CreepTarget {
@@ -293,6 +325,7 @@ interface MyLinkInterface {
     link: Link;
     nextToStorage: boolean;
     nearController: boolean;
+    nearSource: boolean;
     nextToTower: boolean;
     maxLevel: number;
     minLevel: number;
@@ -310,12 +343,18 @@ interface MainRoomInterface {
     allRooms: Array<MyRoomInterface>;
     mainPosition: RoomPosition;
     roadConstructionManager: RoadConstructionManagerInterface;
+    labManager: LabManagerInterface;
     extensionCount: number;
     links: Array<MyLinkInterface>;
     sources: {
         [id: string]: MySourceInterface;
     };
+    towers:Array<Tower>,
     memory: MainRoomMemory;
+    mineral: Mineral;
+    extractor: StructureExtractor;
+    extractorContainer: Container,
+    terminal: Terminal,
     tick();
     creepManagers: {
         constructionManager: ConstructionManagerInterface,
@@ -325,7 +364,8 @@ interface MainRoomInterface {
         harvestingManager: HarvestingManagerInterface,
         defenseManager: DefenseManagerInterface,
         reservationManager: ReservationManagerInterface,
-        linkFillerManager: LinkFillerManagerInterface
+        linkFillerManager: LinkFillerManagerInterface,
+        towerManager: TowerManagerInterface
     };
 }
 
@@ -364,19 +404,21 @@ interface LinkFillerManagerInterface {
 
 }
 
+
 interface RoomAssignmentInterface {
     canAssignRoom(myRoom: MyRoomInterface): boolean;
     tryAddRoom(myRoom: MyRoomInterface): boolean;
     assignedRooms: Array<MyRoomInterface>;
     freeMetric: number;
     mainRoom: MainRoomInterface;
+    metric: number;
 }
 
 interface BodyInterface {
     costs: number;
     getBody(): Array<string>;
 }
-
+ 
 interface RoomAssignmentHandlerInterface {
 
 }
@@ -385,3 +427,27 @@ interface TowerManagerInterface {
 
 }
 
+interface TerminalManagerInterface {
+
+}
+
+interface LabManagerInterface {
+    myLabs: { [id: string]: MyLab };
+    mainRoom: MainRoomInterface;
+    memory: LabManagerMemory;
+    setupPublishs();
+    imports: string[];
+    reactions: string[];
+    requiredLabsForReaction(resource: string);
+    addReaction(resource: string);
+    reset();
+}
+
+interface ReactionManagerInterface {
+    ingredients: { [output: string]: string[] };
+    registerLabManager(labManager: LabManagerInterface);
+    canProduce(resource: string);
+    tick();
+    getAvailableResourceAmount(resource: string);
+    
+}

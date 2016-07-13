@@ -58,7 +58,7 @@ class Harvester {
         else {
             if (this.creep.harvest(this.source) == ERR_NOT_IN_RANGE)
                 this.creep.moveTo(this.source);
-            else if (!this.mySource.nearByConstructionSite && !this.shouldRepair())
+            else if (!this.mySource.nearByConstructionSite && !this.shouldRepair() && Game.time % 10 == 0 && (this.mySource.dropOffStructure && this.mySource.dropOffStructure.pos.getRangeTo(this.creep.pos) < 4 || this.creep.carry.energy == this.creep.carryCapacity))
                 this.deliver(true);
         }
 

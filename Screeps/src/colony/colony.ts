@@ -1,6 +1,7 @@
 ﻿/// <reference path="./claimingManager.ts" />
 /// <reference path="./invasionManager.ts" />
 /// <reference path="./roomAssignment.ts" />
+/// <reference path="./reactionManager.ts" />
 /// <reference path="../components/rooms/mainRoom.ts" />
 /// <reference path="../components/rooms/myRoom.ts" />
 /// <reference path="../components/creeps/scout/scout.ts" />
@@ -31,6 +32,8 @@ namespace Colony {
         [roomName: string]: InvasionManagerInterface;
     } = {};
 
+    export var reactionManager: ReactionManagerInterface = new ReactionManager();
+
     export function getRoom(roomName: string) {
         let room = rooms[roomName];
         if (room) {
@@ -52,7 +55,7 @@ namespace Colony {
 
 
 
-    var forbidden: Array<string> = ['E15S26', 'E15S27', 'E15S28', 'E15S29', 'E11S25', 'E12S25', 'E13S25', 'E14S25', 'E15S25'];
+    var forbidden: Array<string> = ['E15S26', 'E15S27', 'E15S28', 'E15S29'];
 
 
     export function assignMainRoom(room: MyRoomInterface): MainRoomInterface {
@@ -227,7 +230,7 @@ namespace Colony {
 
         if (Memory['trace'])
             startCpu = Game.cpu.getUsed();
-        if (Game.time % 10 == 0) {
+        if (Game.time % 10 == 0 && Game.cpu.bucket > 2000) {
             let roomArray: Array<MyRoomInterface> = [];
             for (let x in rooms)
                 roomArray.push(rooms[x]);
@@ -259,9 +262,13 @@ namespace Colony {
 
         handleClaimingManagers();
         handleInvasionManagers();
-
+        if (Memory['trace'])
+            startCpu = Game.cpu.getUsed();
         createScouts();
-
+        if (Memory['trace']) {
+            endCpu = Game.cpu.getUsed();
+            console.log('Colony: Create Scouts ' + (endCpu - startCpu).toFixed(2));
+        }
         for (let roomName in mainRooms)
             mainRooms[roomName].tick();
 
@@ -281,7 +288,7 @@ namespace Colony {
         }
 
 
-        if ((Game.time % 500 == 0) || Memory['forceReassignment'] == true || Memory['forceReassignment'] == 'true') {
+        if ((Game.time % 500 == 0) && Game.cpu.bucket > 9000 || Memory['forceReassignment'] == true || Memory['forceReassignment'] == 'true') {
             try {
 
                 let result = new RoomAssignmentHandler(rooms, mainRooms).getAssignments();
@@ -289,7 +296,8 @@ namespace Colony {
                 let stringResult = _.map(result, x => {
                     return {
                         mainRoom: x.mainRoom.name,
-                        rooms: _.map(x.myRooms, y => y.name)
+                        rooms: _.map(x.myRooms, y => y.name),
+                        metric: x.metric
                     }
                 });
                 _.forEach(rooms, (x) => x.mainRoom = null);
@@ -305,6 +313,72 @@ namespace Colony {
             }
         }
 
+        let reserveFlags = _.filter(Game.flags, x => x.memory.reserve == true);
+
+        reserveFlags.forEach((flag) => {
+            let myRoom = Colony.getRoom(flag.pos.roomName);
+            console.log('Reserve flag found: ' + flag.name);
+            if (myRoom != null && myRoom.mainRoom == null) {
+
+                console.log('Reserve flag MyRoom: ' + myRoom.name);
+
+                let mainRoom = myRoom.closestMainRoom;
+
+                if (mainRoom) {
+                    console.log('Reserve flag MainRoom: ' + mainRoom.name);
+                    if (_.filter(Game.creeps, x => x.memory.role == 'reserver' && (<ReserverMemory>x.memory).targetRoomName == myRoom.name).length == 0) {
+                        mainRoom.spawnManager.addToQueue(['claim', 'claim', 'move', 'move'], <ReserverMemory>{ role: 'reserver', targetRoomName: myRoom.name, mainRoomName: mainRoom.name });
+                    }
+                }
+            }
+        });
+
+        let dismantleFlags = _.filter(Game.flags, x => x.memory.dismantle == true);
+        dismantleFlags.forEach((flag) => {
+            let myRoom = Colony.getRoom(flag.pos.roomName);
+            console.log('Dismantle flag found: ' + flag.name);
+            if (myRoom != null) {
+
+                console.log('Dismantle flag MyRoom: ' + myRoom.name);
+
+                let mainRoom = myRoom.closestMainRoom;
+
+                if (mainRoom) {
+                    console.log('Dismantle flag MainRoom: ' + mainRoom.name);
+                    if (_.filter(Game.creeps, x => x.memory.role == 'dismantler' && (<ReserverMemory>x.memory).targetRoomName == myRoom.name).length == 0) {
+                        mainRoom.spawnManager.addToQueue(['work', 'move'], { role: 'dismantler', targetRoomName: myRoom.name, mainRoomName: mainRoom.name });
+                    }
+                }
+            }
+        });
+
+        let dismantlers = _.filter(Game.creeps, x => x.memory.role == 'dismantler');
+        dismantlers.forEach(creep => {
+            if (creep.room.name != creep.memory.targetRoomName)
+                creep.moveTo(new RoomPosition(25, 25, creep.memory.targetRoomName));
+            else {
+                let structure = creep.pos.findClosestByRange<Structure>(FIND_STRUCTURES, { filter: (x: Structure) => x.structureType != STRUCTURE_CONTAINER && x.structureType != STRUCTURE_CONTROLLER && x.structureType != STRUCTURE_KEEPER_LAIR && x.structureType != STRUCTURE_POWER_SPAWN && x.structureType != STRUCTURE_CONTAINER && x.structureType != STRUCTURE_ROAD });
+                if (structure) {
+                    if (!creep.pos.isNearTo(structure))
+                        creep.moveTo(structure);
+                    else
+                        creep.dismantle(structure);
+                }
+                else {
+                    let dismantleFlags = _.filter(Game.flags, x => x.memory.dismantle == true && x.pos.roomName == creep.memory.targetRoomName);
+                    dismantleFlags.forEach(x => {
+                        x.memory.dismantle = false;
+                    });
+                }
+            }
+        });
+        try {
+            if (Game.cpu.bucket > 5000)
+                reactionManager.tick();
+        }
+        catch (e) {
+            console.log(e.stack);
+        }
     }
 
 }

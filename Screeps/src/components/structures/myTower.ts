@@ -9,7 +9,13 @@
     }
 
     public tick() {
-        var closestHostile = this.tower.pos.findClosestByRange<Creep>(FIND_HOSTILE_CREEPS, { filter: (e: Creep) => e.owner.username !== 'Source Keeper' && Body.getFromCreep(e).isMilitary() });
+        var closestHostile = this.tower.pos.findClosestByRange<Creep>(FIND_HOSTILE_CREEPS, { filter: (e: Creep) => e.owner.username !== 'Source Keeper' && Body.getFromCreep(e).heal > 0 });
+
+        if (closestHostile == null)
+            closestHostile = this.tower.pos.findClosestByRange<Creep>(FIND_HOSTILE_CREEPS, { filter: (e: Creep) => e.owner.username !== 'Source Keeper' && Body.getFromCreep(e).work > 0 });
+
+        if (closestHostile == null)
+            closestHostile = this.tower.pos.findClosestByRange<Creep>(FIND_HOSTILE_CREEPS, { filter: (e: Creep) => e.owner.username !== 'Source Keeper' && Body.getFromCreep(e).isMilitary() });
 
         if (closestHostile != null) {
             this.tower.attack(closestHostile);
@@ -30,7 +36,7 @@
         }
 
 
-        
+
     }
 
 }

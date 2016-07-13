@@ -3,8 +3,8 @@
     export function getDefinition() {
         let body = new Body();
 
-        body.carry = 8;
-        body.move = 2;
+        body.carry = 4;
+        body.move = 1;
 
         return body;
     }

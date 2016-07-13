@@ -16,11 +16,13 @@ class MySourceMemory implements MySourceMemoryInterface {
     sourceDropOffContainer: cachedProperty<{ id: string, pos: RoomPosition }>
 }
 
-class MySource extends MemoryObject implements MySourceInterface  {
+class MySource implements MySourceInterface  {
 
     private get memory(): MySourceMemory {
         return this.accessMemory();
     }
+
+    public static staticTracer: Tracer;
 
     private memoryInitialized = false;
     public tracer: Tracer;
@@ -91,8 +93,10 @@ class MySource extends MemoryObject implements MySourceInterface  {
     private _dropOffStructre: { time: number, dropOffStructure: Structure } = { time: -1, dropOffStructure: null }
     public get dropOffStructure(): { id: string, pos: RoomPosition } {
         let trace = this.tracer.start('Property dropOffStructure');
-        if (this._dropOffStructre.time == Game.time)
+        if (this._dropOffStructre.time == Game.time) {
+            trace.stop();
             return this._dropOffStructre.dropOffStructure;
+        }
 
         if (this.source && (!this.memory.dropOffStructure || this.memory.dropOffStructure.time + 50 < Game.time)) {
             let structure = this.getDropOffStructure();
@@ -102,8 +106,8 @@ class MySource extends MemoryObject implements MySourceInterface  {
         }
         else {
             let structure = Game.getObjectById<Structure>(this.memory.dropOffStructure.value.id);
-            trace.stop();
             this._dropOffStructre = { time: Game.time, dropOffStructure: structure };
+            trace.stop();
             return structure ? structure : (this.memory.dropOffStructure ? { id: this.memory.dropOffStructure.value.id, pos: RoomPos.fromObj(this.memory.dropOffStructure.value.pos) } : null);
         }
     }
@@ -111,7 +115,7 @@ class MySource extends MemoryObject implements MySourceInterface  {
     private _nearByConstructionSite: { time: number, constructionSite: ConstructionSite } = { time: -1, constructionSite: null };
     public get nearByConstructionSite(): ConstructionSite {
         let trace = this.tracer.start('Property nearByConstruction');
-        if (this._nearByConstructionSite.time + 10 < Game.time) {
+        if (this._nearByConstructionSite.time + 50 < Game.time) {
             this._nearByConstructionSite = {
                 time: Game.time, constructionSite: _.filter(RoomPos.fromObj(this.memory.pos).findInRange<ConstructionSite>(FIND_CONSTRUCTION_SITES, 4))[0]
             };
@@ -134,8 +138,10 @@ class MySource extends MemoryObject implements MySourceInterface  {
         }
         else {
             let pos = this.source.pos;
+            let spots = _.filter((<LookAtResultWithPos[]>this.source.room.lookForAtArea(LOOK_TERRAIN, pos.y - 1, pos.x - 1, pos.y + 1, pos.x + 1, true)), x => x.terrain == 'swamp' || x.terrain == 'plain').length;
+            this.memory.harvestingSpots = spots;
             trace.stop();
-            return _.filter((<LookAtResultWithPos[]>this.source.room.lookForAtArea(LOOK_TERRAIN, pos.y - 1, pos.x - 1, pos.y + 1, pos.x + 1, true)), x => x.terrain == 'swamp' || x.terrain == 'plain').length;
+            return spots;
         }
     }
 
@@ -158,28 +164,44 @@ class MySource extends MemoryObject implements MySourceInterface  {
     public set roadBuiltToMainContainer(value: string) {
         this.memory.mainContainerRoadBuiltTo = value;
     }
-
+    _pathLengthToMainContainer: { time: number, length: number } = { time: -101, length: 50 };
     public get pathLengthToMainContainer() {
         let trace = this.tracer.start('Property pathLengthToMainContainer');
-        if (this.memory.mainContainerPathLength != null || this.source == null) {
-            trace.stop();
-            return this.memory.mainContainerPathLength;
-        }
-        else {
-            let pathLength = PathFinder.search(this.myRoom.mainRoom.spawns[0].pos, { pos: this.source.pos, range: 1 }).path.length;
-            this.memory.mainContainerPathLength = pathLength;
-            trace.stop();
-            return pathLength;
-        }
+        if (this._pathLengthToMainContainer.time + 100 < Game.time && this.source)
+            this._pathLengthToMainContainer = {
+                time: Game.time,
+                length: PathFinder.search(this.myRoom.mainRoom.spawns[0].pos, { pos: this.source.pos, range: 2 }).path.length
+            };
+        trace.stop();
+        return this._pathLengthToMainContainer.length;
+        //let trace = this.tracer.start('Property pathLengthToMainContainer');
+        //if (this.memory.mainContainerPathLength != null || this.source == null) {
+        //    trace.stop();
+        //    return this.memory.mainContainerPathLength;
+        //}
+        //else {
+        //    let pathLength = PathFinder.search(this.myRoom.mainRoom.spawns[0].pos, { pos: this.source.pos, range: 2 }).path.length;
+        //    this.memory.mainContainerPathLength = pathLength;
+        //    trace.stop();
+        //    return pathLength;
+        //}
     }
 
+    _requiresCarrier: { time: number, value: boolean } = { time: -51, value: false };
     public get requiresCarrier() {
+        let trace = this.tracer.start('Property requiresCarrier');
+        if (this._requiresCarrier.time + 50 < Game.time)
+            this._requiresCarrier = {
+                time: Game.time,
+                value: this.sourceDropOffContainer != null && this.myRoom.mainRoom.mainContainer != null && !this.hasLink
+            };
         //console.log('Requires Carrier: sourceDropOff: ' + ((this.sourceDropOffContainer) ? 'true' : 'false'));
         //if (this.room)
         //    console.log('Requires Carrier: getSourceDropOff: ' + (this.getSourceDropOffContainer() ? 'true' : 'false'));
         //console.log('Requires Carrier: mainContainer: ' + (this.myRoom.mainRoom.mainContainer ? 'true' : 'false'));
         //console.log('Requires Carrier: hasLink: ' + (this.hasLink ? 'true' : 'false'));
-        return this.sourceDropOffContainer != null && this.myRoom.mainRoom.mainContainer != null && !this.hasLink;
+        trace.stop();
+        return this._requiresCarrier.value;
     }
 
 
@@ -201,9 +223,13 @@ class MySource extends MemoryObject implements MySourceInterface  {
     }
 
     constructor(public id: string, public myRoom: MyRoom) {
-        super();
-        this.tracer = new Tracer('MySource ' + id);
-        Colony.tracers.push(this.tracer);
+        if (MySource.staticTracer == null) {
+            MySource.staticTracer = new Tracer('MySource');
+            Colony.tracers.push(MySource.staticTracer);
+        }
+        //this.tracer = new Tracer('MySource ' + id);
+        this.tracer = MySource.staticTracer;
+        
 
         this.accessMemory();
     }
@@ -223,13 +249,17 @@ class MySource extends MemoryObject implements MySourceInterface  {
     }
 
     public get containerMissing() {
-        if (this.requiresCarrier || this.hasLink)
+        let trace = this.tracer.start('Property containerMissing');
+        if (this.requiresCarrier || this.hasLink) {
+            trace.stop();
             return false;
+        }
 
-
-        return this.pos.findInRange<ConstructionSite>(FIND_CONSTRUCTION_SITES, 4, {
+        let result = this.pos.findInRange<ConstructionSite>(FIND_CONSTRUCTION_SITES, 4, {
             filter: (s: Structure) => (s.structureType == STRUCTURE_CONTAINER || s.structureType == STRUCTURE_STORAGE || s.structureType == STRUCTURE_LINK)
         }).length == 0;
+        trace.stop();
+        return result;
     }
 
     private getSourceDropOffContainer() {

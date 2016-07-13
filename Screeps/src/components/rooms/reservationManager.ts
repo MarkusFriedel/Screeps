@@ -37,7 +37,7 @@ class ReservationManager implements ReservationManagerInterface {
             let requiredCount =this.mainRoom.maxSpawnEnergy < 1300 ? 2 : 1;
 
             if (_.filter(this.creeps, (x) => (<ReserverMemory>x.memory).targetRoomName == myRoom.name).length < requiredCount) {
-                    this.mainRoom.spawnManager.addToQueue(requiredCount > 1 ? [CLAIM,MOVE] :[CLAIM, CLAIM, MOVE, MOVE], { role: 'reserver', targetRoomName: myRoom.name }, 1, true);
+                    this.mainRoom.spawnManager.addToQueue(requiredCount > 1 ? [CLAIM,MOVE] :[CLAIM, CLAIM, MOVE, MOVE], { role: 'reserver', targetRoomName: myRoom.name }, 1, false);
             }
         }
     }

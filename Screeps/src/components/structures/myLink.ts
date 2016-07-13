@@ -14,15 +14,46 @@
     nextToTower: boolean;
     nearController: boolean;
 
-    maxLevel: number;
-    minLevel: number;
+    drain: boolean;
+    fill: boolean;
+
+
+    public get minLevel() {
+        if (this.nextToStorage) {
+            if (_.any(this.mainRoom.links, x => !x.nextToStorage && x.link && x.link.energy < x.minLevel)) {
+                return this.link.energyCapacity;
+            }
+            else return this.link.energyCapacity / 2;
+        }
+        else if (this.drain && this.fill)
+            return 400;
+        else if (this.drain)
+            return 0;
+        else if (this.fill)
+            return this.link.energyCapacity-100;
+    }
+
+    public get maxLevel() {
+        if (this.nextToStorage) {
+            if (_.any(this.mainRoom.links, x => !x.nextToStorage && x.link && x.link.energy < x.minLevel)) {
+                return this.link.energyCapacity;
+            }
+            else return this.link.energyCapacity / 2;
+        }
+        else if (this.drain && this.fill)
+            return 400;
+        else if (this.drain)
+            return 0;
+        else if (this.fill)
+            return this.link.energyCapacity;
+    }
 
     id: string;
 
     constructor(link: Link, public mainRoom: MainRoom) {
         this.id = link.id;
 
-        let surroundingStructures = <Array<LookAtResultWithPos>>mainRoom.room.lookForAtArea(LOOK_STRUCTURES, link.pos.y - 1, link.pos.x - 1, link.pos.y + 1, link.pos.x + 1, true);
+        let surroundingStructures = <Array<LookAtResultWithPos>>mainRoom.room.lookForAtArea(LOOK_STRUCTURES, link.pos.y - 2, link.pos.x - 2, link.pos.y +2, link.pos.x + 2, true);
         this.nextToStorage = _.any(surroundingStructures, x => x.structure.structureType == STRUCTURE_STORAGE);
         this.nextToTower = _.any(surroundingStructures, x => x.structure.structureType == STRUCTURE_TOWER);
         this.nearSource = link.pos.findInRange(FIND_SOURCES, 4).length > 0;
@@ -30,35 +61,29 @@
 
 
 
-        let drain = this.nearSource || this.nextToStorage;
-        let fill = this.nextToStorage || this.nextToTower || this.nearController;
+        this.drain = this.nearSource || this.nextToStorage;
+        this.fill = this.nextToStorage || this.nextToTower || this.nearController;
 
-        if (drain && fill) {
-            this.maxLevel = 600;
-            this.minLevel = 500;
-        }
-        else if (drain) {
-            this.maxLevel = 0;
-            this.minLevel = 0;
-        }
-        else if (fill) {
-            this.maxLevel = link.energyCapacity;
-            this.minLevel = link.energyCapacity-100;
-        }
     }
 
     public tick() {
         if (this.nextToStorage) {
-            let myLinkToFill = _.sortBy(_.filter(this.mainRoom.links, x => x.minLevel > x.link.energy), x => -(x.minLevel - x.link.energy))[0];
+            let myLinkToFill = _.sortBy(_.filter(this.mainRoom.links, x => x.minLevel > x.link.energy), x => 800-(x.minLevel - x.link.energy))[0];
             if (myLinkToFill) {
                 this.link.transferEnergy(myLinkToFill.link, Math.min(myLinkToFill.maxLevel - myLinkToFill.link.energy, this.link.energy));
             }
         }
         else {
             if (this.link.energy > this.maxLevel) {
-                let myLinkToFill = _.filter(this.mainRoom.links, x => x.nextToStorage)[0];
+                let myLinkToFill = _.sortBy(_.filter(this.mainRoom.links, x => x.minLevel > x.link.energy), x => 800-(x.minLevel - x.link.energy))[0];
                 if (myLinkToFill) {
-                    this.link.transferEnergy(myLinkToFill.link, Math.min(myLinkToFill.link.energyCapacity - myLinkToFill.link.energy, this.link.energy - this.maxLevel));
+                    this.link.transferEnergy(myLinkToFill.link, Math.min(myLinkToFill.minLevel - myLinkToFill.link.energy, this.link.energy - this.maxLevel));
+                }
+                else {
+                    myLinkToFill = _.filter(this.mainRoom.links, x => x.nextToStorage)[0];
+                    if (myLinkToFill) {
+                        this.link.transferEnergy(myLinkToFill.link, Math.min(myLinkToFill.link.energyCapacity - myLinkToFill.link.energy, this.link.energy - this.maxLevel));
+                    }
                 }
 
             }

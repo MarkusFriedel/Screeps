@@ -26,7 +26,7 @@
     }
 
     construct() {
-        
+
         if (this.target != null) {
             if (this.creep.pos.x == 0 || this.creep.pos.x == 49 || this.creep.pos.y == 0 || this.creep.pos.y == 49)
                 this.creep.moveTo(this.target);
@@ -51,21 +51,25 @@
 
     public tick() {
         if (this.creep.carry.energy > 0) {
-            if (this.targetPosition != null || this.mainRoom.room.controller.ticksToDowngrade<1000)
+            if (this.targetPosition != null && this.mainRoom.room.controller.ticksToDowngrade >= 1000)
                 this.construct();
             else
                 this.upgrade();
         }
         else {
+            this.memory.targetId = null;
+            this.memory.targetPosition = null;
             if (this.mainRoom == null)
                 return;
-            var mainContainer;
+            var mainContainer: Storage | Container;
 
-            mainContainer = this.creep.pos.findClosestByRange(FIND_STRUCTURES, { filter: (x: Container) => (x.structureType == STRUCTURE_CONTAINER || x.structureType == STRUCTURE_STORAGE) && x.store.energy >= this.creep.carryCapacity });
+            if (Game.cpu.bucket > 5000)
+                mainContainer = this.creep.pos.findClosestByRange<Storage|Container>(FIND_STRUCTURES, { filter: (x: Container) => (x.structureType == STRUCTURE_CONTAINER || x.structureType == STRUCTURE_STORAGE) && x.store.energy >= this.creep.carryCapacity });
+
             if (mainContainer == null)
                 mainContainer = this.mainRoom.mainContainer;
             if (mainContainer != null) {
-                if (mainContainer.store.energy > 100)
+                if (mainContainer.store.energy > this.mainRoom.maxSpawnEnergy * 2 || this.mainRoom.mainContainer && mainContainer.id != this.mainRoom.mainContainer.id)
                     if (mainContainer.transfer(this.creep, RESOURCE_ENERGY) == ERR_NOT_IN_RANGE)
                         this.creep.moveTo(mainContainer);
             }

@@ -84,7 +84,7 @@ class SourceCarrier {
                 if (this.creep.room.name != mainContainer.room.name)
                     this.creep.moveTo(mainContainer, { reusePath: 20 });
 
-                if (this.creep.transfer(mainContainer, RESOURCE_ENERGY) == ERR_NOT_IN_RANGE)
+                else if (this.creep.transfer(mainContainer, RESOURCE_ENERGY) == ERR_NOT_IN_RANGE)
                     this.creep.moveTo(mainContainer);
             }
             else {

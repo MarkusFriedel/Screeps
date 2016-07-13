@@ -19,7 +19,7 @@ class HarvestingManager extends MemoryObject implements HarvestingManagerInterfa
         return this.mainRoom.memory.harvestingManager;
     }
 
-    _harvesterCreeps: { time: number, creeps: Array<Creep> } = { time: 0, creeps: null };
+    _harvesterCreeps: { time: number, creeps: Array<Creep> } = { time: -1, creeps: null };
     public get harvesterCreeps(): Array<Creep> {
         if (this._harvesterCreeps.time < Game.time)
             this._harvesterCreeps = {
@@ -28,7 +28,7 @@ class HarvestingManager extends MemoryObject implements HarvestingManagerInterfa
         return this._harvesterCreeps.creeps;
     }
 
-    _sourceCarrierCreeps: { time: number, creeps: Array<Creep> } = { time: 0, creeps: null };
+    _sourceCarrierCreeps: { time: number, creeps: Array<Creep> } = { time: -1, creeps: null };
     public get sourceCarrierCreeps(): Array<Creep> {
         if (this._sourceCarrierCreeps.time < Game.time)
             this._sourceCarrierCreeps = {
@@ -172,8 +172,8 @@ class HarvestingManager extends MemoryObject implements HarvestingManagerInterfa
 
             if (sourceInfo.requiresCarrier && !sourceInfo.hasLink) {
                 if (Memory['verbose'] || this.memory.verbose)
-                    console.log('Checking source carriers for '+sourceInfo.id);
-                let miningRate = harvesterRequirements.body.work * 2 * harvesterRequirements.count;
+                    console.log('Checking source carriers for ' + sourceInfo.id);
+                let miningRate = Math.min(harvesterRequirements.body.work * 2 * harvesterRequirements.count, Math.ceil(sourceInfo.energyCapacity / 300));
                 var sourceCarriers = _.filter(this.sourceCarrierCreeps, (c) => (<SourceCarrierMemory>c.memory).sourceId == sourceInfo.id);
                 let requirements = this.getSourceCarrierBodyAndCount(sourceInfo,miningRate);
                 this.mainRoom.spawnManager.addToQueue(requirements.body.getBody(), { role: 'sourceCarrier', sourceId: sourceInfo.id }, requirements.count - sourceCarriers.length);
@@ -186,8 +186,12 @@ class HarvestingManager extends MemoryObject implements HarvestingManagerInterfa
     }
 
     public tick() {
-        this.harvesterCreeps.forEach((c) => { try { new Harvester(c, this.mainRoom).tick() } catch (e) { c.say('ERROR'); Memory['error'] = e; console.log(e.stack);} });
+        //let startCpu = Game.cpu.getUsed();
+        this.harvesterCreeps.forEach((c) => { try { new Harvester(c, this.mainRoom).tick() } catch (e) { c.say('ERROR'); Memory['error'] = e; console.log(e.stack); } });
+        //console.log('Harvesters ' + this.mainRoom.name + ' [' + this.harvesterCreeps.length + ']: ' + (Game.cpu.getUsed() - startCpu).toFixed(2) + ' CPU');
+        //startCpu = Game.cpu.getUsed();
         this.sourceCarrierCreeps.forEach((c) => { try { new SourceCarrier(c, this.mainRoom).tick() } catch (e) { c.say('ERROR'); Memory['error'] = e; console.log(e.stack); } });
+        //console.log('SourceCarriers ' + this.mainRoom.name + ' [' + this.harvesterCreeps.length + ']: ' + (Game.cpu.getUsed() - startCpu).toFixed(2) + ' CPU');
     }
 
 }

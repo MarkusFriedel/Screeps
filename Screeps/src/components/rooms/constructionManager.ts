@@ -29,34 +29,48 @@ class ConstructionManager implements ConstructionManagerInterface {
 
 
     maxCreeps: number;
-    
+
 
     constructor(public mainRoom: MainRoom) {
         this.maxCreeps = 2;
     }
 
-    public getConstruction() {
-        var constructionSites = _.filter(Game.constructionSites, x => _.any(this.mainRoom.allRooms, y => x.pos.roomName == y.name));
-        var extensions = _.filter(constructionSites, (c) => c.structureType == STRUCTURE_EXTENSION);
-        if (extensions.length > 0) {
-            return extensions[0];
+    private _constructions: { time: number, constructions: ConstructionSite[] } = { time: -11, constructions: [] };
+    public get constructions() {
+        if (this._constructions.time + 10 < Game.time) {
+            this._constructions.time = Game.time;
+            var constructionSites = _.filter(Game.constructionSites, x => _.any(this.mainRoom.allRooms, y => x.pos.roomName == y.name));
+            var extensions = _.filter(constructionSites, (c) => c.structureType == STRUCTURE_EXTENSION);
+            if (extensions.length > 0) {
+                this._constructions.constructions = extensions;
+            }
+            else {
+                let everythingButRoads = _.filter(constructionSites, c => c.structureType != STRUCTURE_ROAD);
+                if (everythingButRoads.length > 0)
+                    this._constructions.constructions = everythingButRoads;
+                else
+                    this._constructions.constructions = constructionSites;
+            }
         }
-        return constructionSites[0];
+        return this._constructions.constructions;
     }
 
     public checkCreeps() {
-        if (this.mainRoom.spawnManager.isBusy)
+        //if (this.mainRoom.spawnManager.isBusy)
+        //    return;
+        if (this.idleCreeps.length == 0 && this.mainRoom.spawnManager.isBusy)
             return;
-        var constructionSite = this.getConstruction();
-        if (constructionSite != null && (this.creeps.length < this.maxCreeps || this.idleCreeps.length>0)) {
+
+        if (this.constructions.length > 0 && (this.creeps.length < this.maxCreeps || this.idleCreeps.length > 0)) {
             for (var idx in this.idleCreeps) {
                 var creep = this.idleCreeps[idx];
-                creep.memory.targetId = constructionSite.id;
-                creep.memory.targetPosition = constructionSite.pos;
+                let nearestConstruction = _.sortByAll(this.constructions, [x => x.pos.roomName == creep.room.name ? 0 : 1, x => (x.pos.x - creep.pos.x) ** 2 + ((x.pos.y - creep.pos.y) ** 2)])[0];
+                creep.memory.targetId = nearestConstruction.id;
+                creep.memory.targetPosition = nearestConstruction.pos;
             }
             this.idleCreeps = [];
 
-            this.mainRoom.spawnManager.addToQueue(ConstructorDefinition.getDefinition(this.mainRoom.maxSpawnEnergy).getBody(), { role: 'constructor', targetId: constructionSite.id, targetPosition: constructionSite.pos }, Math.min(this.maxCreeps, _.size(this.mainRoom.sources)) - this.creeps.length);
+            this.mainRoom.spawnManager.addToQueue(ConstructorDefinition.getDefinition(this.mainRoom.maxSpawnEnergy).getBody(), { role: 'constructor', targetId: null, targetPosition: null }, Math.min(this.maxCreeps, _.size(this.mainRoom.sources)) - this.creeps.length);
         }
     }
 

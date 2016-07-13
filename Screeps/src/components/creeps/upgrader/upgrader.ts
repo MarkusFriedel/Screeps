@@ -40,7 +40,7 @@
                 else {
                     var mainContainer = this.mainRoom.mainContainer;
                     if (mainContainer != null) {
-                        if (mainContainer.store.energy > 200)
+                        if (mainContainer.store.energy > this.mainRoom.maxSpawnEnergy * 2)
                             if (mainContainer.transfer(this.creep, RESOURCE_ENERGY) == ERR_NOT_IN_RANGE)
                                 this.creep.moveTo(mainContainer);
                     }

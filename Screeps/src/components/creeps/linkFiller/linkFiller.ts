@@ -29,8 +29,8 @@
             return;
 
         if (link.energy < myLink.minLevel) {
-            if (this.creep.carry.energy == 0) {
-                if (storage.transfer(this.creep, RESOURCE_ENERGY, 400))
+            if (this.creep.carry.energy == 0 && storage.store.energy > this.mainRoom.maxSpawnEnergy*2) {
+                if (storage.transfer(this.creep, RESOURCE_ENERGY))
                     this.creep.moveTo(storage);
             }
             else {
@@ -41,7 +41,7 @@
         }
         else if (link.energy > myLink.maxLevel) {
             if (this.creep.carry.energy == this.creep.carryCapacity) {
-                if (this.creep.transfer(storage, RESOURCE_ENERGY, 400))
+                if (this.creep.transfer(storage, RESOURCE_ENERGY))
                     this.creep.moveTo(storage);
             }
             else {
@@ -50,13 +50,13 @@
             }
         }
         else {
-            if (this.creep.carry.energy > 400) {
-                if (this.creep.transfer(storage, RESOURCE_ENERGY, this.creep.carry.energy - 400) == ERR_NOT_IN_RANGE)
+            if (this.creep.carry.energy > 100) {
+                if (this.creep.transfer(storage, RESOURCE_ENERGY, this.creep.carry.energy - 100) == ERR_NOT_IN_RANGE)
                     this.creep.moveTo(storage);
 
             }
-            else if (this.creep.carry.energy > 400) {
-                if (storage.transfer(this.creep, RESOURCE_ENERGY, 400 - this.creep.carry.energy) == ERR_NOT_IN_RANGE)
+            else if (this.creep.carry.energy > 100) {
+                if (storage.transfer(this.creep, RESOURCE_ENERGY, 100 - this.creep.carry.energy) == ERR_NOT_IN_RANGE)
                     this.creep.moveTo(storage);
             }
 

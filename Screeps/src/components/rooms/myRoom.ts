@@ -1,4 +1,5 @@
 ﻿/// <reference path="../sources/mySource.ts" />
+/// <reference path="../../tracer.ts" />
 /// <reference path="../structures/myContainer.ts" />
 
 class MyRoom implements MyRoomInterface {
@@ -7,12 +8,18 @@ class MyRoom implements MyRoomInterface {
         return this.accessMemory();
     }
 
+    public static staticTracer: Tracer;
+    public tracer: Tracer;
+
+
     _room: { time: number, room: Room } = { time: -1, room: null };
     public get room(): Room {
+        let trace = this.tracer.start('Property room');
         if (this._room.time < Game.time)
             this._room = {
                 time: Game.time, room: Game.rooms[this.name]
             };
+        trace.stop();
         return this._room.room;
     }
 
@@ -22,6 +29,7 @@ class MyRoom implements MyRoomInterface {
     } = { time: -101, myContainers: {} };
 
     public get myContainers(): { [id: string]: MyContainerInterface; } {
+        let trace = this.tracer.start('Property myContainers');
         if (((this._myContainers.time + 100) < Game.time || this.memory.containers == null) && this.room) {
             let containers = _.map(this.room.find<Container>(FIND_STRUCTURES, { filter: (x: Structure) => x.structureType == STRUCTURE_CONTAINER }), x => new MyContainer(x.id, this));
             this._myContainers = {
@@ -29,17 +37,21 @@ class MyRoom implements MyRoomInterface {
                 myContainers: _.indexBy(containers, (x) => x.id)
             };
         }
+        trace.stop();
         return this._myContainers.myContainers;
     }
 
     public get canHarvest() {
-        return (this.mainRoom && this.name == this.mainRoom.name || !(this.memory.foreignOwner || this.memory.foreignReserver));
+        let trace = this.tracer.start('Property canHarvest');
+        let result = (this.mainRoom && this.name == this.mainRoom.name || !(this.memory.foreignOwner || this.memory.foreignReserver));
+        trace.stop();
+        return result;
     }
 
     private _mySources: { time: number, mySources: { [id: string]: MySourceInterface; } } = null;
 
     public get mySources(): { [id: string]: MySourceInterface; } {
-        //return _.indexBy(_.map(this.room.find<Source>(FIND_SOURCES), x => new MySource(x.id, this)), (x) => x.id);
+        let trace = this.tracer.start('Property mySources');
         if (this._mySources == null) {
             if (this.memory.sources == null && this.room) {
                 this._mySources = { time: Game.time, mySources: _.indexBy(_.map(this.room.find<Source>(FIND_SOURCES), x => new MySource(x.id, this)), (x) => x.id) };
@@ -48,19 +60,25 @@ class MyRoom implements MyRoomInterface {
                 this._mySources = { time: Game.time, mySources: _.indexBy(_.map(this.memory.sources, x => new MySource(x.id, this)), (x) => x.id) };
             }
         }
+        trace.stop();
         if (this._mySources)
             return this._mySources.mySources;
         else return {};
     }
 
     public get useableSources() {
-        return _.filter(this.mySources, x => !x.hasKeeper);
+        let trace = this.tracer.start('Property useableSources');
+        let result = _.filter(this.mySources, x => !x.hasKeeper);
+        trace.stop();
+        return result;
     }
 
     private _mainRoom: MainRoomInterface = null;
     public get mainRoom() {
+        let trace = this.tracer.start('Property mainRoom');
         if (this._mainRoom == null)
             this._mainRoom = Colony.mainRooms[this.memory.mainRoomName];
+        trace.stop();
         return this._mainRoom;
     }
     public set mainRoom(value: MainRoomInterface) {
@@ -93,6 +111,12 @@ class MyRoom implements MyRoomInterface {
 
 
     constructor(public name: string) {
+        if (MyRoom.staticTracer == null) {
+            MyRoom.staticTracer = new Tracer('MyRoom');
+            Colony.tracers.push(MyRoom.staticTracer);
+        }
+        //this.tracer = new Tracer('MySource ' + id);
+        this.tracer = MyRoom.staticTracer;
         this.memory.name = name;
 
         if (this.room != null)
@@ -100,9 +124,14 @@ class MyRoom implements MyRoomInterface {
     }
 
     public get closestMainRoom() {
-        if (this.memory.mainRoomDistanceDescriptions == null || _.size(this.memory.mainRoomDistanceDescriptions) == 0)
+        let trace = this.tracer.start('Property closestMainRoom');
+        if (this.memory.mainRoomDistanceDescriptions == null || _.size(this.memory.mainRoomDistanceDescriptions) == 0) {
+            trace.stop();
             return null;
-        return Colony.mainRooms[_.min(this.memory.mainRoomDistanceDescriptions, x => x.distance).roomName];
+        }
+        let result = Colony.mainRooms[_.min(this.memory.mainRoomDistanceDescriptions, x => x.distance).roomName];
+        trace.stop();
+        return result;
     }
 
     public scan() {

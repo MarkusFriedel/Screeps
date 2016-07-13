@@ -50,7 +50,7 @@ class InvasionManager implements InvasionManagerInterface {
     checkInvaders(myRoom: MyRoomInterface, rallyFlag: Flag) {
         if (myRoom == null)
             return false;
-        let creepsRequired = 5;
+        let creepsRequired = 1;
         console.log('check invaders');
 
         if (this.invaders.length < creepsRequired) {
@@ -70,7 +70,7 @@ class InvasionManager implements InvasionManagerInterface {
     checkDismantlers(myRoom: MyRoomInterface, rallyFlag: Flag) {
         if (myRoom == null)
             return false;
-        let creepsRequired = 5;
+        let creepsRequired = 1;
 
         if (this.dismantlers.length < creepsRequired) {
             let mainRoom = myRoom.closestMainRoom;

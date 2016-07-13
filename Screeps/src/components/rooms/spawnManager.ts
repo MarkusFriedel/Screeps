@@ -49,8 +49,10 @@ class SpawnManager implements SpawnManagerInterface {
     }
 
     public spawn() {
-        if (this.isBusy)
+        if (this.isBusy) {
+            this.queue = [];
             return;
+        }
 
         if (Memory['verbose'] || this.memory.verbose)
             console.log('[' + this.mainRoom.name + '] ' + 'SpawnManager.spawn(): queue.length is ' + this.queue.length);

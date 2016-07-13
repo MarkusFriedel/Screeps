@@ -1,9 +1,9 @@
 ﻿class SpawnFiller {
 
     creep: Creep;
-    mainRoom: MainRoom;
+    mainRoom: MainRoomInterface;
 
-    constructor(creep: Creep, mainRoom: MainRoom) {
+    constructor(creep: Creep, mainRoom: MainRoomInterface) {
         this.creep = creep;
         this.mainRoom = mainRoom;
     }
@@ -18,11 +18,14 @@
                 this.creep.moveTo(energy);
         }
         else {
-
             let mainContainer = this.mainRoom.mainContainer;
             if (mainContainer != null && mainContainer.store.energy > 0) {
                 if (mainContainer.transfer(this.creep, RESOURCE_ENERGY) == ERR_NOT_IN_RANGE)
                     this.creep.moveTo(mainContainer);
+            }
+            else if (this.mainRoom.room.terminal && this.mainRoom.room.terminal.store.energy > 0) {
+                if (this.mainRoom.room.terminal.transfer(this.creep, RESOURCE_ENERGY) == ERR_NOT_IN_RANGE)
+                    this.creep.moveTo(this.mainRoom.room.terminal);
             }
         }
     }

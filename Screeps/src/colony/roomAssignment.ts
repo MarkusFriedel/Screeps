@@ -9,7 +9,7 @@ var MAXDISTANCE = 2;
 
 class RoomAssignment implements RoomAssignmentInterface {
 
-    
+
 
     assignedRooms: Array<MyRoomInterface> = [];
 
@@ -20,8 +20,11 @@ class RoomAssignment implements RoomAssignmentInterface {
     }
 
     get maxMetric() {
-        //console.log('MaxMetric for ' + this.mainRoom.name + ': ' + this.mainRoom.spawns.length * MAXMETRIC);
-        return this.mainRoom.spawns.length * MAXMETRIC;
+        //if (this.mainRoom.room.controller.level < 4)
+        //    return 8;
+        ////console.log('MaxMetric for ' + this.mainRoom.name + ': ' + this.mainRoom.spawns.length * MAXMETRIC);
+        //else
+            return this.mainRoom.spawns.length * MAXMETRIC;
     }
 
     get freeMetric() {
@@ -63,7 +66,7 @@ class RoomAssignment implements RoomAssignmentInterface {
 }
 class RoomAssignmentHandler implements RoomAssignmentHandlerInterface {
 
-    forbidden: Array<string> = ['E15S26', 'E15S27', 'E15S28', 'E15S29', 'E11S25', 'E12S25', 'E13S25', 'E14S25', 'E15S25'];
+    forbidden: Array<string> = ['E15S26', 'E15S27', 'E15S28', 'E15S29'];
 
     private assignments: { [mainRoomName: string]: RoomAssignmentInterface } = {};
 
@@ -80,14 +83,14 @@ class RoomAssignmentHandler implements RoomAssignmentHandlerInterface {
 
     private assignRoomsByMinDistance() {
         _.forEach(_.sortByAll(_.values<MyRoomInterface>(this.roomsToAssign), x => [_.min(x.memory.mainRoomDistanceDescriptions, y => y.distance).distance, (10 - x.useableSources.length)], ['asc', 'desc']), (myRoom) => {
-            let possibleMainRooms = _.filter(myRoom.memory.mainRoomDistanceDescriptions, x => (x.distance <= MAXDISTANCE) && (x.distance <= 2 || x.distance == 2 && myRoom.useableSources.length >1) && this.assignments[x.roomName].canAssignRoom(myRoom));
+            let possibleMainRooms = _.filter(myRoom.memory.mainRoomDistanceDescriptions, x => (x.distance <= MAXDISTANCE) && (x.distance <= 2 || x.distance == 2 && myRoom.useableSources.length > 1) && this.assignments[x.roomName].canAssignRoom(myRoom));
             console.log('Room: [' + myRoom.name + '] Distances to MainRooms [' + _.map(possibleMainRooms, x => x.roomName + ' ' + x.distance).join(', ') + ']');
-            //console.log('Room: [' + myRoom.name + '] Possible MainRooms [' + _.map(possibleMainRooms, x => x.roomName).join(', ') + ']');
+            console.log('Room: [' + myRoom.name + '] Possible MainRooms [' + _.map(possibleMainRooms, x => x.roomName).join(', ') + ']');
             let sorted = _.sortBy(possibleMainRooms, x => x.distance);
 
-            if (sorted.length == 1 || sorted.length >= 1 && sorted[0].distance < sorted[1].distance) {
+            if ((sorted.length == 1 || sorted.length >= 1 && sorted[0].distance < sorted[1].distance) && myRoom.memory.mainRoomDistanceDescriptions[sorted[0].roomName].distance == _.min(myRoom.memory.mainRoomDistanceDescriptions, x => x.distance).distance) {
                 console.log('Assigning: ' + sorted[0].roomName);
-                //console.log('Trying to add room [' + myRoom.name + '] to mainRoom [' + sorted[0].roomName + ']');
+                console.log('Trying to add room [' + myRoom.name + '] to mainRoom [' + sorted[0].roomName + ']');
                 if (this.assignments[sorted[0].roomName].tryAddRoom(myRoom))
                     delete this.roomsToAssign[myRoom.name];
             }
@@ -104,7 +107,7 @@ class RoomAssignmentHandler implements RoomAssignmentHandlerInterface {
         } = {};
         _.forEach(this.roomsToAssign, (myRoom) => {
             _.forEach(myRoom.memory.mainRoomDistanceDescriptions, (distanceDescription) => {
-                if ((distanceDescription.distance <= 2 || distanceDescription.distance == 2 && myRoom.useableSources.length>1) && this.assignments[distanceDescription.roomName].canAssignRoom(myRoom)) {
+                if ((distanceDescription.distance <= 2 || distanceDescription.distance == 2 && myRoom.useableSources.length > 1) && this.assignments[distanceDescription.roomName].canAssignRoom(myRoom)) {
                     if (mainRoomCandidates[distanceDescription.roomName] == null)
                         mainRoomCandidates[distanceDescription.roomName] = {
                             mainRoom: this.mainRooms[distanceDescription.roomName],
@@ -141,6 +144,7 @@ class RoomAssignmentHandler implements RoomAssignmentHandlerInterface {
         return _.indexBy(_.map(this.assignments, x => {
             return {
                 mainRoom: x.mainRoom,
+                metric: x.metric,
                 myRooms: x.assignedRooms
             }
         }), x => x.mainRoom.name);
