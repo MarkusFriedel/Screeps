@@ -1,12 +1,19 @@
 ﻿class Body implements BodyInterface {
 
-    static getFromCreep(creep: Creep) {
+    static getFromBodyArray(parts: BodyPartDefinition[]) {
         let body = new Body();
         for (let part in BODYPARTS_ALL) {
-            body[BODYPARTS_ALL[part]] = _.filter(creep.body, x => x.type == BODYPARTS_ALL[part]).length;
+            body[BODYPARTS_ALL[part]] = _.filter(parts, x => x.type == BODYPARTS_ALL[part]).length;
         }
+
         return body;
     }
+
+    static getFromCreep(creep: Creep) {
+        return Body.getFromBodyArray(creep.body);
+    }
+
+
 
     public get costs() {
         let costs = 0;
@@ -30,15 +37,19 @@
     tough: number = 0;
     claim: number = 0;
 
-    getHarvestingRate() {
+    public get harvestingRate() {
         return this.work * 2;
     }
 
-    isMilitary() {
+    public get isMilitaryDefender() {
         return (this.heal + this.ranged_attack + this.attack) > 0;
     }
 
-    getBody() {
+    public get isMilitaryAttacker() {
+        return (this.heal + this.ranged_attack + this.attack + this.work) > 0;
+    }
+
+    public getBody() {
         let body: string[] = [];
         for (let i = 0; i < this.tough; i++)
             body.push(TOUGH);

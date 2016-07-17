@@ -12,12 +12,11 @@
             this.targetPosition = this.target.pos;
             this.memory.targetPosition = this.targetPosition;
         }
-        else if (this.creep.memory.targetId != null) {
+        else if (this.creep.memory.targetPosition != null) {
             this.targetPosition = new RoomPosition(this.memory.targetPosition.x, this.memory.targetPosition.y, this.memory.targetPosition.roomName);
             if (Game.rooms[this.targetPosition.roomName] != null) {
                 this.targetPosition = null;
                 this.target = null;
-                this.memory.targetId = null;
                 this.memory.targetId = null;
                 this.memory.targetPosition = null;
             }
@@ -69,11 +68,13 @@
             if (mainContainer == null)
                 mainContainer = this.mainRoom.mainContainer;
             if (mainContainer != null) {
-                if (mainContainer.store.energy > this.mainRoom.maxSpawnEnergy * 2 || this.mainRoom.mainContainer && mainContainer.id != this.mainRoom.mainContainer.id)
+                this.creep.say('Main');
+                if (!this.mainRoom.mainContainer || mainContainer.store.energy > this.mainRoom.maxSpawnEnergy  || this.mainRoom.mainContainer && mainContainer.id != this.mainRoom.mainContainer.id)
                     if (mainContainer.transfer(this.creep, RESOURCE_ENERGY) == ERR_NOT_IN_RANGE)
                         this.creep.moveTo(mainContainer);
             }
             else {
+                this.creep.say('NoMain');
                 if (this.mainRoom.spawnManager.isIdle) {
                     let spawn = this.mainRoom.room.find<Spawn>(FIND_MY_SPAWNS)[0];
 

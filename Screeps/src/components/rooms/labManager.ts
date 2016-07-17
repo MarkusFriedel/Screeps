@@ -1,4 +1,6 @@
 ﻿/// <reference path="../structures/myLab.ts" />
+/// <reference path="../creeps/labCarrier/labCarrierDefinition.ts" />
+/// <reference path="../creeps/labCarrier/labCarrier.ts" />
 
 class LabManager implements LabManagerInterface {
 
@@ -12,6 +14,15 @@ class LabManager implements LabManagerInterface {
                 labs: {}
             }
         return this.mainRoom.memory.labManager;
+    }
+
+    _creeps: { time: number, creeps: Array<Creep> } = { time: -1, creeps: null };
+    public get creeps(): Array<Creep> {
+        if (this._creeps.time < Game.time)
+            this._creeps = {
+                time: Game.time, creeps: _.filter(this.mainRoom.creeps, (c) => c.memory.role == 'labCarrier')
+            };
+        return this._creeps.creeps;
     }
 
     private _myLabs: { time: number, myLabs: { [id: string]: MyLab } } = { time: -101, myLabs: {} };
@@ -73,12 +84,25 @@ class LabManager implements LabManagerInterface {
     public setupPublishs() {
         _.forEach(this.publish, resource => {
             if (Colony.reactionManager.canProduce(resource)) {
-                let freeLab = _.sortBy(this.myLabs, l => _.filter(l.connectedLabs, cl => cl.memory.mode == LabMode.available).length)[0];
+                let freeLab = _.sortBy(_.values<MyLab>(this.myLabs), l => _.filter(l.connectedLabs, cl => cl.memory.mode == LabMode.available).length)[0];
                 if (freeLab) {
                     freeLab.memory.mode = LabMode.publish | LabMode.import;
                     freeLab.memory.resource = resource;
                 }
             }
         });
+    }
+
+    public checkCreeps() {
+        if (_.any(this.myLabs, x => x.memory.mode != LabMode.available) && this.creeps.length == 0) {
+            let body = LabCarrierDefinition.getDefinition(this.mainRoom.maxSpawnEnergy);
+            this.mainRoom.spawnManager.addToQueue(body.getBody(), { role: 'labCarrier' });
+        }
+    }
+
+    public tick() {
+        _.forEach(this.myLabs, x => x.tick());
+
+        _.forEach(this.creeps, x => new LabCarrier(x, this).tick());
     }
 }

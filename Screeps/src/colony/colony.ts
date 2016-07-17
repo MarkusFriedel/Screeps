@@ -1,6 +1,7 @@
 ﻿/// <reference path="./claimingManager.ts" />
 /// <reference path="./invasionManager.ts" />
 /// <reference path="./roomAssignment.ts" />
+/// <reference path="./military/militaryManager.ts" />
 /// <reference path="./reactionManager.ts" />
 /// <reference path="../components/rooms/mainRoom.ts" />
 /// <reference path="../components/rooms/myRoom.ts" />
@@ -34,6 +35,8 @@ namespace Colony {
 
     export var reactionManager: ReactionManagerInterface = new ReactionManager();
 
+    export var militaryManager: MilitaryManagerInterface = new MilitaryManager();
+
     export function getRoom(roomName: string) {
         let room = rooms[roomName];
         if (room) {
@@ -55,8 +58,14 @@ namespace Colony {
 
 
 
-    var forbidden: Array<string> = ['E15S26', 'E15S27', 'E15S28', 'E15S29'];
+    var forbidden: Array<string> = ['E15S25'];
 
+    export function getTravelMatrix(roomName: string) {
+        let room = getRoom(roomName);
+        if (room) {
+            return room.travelMatrix;
+        }
+    }
 
     export function assignMainRoom(room: MyRoomInterface): MainRoomInterface {
         calculateDistances(room);
@@ -65,9 +74,9 @@ namespace Colony {
 
     function shouldSendScout(roomName): boolean {
         var myRoom = getRoom(roomName);
-        var result =
-            !Game.map.isRoomProtected(roomName) && !(myRoom != null && myRoom.mainRoom) && !(_.any(forbidden, x => x == roomName))
-            && (myRoom != null && !myRoom.memory.hostiles && !myRoom.memory.foreignOwner && !myRoom.memory.foreignReserver || (Game.time % 2000) == 0);
+        var result = (myRoom != null && myRoom.memory.lastScanTime + 1000 < Game.time) && (
+            !Game.map.isRoomProtected(roomName) && (myRoom == null || !myRoom.mainRoom) && !(_.any(forbidden, x => x == roomName))
+            && (myRoom == null || !myRoom.requiresDefense && !myRoom.memory.foreignOwner && !myRoom.memory.foreignReserver) || (Game.time % 2000) == 0);
 
         return result;
     }
@@ -85,19 +94,18 @@ namespace Colony {
     }
 
     export function createScouts() {
-        let myRooms = _.filter(rooms, x => x.mainRoom != null);
+        let scouts = _.filter(Game.creeps, (c) => (<ScoutMemory>c.memory).role == 'scout' && (<ScoutMemory>c.memory).handledByColony == true && (<ScoutMemory>c.memory).targetPosition != null);
+        let myRooms = _.uniq(_.filter(rooms, x => x.mainRoom != null && !x.mainRoom.spawnManager.isBusy && !Game.map.isRoomProtected(x.name)));
         for (let idx in myRooms) {
-            if (!Game.map.isRoomProtected(myRooms[idx].name) && myRooms[idx].mainRoom.spawnManager.isBusy == false) {
-                let myRoom = myRooms[idx];
-                let exits = myRoom.exits;
-                if (Memory['exits'] == null)
-                    Memory['exits'] = {};
-                for (let exitDirection in exits) {
-                    Memory['exits'][myRoom.name] = exits;
-                    let targetRoomName = exits[exitDirection];
-                    if (shouldSendScout(targetRoomName) && _.filter(Game.creeps, (c) => (<ScoutMemory>c.memory).role == 'scout' && (<ScoutMemory>c.memory).handledByColony == true && (<ScoutMemory>c.memory).targetPosition != null && (<ScoutMemory>c.memory).targetPosition.roomName == targetRoomName).length == 0) {
-                        myRoom.mainRoom.spawnManager.addToQueue(['move'], <ScoutMemory>{ handledByColony: true, role: 'scout', mainRoomName: null, targetPosition: { x: 25, y: 25, roomName: targetRoomName } });
-                    }
+            let myRoom = myRooms[idx];
+            let exits = myRoom.exits;
+            if (Memory['exits'] == null)
+                Memory['exits'] = {};
+            for (let exitDirection in exits) {
+                Memory['exits'][myRoom.name] = exits;
+                let targetRoomName = exits[exitDirection];
+                if (_.filter(scouts, (c) => (<ScoutMemory>c.memory).targetPosition.roomName == targetRoomName).length == 0 && shouldSendScout(targetRoomName)) {
+                    myRoom.mainRoom.spawnManager.addToQueue(['move'], <ScoutMemory>{ handledByColony: true, role: 'scout', mainRoomName: null, targetPosition: { x: 25, y: 25, roomName: targetRoomName } });
                 }
             }
         }
@@ -185,8 +193,9 @@ namespace Colony {
             console.log('Claiming Manager: GCL: ' + Game.gcl.level);
             console.log('Claiming Manager: MainRooms: ' + _.size(mainRooms));
             console.log('Claiming Manager: ClaimingManagers: ' + _.size(claimingManagers));
-            if (Game.gcl.level > _.size(mainRooms) + _.size(claimingManagers))
+            if (Game.gcl.level > _.size(mainRooms) + _.size(claimingManagers)) {
                 claimingManagers[flags[idx].pos.roomName] = new ClaimingManager(flags[idx].pos);
+            }
         }
 
         for (let idx in claimingManagers) {
@@ -205,9 +214,9 @@ namespace Colony {
         if (Memory['trace'])
             var startCpu = Game.cpu.getUsed();
 
-        let flags = _.filter(Game.flags, (x) => x.memory.invasion == true && !invasionManagers[x.roomName]);
+        let flags = _.filter(Game.flags, (x) => x.memory.invasion == true && !invasionManagers[x.pos.roomName]);
 
-        flags.forEach(x => { invasionManagers[x.roomName] = new InvasionManager(x.pos.roomName) });
+        flags.forEach(x => { invasionManagers[x.pos.roomName] = new InvasionManager(x.pos.roomName) });
 
         _.values<InvasionManager>(invasionManagers).forEach(x => x.tick());
 
@@ -222,6 +231,10 @@ namespace Colony {
 
     export function tick() {
         Colony.memory = Memory['colony'];
+
+        if (memory.traceThreshold == null)
+            memory.traceThreshold = 2;
+
         var startCpu;
         var endCpu;
 
@@ -244,7 +257,8 @@ namespace Colony {
 
         if (Memory['trace']) {
             endCpu = Game.cpu.getUsed();
-            console.log('Colony.Calculate distances to MainRooms: ' + (endCpu - startCpu).toFixed(2));
+            if ((endCpu - startCpu) > Colony.memory.traceThreshold)
+                console.log('Colony.Calculate distances to MainRooms: ' + (endCpu - startCpu).toFixed(2));
         }
 
 
@@ -256,21 +270,41 @@ namespace Colony {
         }
         if (Memory['trace']) {
             endCpu = Game.cpu.getUsed();
-            console.log('Colony: Query all rooms ' + (endCpu - startCpu).toFixed(2));
+            if ((endCpu - startCpu) > Colony.memory.traceThreshold)
+                console.log('Colony: Query all rooms ' + (endCpu - startCpu).toFixed(2));
         }
 
-
-        handleClaimingManagers();
-        handleInvasionManagers();
         if (Memory['trace'])
             startCpu = Game.cpu.getUsed();
-        createScouts();
+        try { militaryManager.tick() } catch (e) { console.log(e.stack) }
+
         if (Memory['trace']) {
             endCpu = Game.cpu.getUsed();
-            console.log('Colony: Create Scouts ' + (endCpu - startCpu).toFixed(2));
+            if ((endCpu - startCpu) > Colony.memory.traceThreshold)
+                console.log('Colony: MilitaryManager.tick() ' + (endCpu - startCpu).toFixed(2));
         }
-        for (let roomName in mainRooms)
+        handleClaimingManagers();
+        handleInvasionManagers();
+        if (Game.time % 1 == 0) {
+            if (Memory['trace'])
+                startCpu = Game.cpu.getUsed();
+            createScouts();
+            if (Memory['trace']) {
+                endCpu = Game.cpu.getUsed();
+                if ((endCpu - startCpu) > Colony.memory.traceThreshold)
+                    console.log('Colony: Create Scouts ' + (endCpu - startCpu).toFixed(2));
+            }
+        }
+        for (let roomName in mainRooms) {
+            if (Memory['trace'])
+                startCpu = Game.cpu.getUsed();
             mainRooms[roomName].tick();
+            if (Memory['trace']) {
+                endCpu = Game.cpu.getUsed();
+                if ((endCpu - startCpu) > Colony.memory.traceThreshold)
+                    console.log('Colony: MainRoom [' + mainRooms[roomName].name + '.tick() ' + (endCpu - startCpu).toFixed(2));
+            }
+        }
 
         let creeps = _.filter(Game.creeps, (c) => c.memory.handledByColony);
 
@@ -284,33 +318,15 @@ namespace Colony {
         }
         if (Memory['trace']) {
             endCpu = Game.cpu.getUsed();
-            console.log('Colony: Handle scouts ' + (endCpu - startCpu).toFixed(2));
+            if ((endCpu - startCpu) > Colony.memory.traceThreshold)
+                console.log('Colony: Handle scouts ' + (endCpu - startCpu).toFixed(2));
         }
 
 
-        if ((Game.time % 500 == 0) && Game.cpu.bucket > 9000 || Memory['forceReassignment'] == true || Memory['forceReassignment'] == 'true') {
-            try {
+        if ((Game.time % 2000 == 0) && Game.cpu.bucket > 9000 || Memory['forceReassignment'] == true || Memory['forceReassignment'] == 'true') {
+            new RoomAssignmentHandler().assignRooms();
 
-                let result = new RoomAssignmentHandler(rooms, mainRooms).getAssignments();
-
-                let stringResult = _.map(result, x => {
-                    return {
-                        mainRoom: x.mainRoom.name,
-                        rooms: _.map(x.myRooms, y => y.name),
-                        metric: x.metric
-                    }
-                });
-                _.forEach(rooms, (x) => x.mainRoom = null);
-
-                _.forEach(result, (x) => _.forEach(x.myRooms, (y) => y.mainRoom = x.mainRoom));
-
-                Memory['RoomAssignment'] = stringResult;
-                Memory['forceReassignment'] = false;
-            }
-            catch (e) {
-                console.log('ERRROR: ROOMASSIGNMENT ' + e.stack);
-                Memory['RoomAssignmentError'] = JSON.parse(JSON.stringify(e));
-            }
+            Memory['forceReassignment'] = false;
         }
 
         let reserveFlags = _.filter(Game.flags, x => x.memory.reserve == true);

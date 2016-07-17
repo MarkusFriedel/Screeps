@@ -41,7 +41,8 @@ class RepairManager implements RepairManagerInterface {
     }
 
     public static forceStopRepairDelegate(s: Structure): boolean {
-        return (s.structureType == STRUCTURE_WALL || s.structureType == STRUCTURE_RAMPART) && s.hits > 600000 || (s.hits >= s.hitsMax);
+        return s.hits >= s.hitsMax;
+        //return (s.structureType == STRUCTURE_WALL || s.structureType == STRUCTURE_RAMPART) && s.hits > 600000 || (s.hits >= s.hitsMax);
     }
 
     public static targetDelegate(s: Structure): boolean {
@@ -69,11 +70,13 @@ class RepairManager implements RepairManagerInterface {
         for (let idx in this.mainRoom.allRooms) {
             let myRoom = this.mainRoom.allRooms[idx];
 
-            if (myRoom.room && myRoom.room.find(FIND_STRUCTURES, { filter: RepairManager.targetDelegate }).length>0) {
+            if (myRoom.name == myRoom.mainRoom.name || myRoom.room && myRoom.room.find(FIND_STRUCTURES, { filter: RepairManager.targetDelegate }).length > 0) {
 
                 let roomCreeps = _.filter(this.creeps, x => x.memory.roomName == myRoom.name);
                 if (roomCreeps.length < (myRoom.name == this.mainRoom.name ? Math.min(2, _.size(this.mainRoom.sources)) : 1)) {
-                    this.mainRoom.spawnManager.addToQueue(RepairerDefinition.getDefinition(this.mainRoom.maxSpawnEnergy).getBody(), { role: 'repairer', roomName: myRoom.name, state: RepairerState.Refilling }, 1);
+                    let definition = (myRoom.name == myRoom.mainRoom.name) ? RepairerDefinition.getDefinition(this.mainRoom.maxSpawnEnergy).getBody() : [WORK, CARRY, CARRY, MOVE, MOVE];
+
+                    this.mainRoom.spawnManager.addToQueue(definition, { role: 'repairer', roomName: myRoom.name, state: RepairerState.Refilling }, 1);
                 }
             }
 

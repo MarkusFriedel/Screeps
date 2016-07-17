@@ -15,6 +15,6 @@
     "tsd": "~0.6.5"
   },
   "dependencies": {
-    "screeps-typescript-declarations": "^4.0.0"
+    "screeps-typescript-declarations": "^4.2.0"
   }
 }

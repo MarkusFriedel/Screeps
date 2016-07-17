@@ -76,9 +76,14 @@ class RoomAssignmentHandler implements RoomAssignmentHandlerInterface {
         return _.every(this.forbidden, x => x != myRoom.name) && !Game.map.isRoomProtected(myRoom.name) && myRoom.useableSources.length > 0 && !myRoom.memory.foreignOwner && !myRoom.memory.foreignReserver && _.min(myRoom.memory.mainRoomDistanceDescriptions, x => x.distance).distance <= MAXDISTANCE;
     }
 
-    constructor(rooms: { [roomName: string]: MyRoomInterface }, public mainRooms: { [roomName: string]: MainRoomInterface }) {
-        _.forEach(mainRooms, x => this.assignments[x.name] = new RoomAssignment(x));
-        _.forEach(_.filter(rooms, this.roomFilter.bind(this)), x => this.roomsToAssign[x.name] = x);
+    private rooms: { [roomName: string]: MyRoomInterface };
+    private mainRooms: { [roomName: string]: MainRoomInterface };
+
+    constructor() {
+        this.rooms = Colony.rooms;
+        this.mainRooms = Colony.mainRooms;
+        _.forEach(this.mainRooms, x => this.assignments[x.name] = new RoomAssignment(x));
+        _.forEach(_.filter(this.rooms, this.roomFilter.bind(this)), x => this.roomsToAssign[x.name] = x);
     }
 
     private assignRoomsByMinDistance() {
@@ -137,6 +142,7 @@ class RoomAssignmentHandler implements RoomAssignmentHandlerInterface {
         }
     }
 
+
     public getAssignments() {
         this.assignRoomsByMinDistance();
         this.assignCollisions();
@@ -148,5 +154,34 @@ class RoomAssignmentHandler implements RoomAssignmentHandlerInterface {
                 myRooms: x.assignedRooms
             }
         }), x => x.mainRoom.name);
+    }
+
+    public assignRooms() {
+        try {
+
+            let result = this.getAssignments();
+
+            let stringResult = _.map(result, x => {
+                return {
+                    mainRoom: x.mainRoom.name,
+                    rooms: _.map(x.myRooms, y => y.name),
+                    metric: x.metric
+                }
+            });
+            _.forEach(this.rooms, (x) => x.mainRoom = null);
+
+            _.forEach(result, (x) => _.forEach(x.myRooms, (y) => y.mainRoom = x.mainRoom));
+
+            _.forEach(_.filter(this.rooms, room => room.mainRoom == null && _.any(room.memory.mainRoomDistanceDescriptions, x => x.distance == 1) && !room.memory.foreignOwner && !room.memory.foreignReserver), room => {
+                let mainRoom = this.mainRooms[_.min(room.memory.mainRoomDistanceDescriptions, x => x.distance).roomName];
+                room.mainRoom = mainRoom;
+            });
+
+            Memory['RoomAssignment'] = stringResult;
+        }
+        catch (e) {
+            console.log('ERRROR: ROOMASSIGNMENT ' + e.stack);
+            Memory['RoomAssignmentError'] = JSON.parse(JSON.stringify(e));
+        }
     }
 }

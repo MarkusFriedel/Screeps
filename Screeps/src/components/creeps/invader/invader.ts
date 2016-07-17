@@ -56,7 +56,7 @@
             }
             else {
                 //this.creep.moveTo(new RoomPosition(25, 25, this.memory.targetRoomName));
-                this.attack(this.creep.pos.findClosestByPath<Creep>(FIND_HOSTILE_CREEPS, { filter: (c: Creep) => Body.getFromCreep(c).isMilitary() }))
+                this.attack(this.creep.pos.findClosestByPath<Creep>(FIND_HOSTILE_CREEPS, { filter: (c: Creep) => Body.getFromCreep(c).isMilitaryDefender }))
                     || this.dismantle(this.creep.pos.findClosestByPath<Tower>(FIND_HOSTILE_STRUCTURES, { filter: (x: Tower) => x.structureType == STRUCTURE_TOWER && x.energy > 0 }))
                     || this.dismantle(this.creep.pos.findClosestByPath<Spawn>(FIND_HOSTILE_SPAWNS))
                     || this.dismantle(this.creep.pos.findClosestByPath<Extension>(FIND_HOSTILE_STRUCTURES, { filter: (x: Structure) => x.structureType == STRUCTURE_EXTENSION }))

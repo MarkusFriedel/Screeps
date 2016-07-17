@@ -12,7 +12,7 @@
         if (!this.mainRoom)
             return;
 
-        let energy = this.creep.pos.findInRange<Resource>(FIND_DROPPED_RESOURCES, 4)[0];
+        let energy = this.creep.pos.findInRange<Resource>(FIND_DROPPED_RESOURCES, 4, { filter: (x: Resource) => x.resourceType == RESOURCE_ENERGY })[0];
         if (energy != null && this.creep.carry.energy < this.creep.carryCapacity) {
             if (this.creep.pickup(energy) == ERR_NOT_IN_RANGE)
                 this.creep.moveTo(energy);

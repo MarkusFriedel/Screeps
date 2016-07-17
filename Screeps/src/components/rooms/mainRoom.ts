@@ -107,7 +107,7 @@ class MainRoom implements MainRoomInterface {
     _maxSpawnEnergy: { time: number, maxSpawnEnergy: number } = { time: -101, maxSpawnEnergy: 300 };
     public get maxSpawnEnergy(): number {
         let trace = this.tracer.start('Property maxSpawnEnergy');
-        if (this.creepManagers.spawnFillManager.creeps.length == 0 || this.mainContainer.store.energy == 0 && this.creepManagers.harvestingManager.harvesterCreeps.length == 0) {
+        if (this.mainContainer==null || this.creepManagers.spawnFillManager.creeps.length == 0 || this.mainContainer.store.energy == 0 && this.creepManagers.harvestingManager.harvesterCreeps.length == 0) {
             trace.stop();
             return 300;
         }
@@ -142,9 +142,12 @@ class MainRoom implements MainRoomInterface {
                 };
                 if (this._mainContainer.mainContainer)
                     this._mainContainerId = this._mainContainer.mainContainer.id;
+                else
+                    this._mainContainerId = null;
             }
             else {
                 this._mainContainer = { time: Game.time, mainContainer: Game.getObjectById<Container | Storage>(this._mainContainerId) }
+
             }
         }
         trace.stop();
@@ -496,6 +499,7 @@ class MainRoom implements MainRoomInterface {
         this.creepManagers.reservationManager.checkCreeps();
         if (Memory['trace']) {
             endCpu = Game.cpu.getUsed();
+            if ((endCpu - startCpu) > Colony.memory.traceThreshold)
             console.log('ReservationManager.checkCreeps: ' + (endCpu - startCpu).toFixed(2));
         }
         if (Memory['trace'])
@@ -503,6 +507,7 @@ class MainRoom implements MainRoomInterface {
         this.creepManagers.spawnFillManager.checkCreeps();
         if (Memory['trace']) {
             endCpu = Game.cpu.getUsed();
+            if ((endCpu - startCpu) > Colony.memory.traceThreshold)
             console.log('SpawnFillManager.checkCreeps: ' + (endCpu - startCpu).toFixed(2));
         }
         if (Memory['trace'])
@@ -510,6 +515,7 @@ class MainRoom implements MainRoomInterface {
         this.creepManagers.linkFillerManager.checkCreeps();
         if (Memory['trace']) {
             endCpu = Game.cpu.getUsed();
+            if ((endCpu - startCpu) > Colony.memory.traceThreshold)
             console.log('LinkFiller.checkCreeps: ' + (endCpu - startCpu).toFixed(2));
         }
         if (Memory['trace'])
@@ -517,6 +523,7 @@ class MainRoom implements MainRoomInterface {
         this.creepManagers.defenseManager.checkCreeps();
         if (Memory['trace']) {
             endCpu = Game.cpu.getUsed();
+            if ((endCpu - startCpu) > Colony.memory.traceThreshold)
             console.log('DefenseManager.checkCreeps: ' + (endCpu - startCpu).toFixed(2));
         }
         if (Memory['trace'])
@@ -524,6 +531,7 @@ class MainRoom implements MainRoomInterface {
         this.creepManagers.harvestingManager.checkCreeps();
         if (Memory['trace']) {
             endCpu = Game.cpu.getUsed();
+            if ((endCpu - startCpu) > Colony.memory.traceThreshold)
             console.log('HarvestingManager.checkCreeps: ' + (endCpu - startCpu).toFixed(2));
         }
 
@@ -533,6 +541,7 @@ class MainRoom implements MainRoomInterface {
         this.creepManagers.repairManager.createNewRepairers();
         if (Memory['trace']) {
             endCpu = Game.cpu.getUsed();
+            if ((endCpu - startCpu) > Colony.memory.traceThreshold)
             console.log('RepairManager.checkCreeps: ' + (endCpu - startCpu).toFixed(2));
         }
         if (Memory['trace'])
@@ -540,6 +549,7 @@ class MainRoom implements MainRoomInterface {
         this.creepManagers.constructionManager.checkCreeps();
         if (Memory['trace']) {
             endCpu = Game.cpu.getUsed();
+            if ((endCpu - startCpu) > Colony.memory.traceThreshold)
             console.log('ConstructionManager.checkCreeps: ' + (endCpu - startCpu).toFixed(2));
         }
 
@@ -549,6 +559,7 @@ class MainRoom implements MainRoomInterface {
         this.creepManagers.towerManager.checkCreeps();
         if (Memory['trace']) {
             endCpu = Game.cpu.getUsed();
+            if ((endCpu - startCpu) > Colony.memory.traceThreshold)
             console.log('TowerManager.checkCreeps: ' + (endCpu - startCpu).toFixed(2));
         }
 
@@ -557,6 +568,7 @@ class MainRoom implements MainRoomInterface {
         this.creepManagers.terminalManager.checkCreeps();
         if (Memory['trace']) {
             endCpu = Game.cpu.getUsed();
+            if ((endCpu - startCpu) > Colony.memory.traceThreshold)
             console.log('TerminaManager.checkCreeps: ' + (endCpu - startCpu).toFixed(2));
         }
         if (Memory['trace'])
@@ -564,13 +576,25 @@ class MainRoom implements MainRoomInterface {
         this.creepManagers.mineralHarvestingManager.checkCreeps();
         if (Memory['trace']) {
             endCpu = Game.cpu.getUsed();
+            if ((endCpu - startCpu) > Colony.memory.traceThreshold)
             console.log('MineralHarvestingManager.checkCreeps: ' + (endCpu - startCpu).toFixed(2));
         }
+
+        if (Memory['trace'])
+            startCpu = Game.cpu.getUsed();
+        this.labManager.checkCreeps();
+        if (Memory['trace']) {
+            endCpu = Game.cpu.getUsed();
+            if ((endCpu - startCpu) > Colony.memory.traceThreshold)
+            console.log('labManager.checkCreeps: ' + (endCpu - startCpu).toFixed(2));
+        }
+
         if (Memory['trace'])
             startCpu = Game.cpu.getUsed();
         this.creepManagers.upgradeManager.checkCreeps();
         if (Memory['trace']) {
             endCpu = Game.cpu.getUsed();
+            if ((endCpu - startCpu) > Colony.memory.traceThreshold)
             console.log('UpgradeManager.checkCreeps: ' + (endCpu - startCpu).toFixed(2));
         }
 
@@ -584,6 +608,7 @@ class MainRoom implements MainRoomInterface {
         this.creepManagers.spawnFillManager.tick();
         if (Memory['trace']) {
             endCpu = Game.cpu.getUsed();
+            if ((endCpu - startCpu) > Colony.memory.traceThreshold)
             console.log('SpawnFillManager.tick: ' + (endCpu - startCpu).toFixed(2));
         }
         if (Memory['trace'])
@@ -591,6 +616,7 @@ class MainRoom implements MainRoomInterface {
         this.creepManagers.linkFillerManager.tick();
         if (Memory['trace']) {
             endCpu = Game.cpu.getUsed();
+            if ((endCpu - startCpu) > Colony.memory.traceThreshold)
             console.log('LinkFillerManager.tick: ' + (endCpu - startCpu).toFixed(2));
         }
         if (Memory['trace'])
@@ -598,6 +624,7 @@ class MainRoom implements MainRoomInterface {
         this.creepManagers.harvestingManager.tick();
         if (Memory['trace']) {
             endCpu = Game.cpu.getUsed();
+            if ((endCpu - startCpu) > Colony.memory.traceThreshold)
             console.log('HarvestingManager.tick: ' + (endCpu - startCpu).toFixed(2));
         }
         if (Memory['trace'])
@@ -605,6 +632,7 @@ class MainRoom implements MainRoomInterface {
         this.creepManagers.repairManager.tick();
         if (Memory['trace']) {
             endCpu = Game.cpu.getUsed();
+            if ((endCpu - startCpu) > Colony.memory.traceThreshold)
             console.log('RepairManager.tick: ' + (endCpu - startCpu).toFixed(2));
         }
         if (Memory['trace'])
@@ -612,6 +640,7 @@ class MainRoom implements MainRoomInterface {
         this.creepManagers.constructionManager.tick();
         if (Memory['trace']) {
             endCpu = Game.cpu.getUsed();
+            if ((endCpu - startCpu) > Colony.memory.traceThreshold)
             console.log('ConstructionManager.tick: ' + (endCpu - startCpu).toFixed(2));
         }
         if (Memory['trace'])
@@ -619,6 +648,7 @@ class MainRoom implements MainRoomInterface {
         this.creepManagers.upgradeManager.tick();
         if (Memory['trace']) {
             endCpu = Game.cpu.getUsed();
+            if ((endCpu - startCpu) > Colony.memory.traceThreshold)
             console.log('UpgradeManager.tick: ' + (endCpu - startCpu).toFixed(2));
         }
         if (Memory['trace'])
@@ -626,6 +656,7 @@ class MainRoom implements MainRoomInterface {
         this.creepManagers.defenseManager.tick();
         if (Memory['trace']) {
             endCpu = Game.cpu.getUsed();
+            if ((endCpu - startCpu) > Colony.memory.traceThreshold)
             console.log('DefenseManager.tick: ' + (endCpu - startCpu).toFixed(2));
         }
         if (Memory['trace'])
@@ -633,6 +664,7 @@ class MainRoom implements MainRoomInterface {
         this.creepManagers.reservationManager.tick();
         if (Memory['trace']) {
             endCpu = Game.cpu.getUsed();
+            if ((endCpu - startCpu) > Colony.memory.traceThreshold)
             console.log('ReservationManager.tick: ' + (endCpu - startCpu).toFixed(2));
         }
 
@@ -641,6 +673,7 @@ class MainRoom implements MainRoomInterface {
         this.creepManagers.towerManager.tick();
         if (Memory['trace']) {
             endCpu = Game.cpu.getUsed();
+            if ((endCpu - startCpu) > Colony.memory.traceThreshold)
             console.log('TowerManager.tick: ' + (endCpu - startCpu).toFixed(2));
         }
 
@@ -649,6 +682,7 @@ class MainRoom implements MainRoomInterface {
         this.creepManagers.terminalManager.tick();
         if (Memory['trace']) {
             endCpu = Game.cpu.getUsed();
+            if ((endCpu - startCpu) > Colony.memory.traceThreshold)
             console.log('TerminalManager.tick: ' + (endCpu - startCpu).toFixed(2));
         }
 
@@ -657,7 +691,17 @@ class MainRoom implements MainRoomInterface {
         this.creepManagers.mineralHarvestingManager.tick();
         if (Memory['trace']) {
             endCpu = Game.cpu.getUsed();
-            console.log('MineralHarvestingManager.checkCreeps: ' + (endCpu - startCpu).toFixed(2));
+            if ((endCpu - startCpu) > Colony.memory.traceThreshold)
+            console.log('MineralHarvestingManager.tick: ' + (endCpu - startCpu).toFixed(2));
+        }
+
+        if (Memory['trace'])
+            startCpu = Game.cpu.getUsed();
+        try { this.labManager.tick(); } catch (e) { console.log(e.stack); }
+        if (Memory['trace']) {
+            endCpu = Game.cpu.getUsed();
+            if ((endCpu - startCpu) > Colony.memory.traceThreshold)
+            console.log('labManager.tick: ' + (endCpu - startCpu).toFixed(2));
         }
     }
 
@@ -665,7 +709,7 @@ class MainRoom implements MainRoomInterface {
         //console.log('Memory Test= ' + JSON.stringify(Memory['colony']['rooms']['E21S22']['test']));
         var startCpu;
         var endCpu;
-
+        console.log();
         console.log('MainRoom ' + this.name + ': ' + this.creeps.length + ' creeps');
 
         if (Memory['verbose'])
@@ -678,6 +722,7 @@ class MainRoom implements MainRoomInterface {
         this.update();
         if (Memory['trace']) {
             endCpu = Game.cpu.getUsed();
+            if ((endCpu - startCpu) > Colony.memory.traceThreshold)
             console.log('MainRoom.update: ' + (endCpu - startCpu).toFixed(2));
         }
 
@@ -686,6 +731,7 @@ class MainRoom implements MainRoomInterface {
         this.links.forEach(x => x.tick());
         if (Memory['trace']) {
             endCpu = Game.cpu.getUsed();
+            if ((endCpu - startCpu) > Colony.memory.traceThreshold)
             console.log('MainRoom.links.tick: ' + (endCpu - startCpu).toFixed(2));
         }
 
@@ -701,6 +747,7 @@ class MainRoom implements MainRoomInterface {
         this.placeExtensions();
         if (Memory['trace']) {
             endCpu = Game.cpu.getUsed();
+            if ((endCpu - startCpu) > Colony.memory.traceThreshold)
             console.log('MainRoom.placeExtensions: ' + (endCpu - startCpu).toFixed(2));
         }
         if (Memory['trace'])
@@ -709,6 +756,7 @@ class MainRoom implements MainRoomInterface {
             this.creepManagers.harvestingManager.placeSourceContainers();
         if (Memory['trace']) {
             endCpu = Game.cpu.getUsed();
+            if ((endCpu - startCpu) > Colony.memory.traceThreshold)
             console.log('HarvestingManager.placeSourceContainers: ' + (endCpu - startCpu).toFixed(2));
         }
 
@@ -718,27 +766,37 @@ class MainRoom implements MainRoomInterface {
             this.roadConstructionManager.tick();
         if (Memory['trace']) {
             endCpu = Game.cpu.getUsed();
+            if ((endCpu - startCpu) > Colony.memory.traceThreshold)
             console.log('RoadConstructionManager.tick: ' + (endCpu - startCpu).toFixed(2));
         }
 
 
+        //if (Memory['trace'])
+        //    startCpu = Game.cpu.getUsed();
+        //this.allRooms.forEach(r => r.scanForHostiles());
+        //if (Memory['trace']) {
+        //    endCpu = Game.cpu.getUsed();
+        //    console.log('MainRoom.scanForHostiles: ' + (endCpu - startCpu).toFixed(2));
+        //}
+
         if (Memory['trace'])
             startCpu = Game.cpu.getUsed();
-        this.allRooms.forEach(r => r.scanForHostiles());
-        if (Memory['trace']) {
-            endCpu = Game.cpu.getUsed();
-            console.log('MainRoom.scanForHostiles: ' + (endCpu - startCpu).toFixed(2));
-        }
         if (this.creeps.length > 0)
             this.checkCreeps();
         else
             this.creepManagers.harvestingManager.checkCreeps();
+        if (Memory['trace']) {
+            endCpu = Game.cpu.getUsed();
+            if ((endCpu - startCpu) > Colony.memory.traceThreshold)
+                console.log('MainRoom.checkCreeps: ' + (endCpu - startCpu).toFixed(2));
+        }
 
         if (Memory['trace'])
             startCpu = Game.cpu.getUsed();
         this.spawnManager.spawn();
         if (Memory['trace']) {
             endCpu = Game.cpu.getUsed();
+            if ((endCpu - startCpu) > Colony.memory.traceThreshold)
             console.log('MainRoom.spawnManager.spawn: ' + (endCpu - startCpu).toFixed(2));
         }
 
@@ -747,15 +805,30 @@ class MainRoom implements MainRoomInterface {
         this.room.find<Tower>(FIND_MY_STRUCTURES, { filter: (x: Structure) => x.structureType == STRUCTURE_TOWER }).forEach(x => new MyTower(x, this).tick());
         if (Memory['trace']) {
             endCpu = Game.cpu.getUsed();
+            if ((endCpu - startCpu) > Colony.memory.traceThreshold)
             console.log('Tower.tick: ' + (endCpu - startCpu).toFixed(2));
         }
-
+        if (Memory['trace'])
+            startCpu = Game.cpu.getUsed();
         this.tickCreeps();
+        if (Memory['trace']) {
+            endCpu = Game.cpu.getUsed();
+            if ((endCpu - startCpu) > Colony.memory.traceThreshold)
+                console.log('MainRoom.tickCreeps: ' + (endCpu - startCpu).toFixed(2));
+        }
 
-        if (Game.time % 100 == 0)
+        if (Game.time % 100 == 0) {
+            if (Memory['trace'])
+                startCpu = Game.cpu.getUsed();
             for (let idx in this.allRooms) {
                 let myRoom = this.allRooms[idx];
-                myRoom.scan();
+                myRoom.refresh();
             }
+            if (Memory['trace']) {
+                endCpu = Game.cpu.getUsed();
+                if ((endCpu - startCpu) > Colony.memory.traceThreshold)
+                    console.log('MainRoom->myRooms.refresh: ' + (endCpu - startCpu).toFixed(2));
+            }
+        }
     }
 }

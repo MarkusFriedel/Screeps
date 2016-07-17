@@ -57,13 +57,13 @@
         for (let sourceIdx = 0; sourceIdx < sources.length; sourceIdx++) {
             let mySource = sources[sourceIdx];
 
-            let path = PathFinder.search(this.mainRoom.mainContainer.pos, { pos: mySource.sourceDropOffContainer.pos, range: 1 }, { swampCost: 2 });
+            let path = PathFinder.search(this.mainRoom.mainContainer.pos, { pos: mySource.sourceDropOffContainer.pos, range: 1 }, { plainCost: 2, swampCost: 3, roomCallback: Colony.getTravelMatrix });
             this.constructRoad(path.path, 0);
             mySource.roadBuiltToMainContainer = this.mainRoom.name;
         }
 
         if (this.mainRoom.terminal && this.mainRoom.extractorContainer) {
-            let path = PathFinder.search(this.mainRoom.extractorContainer.pos, { pos: this.mainRoom.terminal.pos, range: 1 }, { swampCost: 2 });
+            let path = PathFinder.search(this.mainRoom.extractorContainer.pos, { pos: this.mainRoom.terminal.pos, range: 1 }, { plainCost: 2, swampCost: 3, roomCallback: Colony.getTravelMatrix });
             this.constructRoad(path.path, 0);
         }
     }
@@ -75,27 +75,32 @@
         if (!this.mainRoom.mainContainer)
             return;
 
-        let path = PathFinder.search(this.mainRoom.mainContainer.pos, { pos: this.mainRoom.room.controller.pos, range: 1 }, { swampCost: 2 });
+        let path = PathFinder.search(this.mainRoom.mainContainer.pos, { pos: this.mainRoom.room.controller.pos, range: 1 }, { plainCost: 2, swampCost: 3, roomCallback: Colony.getTravelMatrix });
         this.constructRoad(path.path, 0);
     }
 
 
     public tick() {
-        if (Game.cpu.bucket < 5000)
-            return;
-        if (this.memory.remainingPath && this.memory.remainingPath.length > 0) {
-            let remainingPath = this.memory.remainingPath;
-            this.memory.remainingPath = null;
-            this.constructRoad(remainingPath);
+        try {
+            if (Game.cpu.bucket < 5000)
+                return;
+            if (this.memory.remainingPath && this.memory.remainingPath.length > 0) {
+                let remainingPath = this.memory.remainingPath;
+                this.memory.remainingPath = null;
+                this.constructRoad(remainingPath);
+            }
+            else if (Game.time % 50 == 0 && !(Game.time % 100 == 0)) {
+                this.buildExtensionRoads();
+            }
+            else if (Game.time % 100 == 0 && !(Game.time % 200 == 0)) {
+                this.buildHarvestPaths();
+            }
+            else if (Game.time % 200 == 0) {
+                this.buildControllerRoad();
+            }
         }
-        else if (Game.time % 50 == 0 && !(Game.time % 100 == 0)) {
-            this.buildExtensionRoads();
-        }
-        else if (Game.time % 100 == 0 && !(Game.time % 200 == 0)) {
-            this.buildHarvestPaths();
-        }
-        else if (Game.time % 200 == 0) {
-            this.buildControllerRoad();
+        catch (e) {
+            console.log(e.stack);
         }
     }
 }

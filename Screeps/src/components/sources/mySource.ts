@@ -67,7 +67,7 @@ class MySource implements MySourceInterface  {
         if (this._sourceDropOffContainer.time == Game.time)
             return this._sourceDropOffContainer.sourceDropOffContainer;
 
-        if (this.source && (!this.memory.sourceDropOffContainer || (this.memory.sourceDropOffContainer.time + 50) < Game.time)) {
+        if (this.source && (!this.memory.sourceDropOffContainer || (this.memory.sourceDropOffContainer.time + 200) < Game.time)) {
             let structure = this.getSourceDropOffContainer();
             this._sourceDropOffContainer = { time: Game.time, sourceDropOffContainer: structure };
             this.memory.sourceDropOffContainer = { time: Game.time, value: structure ? { id: structure.id, pos: structure ? structure.pos : null } : null }
@@ -98,7 +98,7 @@ class MySource implements MySourceInterface  {
             return this._dropOffStructre.dropOffStructure;
         }
 
-        if (this.source && (!this.memory.dropOffStructure || this.memory.dropOffStructure.time + 50 < Game.time)) {
+        if (this.source && (!this.memory.dropOffStructure || this.memory.dropOffStructure.time + 200 < Game.time)) {
             let structure = this.getDropOffStructure();
             this.memory.dropOffStructure = { time: Game.time, value: structure ? { id: structure.id, pos: structure.pos } : null }
             trace.stop();
@@ -164,10 +164,10 @@ class MySource implements MySourceInterface  {
     public set roadBuiltToMainContainer(value: string) {
         this.memory.mainContainerRoadBuiltTo = value;
     }
-    _pathLengthToMainContainer: { time: number, length: number } = { time: -101, length: 50 };
+    _pathLengthToMainContainer: { time: number, length: number } = { time: -201, length: 50 };
     public get pathLengthToMainContainer() {
         let trace = this.tracer.start('Property pathLengthToMainContainer');
-        if (this._pathLengthToMainContainer.time + 100 < Game.time && this.source)
+        if (this._pathLengthToMainContainer.time + 200 < Game.time && this.source)
             this._pathLengthToMainContainer = {
                 time: Game.time,
                 length: PathFinder.search(this.myRoom.mainRoom.spawns[0].pos, { pos: this.source.pos, range: 2 }).path.length
@@ -262,7 +262,15 @@ class MySource implements MySourceInterface  {
         return result;
     }
 
+    public get hasCarrier() {
+        if (!this.myRoom.mainRoom)
+            return false;
+        return _.any(this.myRoom.mainRoom.creepManagers.harvestingManager.sourceCarrierCreeps, x => (<SourceCarrierMemory>x.memory).sourceId == this.id);
+    }
+
     private getSourceDropOffContainer() {
+        //if (this.myRoom.mainRoom.creepManagers.harvestingManager.sourceCarrierCreeps.length == 0)
+        //    return null;
         let containerCandidate = this.pos.findInRange<Container | Storage>(FIND_STRUCTURES, 4, {
             filter: (s: Structure) => (s.structureType == STRUCTURE_CONTAINER || s.structureType == STRUCTURE_STORAGE) && s.isActive()
         })[0];
@@ -276,7 +284,7 @@ class MySource implements MySourceInterface  {
             filter: (s: Structure) => s.structureType == STRUCTURE_LINK && s.isActive()
         })[0];
 
-        if (this.myRoom.mainRoom.creepManagers.harvestingManager.sourceCarrierCreeps.length > 0) {
+        if (this.myRoom.mainRoom.mainContainer && this.myRoom.mainRoom.creepManagers.harvestingManager.sourceCarrierCreeps.length > 0) {
 
 
             let sourceDropOff = this.getSourceDropOffContainer();

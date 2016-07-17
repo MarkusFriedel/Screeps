@@ -1,5 +1,6 @@
 ﻿/// <reference path="../components/creeps/body.ts" />
 /// <reference path="../components/rooms/mainRoom.ts" />
+/// <reference path="./roomAssignment.ts" />
 
 class ClaimingManager implements ClaimingManagerInterface {
 
@@ -47,6 +48,15 @@ class ClaimingManager implements ClaimingManagerInterface {
 
             if (creep.memory.state == 'harvesting') {
                 let source = Game.getObjectById<Source>(creep.memory.sourceId);
+
+                let energy = creep.pos.findInRange<Resource>(FIND_DROPPED_RESOURCES, 1, { filter: (x: Resource) => x.resourceType == RESOURCE_ENERGY })[0];
+                if (energy)
+                    creep.pickup(energy);
+
+                let container = creep.pos.findInRange<Container>(FIND_STRUCTURES, 1, { filter: (x: Container) => x.structureType == STRUCTURE_CONTAINER && x.store.energy > 0 })[0];
+                if (container)
+                    creep.withdraw(container, RESOURCE_ENERGY);
+                
                 if (creep.harvest(source) == ERR_NOT_IN_RANGE)
                     creep.moveTo(source);
             }
@@ -120,8 +130,8 @@ class ClaimingManager implements ClaimingManagerInterface {
         for (let idx in sources) {
             let mySource = sources[idx];
             let creepCount = _.filter(this.spawnConstructors, (x) => x.memory.sourceId == mySource.id).length;
-            if (creepCount < 1) {
-                mainRoom.spawnManager.addToQueue(['work', 'work', 'work', 'work', 'work', 'carry', 'carry', 'carry', 'carry', 'carry', 'carry', 'carry', 'carry', 'carry', 'carry', 'move', 'move', 'move', 'move', 'move'], { handledByColony: true, claimingManager: this.roomName, role: 'spawnConstructor', targetPosition: this.targetPosition, sourceId: mySource.id }, 1 - creepCount);
+            if (creepCount < 2) {
+                mainRoom.spawnManager.addToQueue(['work', 'work', 'work', 'work', 'work', 'carry', 'carry', 'carry', 'carry', 'carry', 'carry', 'carry', 'carry', 'carry', 'carry', 'move', 'move', 'move', 'move', 'move', 'move', 'move', 'move', 'move', 'move'], { handledByColony: true, claimingManager: this.roomName, role: 'spawnConstructor', targetPosition: this.targetPosition, sourceId: mySource.id }, 2 - creepCount);
                 needCreeps = true;
             }
         }
@@ -160,10 +170,15 @@ class ClaimingManager implements ClaimingManagerInterface {
 
         delete Colony.memory.claimingManagers[this.roomName];
         delete Colony.claimingManagers[this.roomName];
+
+        new RoomAssignmentHandler().assignRooms();
     }
 
     public tick() {
         let room = Game.rooms[this.roomName];
+        if (Colony.rooms[this.roomName])
+            Colony.rooms[this.roomName].mainRoom = null;
+
         if (Memory['verbose'] || this.memory.verbose)
             console.log('Claiming Manager[' + this.roomName + '].tick');
         this.creeps = _.filter(Game.creeps, (x) => x.memory.handledByColony == true && x.memory.claimingManager == this.roomName);

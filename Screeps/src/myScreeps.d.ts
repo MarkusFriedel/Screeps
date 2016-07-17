@@ -1,4 +1,6 @@
-﻿declare var BODYPARTS_ALL: Array<string>;
+﻿declare var STRUCTURE_PORTAL: string;
+
+declare var BODYPARTS_ALL: Array<string>;
 
 interface IStructure {
     id: String;
@@ -26,6 +28,13 @@ interface ColonyMemory {
     invasionManagers: {
         [roomName: string]: InvasionManagerMemory;
     }
+    reactionManager: ReactionManagerMemory;
+    militaryManager: MilitaryManagerMemory;
+    traceThreshold: number;
+}
+
+interface ReactionManagerMemory {
+    setupTime: number;
 }
 
 interface TowerManagerMemory {
@@ -93,8 +102,18 @@ interface MyRoomMemory {
     mainRoomName: string;
     foreignOwner: boolean;
     foreignReserver: boolean;
-    hostiles: boolean;
+    hostileScan: HostileScanMemory;
     mainRoomDistanceDescriptions: MainRoomDistanceDescriptions;
+    hasController: boolean;
+    travelMatrix: { time: number, matrix: number[] };
+}
+
+interface HostilesInformationMemory {
+
+}
+
+interface HostilesInformationInterface {
+
 }
 
 interface ConstructionManagerMemory {
@@ -152,6 +171,8 @@ interface CreepMemory {
     mainRoomName: string;
     handledByColony: boolean;
     role: string;
+    boostWith: string[];
+    path: { path: RoomPosition[], ops:number };
 }
 
 interface ScoutMemory extends CreepMemory {
@@ -219,7 +240,7 @@ interface TowerMemory {
 }
 
 declare const enum LabMode {
-    available=0,
+    available = 0,
     import = 1,
     reaction = 2,
     publish = 4
@@ -271,7 +292,7 @@ interface MySourceInterface {
     nearByConstructionSite: ConstructionSite;
     pos: RoomPosition;
     hasKeeper: boolean;
-    roadBuiltToMainContainer:string;
+    roadBuiltToMainContainer: string;
     pathLengthToMainContainer: number;
     requiresCarrier: boolean;
     energyCapacity: number;
@@ -279,11 +300,14 @@ interface MySourceInterface {
     myRoom: MyRoomInterface;
     containerMissing: boolean;
     maxHarvestingSpots: number;
+    hasCarrier: boolean;
 }
 
 interface MyContainerInterface {
 
 }
+
+
 
 interface MyRoomInterface {
     name: string;
@@ -294,10 +318,13 @@ interface MyRoomInterface {
     mainRoom: MainRoomInterface;
     memory: MyRoomMemory;
     canHarvest: boolean;
-    scanForHostiles();
-    scan();
+    refresh();
     closestMainRoom: MainRoomInterface;
     exits: ExitDescription;
+    hostileScan: HostileScanInterface;
+    requiresDefense: boolean;
+    hasController: boolean;
+    travelMatrix: CostMatrix;
 }
 
 interface SpawnQueueItem {
@@ -349,7 +376,7 @@ interface MainRoomInterface {
     sources: {
         [id: string]: MySourceInterface;
     };
-    towers:Array<Tower>,
+    towers: Array<Tower>,
     memory: MainRoomMemory;
     mineral: Mineral;
     extractor: StructureExtractor;
@@ -417,8 +444,11 @@ interface RoomAssignmentInterface {
 interface BodyInterface {
     costs: number;
     getBody(): Array<string>;
+    harvestingRate: number;
+    isMilitaryDefender: boolean;
+    isMilitaryAttacker: boolean;
 }
- 
+
 interface RoomAssignmentHandlerInterface {
 
 }
@@ -441,6 +471,8 @@ interface LabManagerInterface {
     requiredLabsForReaction(resource: string);
     addReaction(resource: string);
     reset();
+    tick();
+    checkCreeps();
 }
 
 interface ReactionManagerInterface {
@@ -449,5 +481,86 @@ interface ReactionManagerInterface {
     canProduce(resource: string);
     tick();
     getAvailableResourceAmount(resource: string);
-    
+
+}
+
+interface MilitaryManagerInterface {
+    armies: { [id: number]: ArmyInterface };
+    memory: MilitaryManagerMemory;
+    tick();
+}
+
+interface MilitaryManagerMemory {
+    armies: { [id: number]: ArmyMemory };
+    nextId: number;
+}
+
+
+
+interface ArmyInterface {
+    id: number;
+}
+
+declare const enum ArmyState {
+    Idle=0,
+    Rally = 1,
+    Movement = 2,
+    Fighting = 3,
+}
+
+declare const enum ArmyMission {
+    None = 0,
+    Defend = 1,
+    Guard = 2,
+    Attack=3
+}
+
+interface ArmyMemory {
+    id: number;
+    state: ArmyState;
+    mission: ArmyMission;
+}
+
+interface HostileScanMemory {
+    scanTime: number;
+    creeps: { time: number, creeps: { [id: string]: CreepInfoMemory } };
+}
+
+interface HostileScanInterface {
+    memory: HostileScanMemory;
+    scanTime: number;
+    creeps: { [id: string]: CreepInfoInterface };
+}
+
+interface CreepInfoInterface {
+    id: string;
+    bodyParts: BodyPartDefinition[];
+    pos: RoomPosition;
+    my: boolean;
+    owner: string;
+    ticksToLive: number;
+    hits: number;
+    hitsMax: number;
+    bodyInfo: BodyInfoInterface;
+    creep: Creep;
+}
+
+interface CreepInfoMemory {
+    id: string;
+    body: BodyPartDefinition[];
+    pos: RoomPosition;
+    my: boolean;
+    owner: string;
+    ticksToLive: number;
+    hits: number;
+    hitsMax: number;
+}
+
+interface BodyInfoInterface {
+    attackRate: number;
+    rangedAttackRate: number;
+    totalAttackRate: number;
+    healRate: number;
+    damageRate: number;
+    toughAmount: number;
 }

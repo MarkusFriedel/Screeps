@@ -54,10 +54,18 @@ class Repairer {
                             this.memory.isEmergency = false;
                         }
                         else {
-                            target = this.creep.pos.findClosestByRange<Structure>(FIND_STRUCTURES, { filter: (x: Structure) => !RepairManager.forceStopRepairDelegate(x) && x.hits < x.hitsMax });
+                            //target = this.creep.pos.findClosestByRange<Structure>(FIND_STRUCTURES, { filter: (x: Structure) => !RepairManager.forceStopRepairDelegate(x) && x.hits < x.hitsMax });
+                            target = _.sortBy(this.creep.room.find<Structure>(FIND_STRUCTURES, { filter: (x: Structure) => !RepairManager.forceStopRepairDelegate(x) && (x.structureType == STRUCTURE_WALL || x.structureType == STRUCTURE_RAMPART) }), x => x.hits)[0];
                             if (target) {
                                 this.memory.targetId = target.id;
                                 this.memory.isEmergency = false;
+                            }
+                            else {
+                                target = this.creep.pos.findClosestByPath<Structure>(FIND_STRUCTURES, { filter: (x: Structure) => x.hits < x.hitsMax });
+                                if (target) {
+                                    this.memory.targetId = target.id;
+                                    this.memory.isEmergency = false;
+                                }
                             }
                         }
                     }

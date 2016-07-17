@@ -20,7 +20,7 @@ class ReservationManager implements ReservationManagerInterface {
 
         if (Memory['verbose'] == true)
             console.log('ReservationManager.checkCreep');
-        let rooms = _.filter(this.mainRoom.connectedRooms, (r) => r.canHarvest == true && !r.memory.hostiles && (r.room != null && r.room.controller != null && r.useableSources.length > 0));
+        let rooms = _.filter(this.mainRoom.connectedRooms, (r) => r.canHarvest == true && !r.requiresDefense && (r.room != null && r.room.controller != null && r.useableSources.length > 0));
         for (var idx in rooms) {
             let myRoom = rooms[idx];
             if (Memory['verbose'] == true)

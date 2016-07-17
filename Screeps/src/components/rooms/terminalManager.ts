@@ -20,7 +20,7 @@ class TerminalManager implements TerminalManagerInterface {
     public checkCreeps() {
         if (!this.mainRoom.room || !this.mainRoom.mainContainer || !this.mainRoom.room.terminal || !this.mainRoom.room.terminal.isActive() || this.mainRoom.spawnManager.isBusy)
             return;
-        if (this.mainRoom.room.terminal.store.energy < 24000 || this.mainRoom.room.terminal.store.energy > 75000 && this.creeps.length == 0) {
+        if (this.mainRoom.room.terminal.store.energy < 24000 || this.mainRoom.room.terminal.store.energy > 40000 && this.creeps.length == 0) {
             this.mainRoom.spawnManager.addToQueue(TerminalFillerDefinition.getDefinition(this.mainRoom.maxSpawnEnergy).getBody(), { role: 'terminalManager' }, this.maxCreeps - this.creeps.length);
         }
     }

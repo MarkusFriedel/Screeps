@@ -19,7 +19,7 @@
             this.creep.rangedAttack(closestHostileCreep);
         }
         else {
-            let otherRoom = _.filter(this.mainRoom.allRooms, (r) => r.name != this.creep.room.name && r.memory.hostiles && r.canHarvest)[0];
+            let otherRoom = _.filter(this.mainRoom.allRooms, (r) => r.name != this.creep.room.name && r.requiresDefense && r.canHarvest)[0];
             if (otherRoom != null)
                 this.creep.moveTo(new RoomPosition(25, 25, otherRoom.name));
             else {

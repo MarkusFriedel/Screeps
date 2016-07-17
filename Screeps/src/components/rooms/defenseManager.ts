@@ -21,7 +21,7 @@ class DefenseManager implements DefenseManagerInterface {
     public checkCreeps() {
         if (this.mainRoom.spawnManager.isBusy)
             return;
-        if (_.filter(this.mainRoom.allRooms, (r) => !r.memory.foreignOwner && !r.memory.foreignReserver&& r.memory.hostiles && r.canHarvest).length > 0 && this.creeps.length < this.maxCreeps) {
+        if (_.filter(this.mainRoom.allRooms, (r) => !r.memory.foreignOwner && !r.memory.foreignReserver && r.requiresDefense && r.canHarvest).length > 0 && this.creeps.length < this.maxCreeps) {
             this.mainRoom.spawnManager.addToQueue(DefenderDefinition.getDefinition(this.mainRoom.maxSpawnEnergy).getBody(), { role: 'defender' }, this.maxCreeps - this.creeps.length,true);
         }
     }

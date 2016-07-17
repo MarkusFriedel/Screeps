@@ -9,17 +9,17 @@
     }
 
     public tick() {
-        var closestHostile = this.tower.pos.findClosestByRange<Creep>(FIND_HOSTILE_CREEPS, { filter: (e: Creep) => e.owner.username !== 'Source Keeper' && Body.getFromCreep(e).heal > 0 });
+        if (this.mainRoom.myRoom.requiresDefense) {
 
-        if (closestHostile == null)
-            closestHostile = this.tower.pos.findClosestByRange<Creep>(FIND_HOSTILE_CREEPS, { filter: (e: Creep) => e.owner.username !== 'Source Keeper' && Body.getFromCreep(e).work > 0 });
+            var closestHostile = this.tower.pos.findClosestByRange<Creep>(FIND_HOSTILE_CREEPS, { filter: (e: Creep) => e.owner.username !== 'Source Keeper' && Body.getFromCreep(e).heal > 0 });
 
-        if (closestHostile == null)
-            closestHostile = this.tower.pos.findClosestByRange<Creep>(FIND_HOSTILE_CREEPS, { filter: (e: Creep) => e.owner.username !== 'Source Keeper' && Body.getFromCreep(e).isMilitary() });
+            if (closestHostile == null)
+                closestHostile = this.tower.pos.findClosestByRange<Creep>(FIND_HOSTILE_CREEPS, { filter: (e: Creep) => e.owner.username !== 'Source Keeper' && Body.getFromCreep(e).isMilitaryAttacker });
 
-        if (closestHostile != null) {
-            this.tower.attack(closestHostile);
-            return;
+            if (closestHostile != null) {
+                this.tower.attack(closestHostile);
+                return;
+            }
         }
 
         var healTarget = this.tower.pos.findClosestByRange<Creep>(FIND_MY_CREEPS, { filter: (c) => c.hits < c.hitsMax });

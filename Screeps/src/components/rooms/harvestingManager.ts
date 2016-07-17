@@ -146,7 +146,7 @@ class HarvestingManager extends MemoryObject implements HarvestingManagerInterfa
             
             let harvesterRequirements = this.getHarvesterBodyAndCount(sourceInfo);
             let requestedCreep = false;
-            if (harvesterRequirements.body.getHarvestingRate() * harvesterRequirements.count < sourceInfo.energyCapacity / ENERGY_REGEN_TIME) {
+            if (harvesterRequirements.body.harvestingRate * harvesterRequirements.count < sourceInfo.energyCapacity / ENERGY_REGEN_TIME) {
                 let requestHarvesterRequirements = this.getHarvesterBodyAndCount(sourceInfo, true);
                 requestedCreep = Colony.spawnCreep(this.mainRoom.myRoom, requestHarvesterRequirements.body, { role: 'harvester', state: HarvesterState.Harvesting, sourceId: sourceInfo.id, mainRoomName: this.mainRoom.name }, requestHarvesterRequirements.count - harvesters.length + (!sourceInfo.requiresCarrier ? 0 : 0));
                 if (Memory['verbose'] || this.memory.verbose)
@@ -177,10 +177,6 @@ class HarvestingManager extends MemoryObject implements HarvestingManagerInterfa
                 var sourceCarriers = _.filter(this.sourceCarrierCreeps, (c) => (<SourceCarrierMemory>c.memory).sourceId == sourceInfo.id);
                 let requirements = this.getSourceCarrierBodyAndCount(sourceInfo,miningRate);
                 this.mainRoom.spawnManager.addToQueue(requirements.body.getBody(), { role: 'sourceCarrier', sourceId: sourceInfo.id }, requirements.count - sourceCarriers.length);
-            }
-            if (Memory['trace']) {
-                endCpu = Game.cpu.getUsed();
-                console.log('HarvestingManagers checking SourceCarriers: ' + (endCpu - startCpu).toFixed(2));
             }
         }
     }

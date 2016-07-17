@@ -34,16 +34,15 @@
     }
 
     public setUpReaction(resource: string) {
-        if (this.memory.resource != null && this.memory.resource != resource)
+        if (this.memory.resource != null && this.memory.resource != resource || this.memory.mode & LabMode.reaction)
             return null;
         this.memory.reactionLabIds = [];
         let ingredients = Colony.reactionManager.ingredients[resource];
         this.memory.resource = resource;
         this.memory.mode &= ~LabMode.import;
         this.memory.mode |= LabMode.reaction;
-        console.log('myLab.setupReaction: ingredients: ' + ingredients.join(','));
         _.forEach(ingredients, ing => {
-            let lab = _.filter(this.connectedLabs, x => x.memory.resource == ing)[0] || _.filter(this.connectedLabs, x => x.memory.mode == LabMode.available)[0];
+            let lab = _.filter(this.connectedLabs, x => x.memory.resource == ing && x.memory.mode & LabMode.import)[0] || _.filter(this.connectedLabs, x => x.memory.mode == LabMode.available)[0];
             if (lab) {
                 this.memory.reactionLabIds.push(lab.id);
                 if (lab.memory.mode == LabMode.available) {
@@ -62,28 +61,29 @@
     }
 
     public requiredLabsForReaction(resource: string): number {
-        if (this.memory.resource !=null && this.memory.resource != resource)
+        if (this.memory.resource != null && this.memory.resource != resource || this.memory.mode & LabMode.reaction)
             return null;
 
         let ingredients = Colony.reactionManager.ingredients[resource];
-        console.log('Ingredients: ' + ingredients.join(','));
-        let requiredLabs = this.memory.resource == resource ? 2 : 3;
+        let requiredLabs =  2;
         _.forEach(ingredients, ing => {
-            if (_.any(this.connectedLabs, x => x.memory.resource == ing))
+            if (_.any(this.connectedLabs, x => x.memory.resource == ing && x.memory.mode & LabMode.import))
                 requiredLabs--;
             });
 
         let availableLabs = _.filter(this.connectedLabs, x => x.memory.mode == LabMode.available).length;
-        console.log('required labs: ' + requiredLabs + ', availableLabs: ' + availableLabs);
         if (availableLabs < requiredLabs)
             return null;
-        else return requiredLabs;
+        else return requiredLabs + (this.memory.mode == LabMode.available ? 1 : 0);
     }
 
     public tick() {
-        //if (this.memory.mode & LabMode.reaction && this.lab.cool) {
-
-        //}
+        //console.log('myLab.tick try room: ' + this.labManager.mainRoom.name);
+        if (this.memory.mode & LabMode.reaction && this.lab && this.lab.cooldown == 0 && this.memory.reactionLabIds.length == 2 && (this.lab.mineralType == this.memory.resource || this.lab.mineralAmount==0)) {
+            if (_.all(this.memory.reactionLabIds, x => this.labManager.myLabs[x].lab != null && this.labManager.myLabs[x].lab.mineralType == this.labManager.myLabs[x].memory.resource)) {
+                this.lab.runReaction(this.labManager.myLabs[this.memory.reactionLabIds[0]].lab, this.labManager.myLabs[this.memory.reactionLabIds[1]].lab);
+            }
+        }
     }
 
 }

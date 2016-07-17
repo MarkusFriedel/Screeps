@@ -42,6 +42,8 @@ namespace GameManager {
         }
     }
 
+
+
     export function loop() {
         // Loop code starts here
         // This is executed every tick
@@ -74,6 +76,14 @@ namespace GameManager {
 
         let endCpu = Game.cpu.getUsed();
         console.log('Time: ' + Game.time + ' CPU: ' + (endCpu - startCpu).toFixed(2) + ' Bucket: ' + Game.cpu.bucket);
+
+        if (Memory['cpuStat'] == null)
+            Memory['cpuStat'] = [];
+
+        Memory['cpuStat'].push(endCpu - startCpu);
+        if (Memory['cpuStat'].length > 100)
+            (<Array<number>>Memory['cpuStat']).shift();
+        console.log('100Avg: ' + (_.sum(Memory['cpuStat']) / Memory['cpuStat'].length).toFixed(2) + ' CPU');
     }
 
 }

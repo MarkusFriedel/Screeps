@@ -27,7 +27,8 @@ class Harvester {
 
 
     deliver(dontMove: boolean = false) {
-
+        if (this.mySource == null)
+            return;
         if (this.mySource.dropOffStructure == null)
             return;
         if (this.creep.room.name == this.mySource.dropOffStructure.pos.roomName) {
@@ -73,7 +74,7 @@ class Harvester {
     }
 
     repair() {
-        let target = <Structure>this.mySource.dropOffStructure;
+        let target = <Structure>this.mySource.sourceDropOffContainer;
         if (target == null)
             return;
 
@@ -102,11 +103,11 @@ class Harvester {
             else
                 this.memory.state = HarvesterState.Delivering;
         }
-        else if (this.memory.state == HarvesterState.Repairing && (this.creep.carry.energy < 10 || !this.mySource.sourceDropOffContainer || (<Structure>this.mySource.sourceDropOffContainer).hits == (<Structure>this.mySource.sourceDropOffContainer).hitsMax))
+        else if (this.memory.state == HarvesterState.Repairing && (this.creep.carry.energy ==0 || !this.mySource.sourceDropOffContainer || (<Structure>this.mySource.sourceDropOffContainer).hits == (<Structure>this.mySource.sourceDropOffContainer).hitsMax))
             this.memory.state = HarvesterState.Delivering;
 
         if (this.memory.state == HarvesterState.Delivering && this.creep.carry.energy > 0) {
-            if (this.source && this.mySource.nearByConstructionSite && this.mainRoom.mainContainer)
+            if (this.source && this.mySource.nearByConstructionSite && this.creep.pos.getRangeTo(this.mySource.nearByConstructionSite)<=4 && this.mainRoom.mainContainer && this.mainRoom.mainContainer.store.energy >= this.mainRoom.maxSpawnEnergy)
                 this.construct();
             else
                 this.deliver();
