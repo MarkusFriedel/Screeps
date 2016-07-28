@@ -29,10 +29,11 @@ class Tracer {
 
     public print() {
         if (Memory['tracer'] == true || Memory['tracer'] == 'true') {
-            console.log();
+            console.log(this.name);
             for (let i in this.results) {
                 let result = this.results[i];
-                console.log('Trace CPU Used: ' + result.usedCpu.toFixed(2) + ' Count: ' + result.count + ': ' + this.name + ': ' + result.name);
+                if (!Memory['traceThreshold'] || result.usedCpu>=Memory['traceThreshold'])
+                    console.log( 'Trace CPU Used: ' + result.usedCpu.toFixed(2) + ' Count: ' + result.count + ': ' + this.name + ': ' + result.name);
             }
         }
     }

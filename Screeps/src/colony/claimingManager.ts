@@ -160,9 +160,9 @@ class ClaimingManager implements ClaimingManagerInterface {
             creep.memory.doConstructions = true;
             creep.memory.handledByColony = false;
             creep.memory.mainRoomName = this.roomName;
-            (<HarvesterMemory>creep.memory).state = HarvesterState.Harvesting;
+            (<EnergyHarvesterMemory>creep.memory).state = EnergyHarvesterState.Harvesting;
 
-            (<HarvesterMemory>creep.memory).sourceId = sourceArray[idx % sourceArray.length].id;
+            (<EnergyHarvesterMemory>creep.memory).sourceId = sourceArray[idx % sourceArray.length].id;
         }
        
         

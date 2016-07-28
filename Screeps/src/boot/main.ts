@@ -27,8 +27,8 @@ GameManager.globalBootstrap();
 // If we have this line, we can make sure that globals bootstrap and game loop work.
 // http://support.screeps.com/hc/en-us/articles/204825672-New-main-loop-architecture
 module.exports.loop = function() {
-    //profiler.wrap(function () {
+    profiler.wrap(function () {
         console.log();
         GameManager.loop();
-    //});
+    });
 };

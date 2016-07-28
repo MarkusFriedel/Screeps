@@ -11,6 +11,7 @@
 
 namespace Colony {
 
+
     export var tracers: Array<Tracer> = [];
 
     export var myName;
@@ -58,7 +59,14 @@ namespace Colony {
 
 
 
-    var forbidden: Array<string> = ['E15S25'];
+    var forbidden: Array<string> = [];
+
+    export function getCreepAvoidanceMatrix(roomName: string) {
+        let room = getRoom(roomName);
+        if (room) {
+            return room.creepAvoidanceMatrix;
+        }
+    }
 
     export function getTravelMatrix(roomName: string) {
         let room = getRoom(roomName);
@@ -74,7 +82,7 @@ namespace Colony {
 
     function shouldSendScout(roomName): boolean {
         var myRoom = getRoom(roomName);
-        var result = (myRoom != null && myRoom.memory.lastScanTime + 1000 < Game.time) && (
+        var result = (myRoom != null && myRoom.memory.lastScanTime + 1500 < Game.time) && (
             !Game.map.isRoomProtected(roomName) && (myRoom == null || !myRoom.mainRoom) && !(_.any(forbidden, x => x == roomName))
             && (myRoom == null || !myRoom.requiresDefense && !myRoom.memory.foreignOwner && !myRoom.memory.foreignReserver) || (Game.time % 2000) == 0);
 
@@ -137,7 +145,7 @@ namespace Colony {
         }
 
         if (!memory.mainRooms) memory.mainRooms = {};
-        var mainRoomNames = _.uniq(_.map(Game.spawns, (s) => s.room.name));
+        var mainRoomNames = _.uniq(_.map(_.filter(Game.spawns, s => s.my), (s) => s.room.name));
         for (var idx in mainRoomNames) {
             if (!claimingManagers[mainRoomNames[idx]]) {
                 mainRooms[mainRoomNames[idx]] = new MainRoom(mainRoomNames[idx]);
@@ -162,7 +170,20 @@ namespace Colony {
             return;
         for (let mainIdx in mainRooms) {
             let mainRoom = mainRooms[mainIdx];
-            let routeResult = Game.map.findRoute(myRoom.name, mainRoom.name);
+            let routeResult = Game.map.findRoute(myRoom.name, mainRoom.name, {
+                routeCallback: function (roomName, fromRoomName) {
+                    let myRoom = Colony.rooms[roomName];
+                    if (myRoom == null)
+                        return 2;
+                    else if (myRoom.memory.foreignReserver)
+                        return 2;
+                    else if (myRoom.memory.foreignOwner)
+                        return Infinity;
+                    else
+                        return 1;
+
+                }
+            });
             if (routeResult === ERR_NO_PATH)
                 var distance = 9999;
             else
@@ -265,7 +286,7 @@ namespace Colony {
 
         if (Memory['trace'])
             startCpu = Game.cpu.getUsed();
-        for (let roomName in Game.rooms) {
+        for (let roomName in Memory.rooms) {
             getRoom(roomName);
         }
         if (Memory['trace']) {
@@ -285,7 +306,7 @@ namespace Colony {
         }
         handleClaimingManagers();
         handleInvasionManagers();
-        if (Game.time % 1 == 0) {
+        if (Game.time % 100 == 0) {
             if (Memory['trace'])
                 startCpu = Game.cpu.getUsed();
             createScouts();
@@ -333,15 +354,15 @@ namespace Colony {
 
         reserveFlags.forEach((flag) => {
             let myRoom = Colony.getRoom(flag.pos.roomName);
-            console.log('Reserve flag found: ' + flag.name);
+            //console.log('Reserve flag found: ' + flag.name);
             if (myRoom != null && myRoom.mainRoom == null) {
 
-                console.log('Reserve flag MyRoom: ' + myRoom.name);
+                //console.log('Reserve flag MyRoom: ' + myRoom.name);
 
                 let mainRoom = myRoom.closestMainRoom;
 
                 if (mainRoom) {
-                    console.log('Reserve flag MainRoom: ' + mainRoom.name);
+                    //console.log('Reserve flag MainRoom: ' + mainRoom.name);
                     if (_.filter(Game.creeps, x => x.memory.role == 'reserver' && (<ReserverMemory>x.memory).targetRoomName == myRoom.name).length == 0) {
                         mainRoom.spawnManager.addToQueue(['claim', 'claim', 'move', 'move'], <ReserverMemory>{ role: 'reserver', targetRoomName: myRoom.name, mainRoomName: mainRoom.name });
                     }
@@ -352,15 +373,15 @@ namespace Colony {
         let dismantleFlags = _.filter(Game.flags, x => x.memory.dismantle == true);
         dismantleFlags.forEach((flag) => {
             let myRoom = Colony.getRoom(flag.pos.roomName);
-            console.log('Dismantle flag found: ' + flag.name);
+            //console.log('Dismantle flag found: ' + flag.name);
             if (myRoom != null) {
 
-                console.log('Dismantle flag MyRoom: ' + myRoom.name);
+                //console.log('Dismantle flag MyRoom: ' + myRoom.name);
 
                 let mainRoom = myRoom.closestMainRoom;
 
                 if (mainRoom) {
-                    console.log('Dismantle flag MainRoom: ' + mainRoom.name);
+                    //console.log('Dismantle flag MainRoom: ' + mainRoom.name);
                     if (_.filter(Game.creeps, x => x.memory.role == 'dismantler' && (<ReserverMemory>x.memory).targetRoomName == myRoom.name).length == 0) {
                         mainRoom.spawnManager.addToQueue(['work', 'move'], { role: 'dismantler', targetRoomName: myRoom.name, mainRoomName: mainRoom.name });
                     }
@@ -389,7 +410,7 @@ namespace Colony {
             }
         });
         try {
-            if (Game.cpu.bucket > 5000)
+            //if (Game.cpu.bucket > 5000)
                 reactionManager.tick();
         }
         catch (e) {

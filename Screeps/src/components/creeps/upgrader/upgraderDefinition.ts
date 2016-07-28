@@ -1,11 +1,14 @@
 ﻿namespace UpgraderDefinition {
 
-    export function getDefinition(maxEnergy: number,minCarry=false) {
+    export function getDefinition(maxEnergy: number,minCarry=false, maxWorkParts=50) {
         let body = new Body();
 
         let remainingEnergy = maxEnergy;// Math.min(maxEnergy, 1500);
 
         var basicModuleCount = ~~(remainingEnergy / 300);
+        if (basicModuleCount*2 > maxWorkParts)
+            basicModuleCount= Math.floor(maxWorkParts / 2);
+
         if (basicModuleCount * 4 > 50) {
             basicModuleCount = Math.floor(50 / 4);
         }
@@ -17,7 +20,7 @@
 
         var remaining = maxEnergy - basicModuleCount * 300;
 
-        while (remaining >= 100 && body.getBody().length <= 45) {
+        while (remaining >= 100 && body.getBody().length <= 45 && body.work < maxWorkParts) {
             if (remaining >= 300) {
                 body.work++; body.carry++; body.carry++; body.carry++; body.move++;
                 remaining -= 300;

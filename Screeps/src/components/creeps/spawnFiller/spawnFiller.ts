@@ -11,8 +11,9 @@
     refill() {
         if (!this.mainRoom)
             return;
-
-        let energy = this.creep.pos.findInRange<Resource>(FIND_DROPPED_RESOURCES, 4, { filter: (x: Resource) => x.resourceType == RESOURCE_ENERGY })[0];
+        
+        let resources = _.filter(Colony.getRoom(this.creep.room.name).resourceDrops, r => r.resourceType == RESOURCE_ENERGY);
+        let energy = _.filter(resources, r => (r.pos.x - this.creep.pos.x) ** 2 + (r.pos.y - this.creep.pos.y) ** 2 <= 16)[0];
         if (energy != null && this.creep.carry.energy < this.creep.carryCapacity) {
             if (this.creep.pickup(energy) == ERR_NOT_IN_RANGE)
                 this.creep.moveTo(energy);

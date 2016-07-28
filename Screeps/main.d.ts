@@ -1,4 +1,5 @@
 declare class Body implements BodyInterface {
+    static getFromBodyArray(parts: BodyPartDefinition[]): Body;
     static getFromCreep(creep: Creep): Body;
     costs: number;
     move: number;
@@ -9,8 +10,9 @@ declare class Body implements BodyInterface {
     ranged_attack: number;
     tough: number;
     claim: number;
-    getHarvestingRate(): number;
-    isMilitary(): boolean;
+    harvestingRate: number;
+    isMilitaryDefender: boolean;
+    isMilitaryAttacker: boolean;
     getBody(): string[];
 }
 declare class MyLink implements MyLinkInterface {
@@ -29,6 +31,8 @@ declare class MyLink implements MyLinkInterface {
     minLevel: number;
     maxLevel: number;
     id: string;
+    static staticTracer: Tracer;
+    tracer: Tracer;
     constructor(link: Link, mainRoom: MainRoom);
     tick(): void;
 }
@@ -36,6 +40,7 @@ declare class SpawnManager implements SpawnManagerInterface {
     mainRoom: MainRoomInterface;
     memory: SpawnManagerMemory;
     accessMemory(): SpawnManagerMemory;
+    canSpawn: boolean;
     isBusy: boolean;
     _spawns: {
         time: number;
@@ -116,7 +121,7 @@ declare class RepairManager implements RepairManagerInterface {
     tick(): void;
 }
 declare namespace UpgraderDefinition {
-    function getDefinition(maxEnergy: number, minCarry?: boolean): Body;
+    function getDefinition(maxEnergy: number, minCarry?: boolean, maxWorkParts?: number): Body;
 }
 declare class Upgrader {
     creep: Creep;
@@ -157,13 +162,25 @@ declare class SpawnFillManager implements SpawnFillManagerInterface {
     checkCreeps(): void;
     tick(): void;
 }
-declare namespace HarvesterDefinition {
+declare namespace EnergyHarvesterDefinition {
     function getDefinition(maxEnergy: number, hasSourceContainer?: boolean, maxWorkParts?: number): Body;
 }
-declare class Harvester {
+declare abstract class MyCreep {
+    creep: Creep;
+    memory: CreepMemory;
+    private _myRoom;
+    myRoom: MyRoomInterface;
+    haveToFlee: boolean;
+    constructor(creep: Creep);
+    moveByPath(customPath?: RoomPosition[]): number;
+    flee(): void;
+    tick(): void;
+    abstract myTick(): any;
+}
+declare class EnergyHarvester extends MyCreep {
     creep: Creep;
     mainRoom: MainRoomInterface;
-    memory: HarvesterMemory;
+    memory: EnergyHarvesterMemory;
     _source: {
         time: number;
         source: Source;
@@ -174,18 +191,16 @@ declare class Harvester {
         mySource: MySourceInterface;
     };
     mySource: MySourceInterface;
+    private reassignMainRoom();
+    static staticTracer: Tracer;
+    tracer: Tracer;
     constructor(creep: Creep, mainRoom: MainRoomInterface);
-    deliver(dontMove?: boolean): void;
-    harvest(): void;
-    construct(): void;
-    repair(): void;
-    shouldRepair(): boolean;
-    tick(): void;
+    myTick(): void;
 }
 declare namespace SourceCarrierDefinition {
     function getDefinition(maxEnergy: number, maxCarryParts?: number): Body;
 }
-declare class SourceCarrier {
+declare class SourceCarrier extends MyCreep {
     creep: Creep;
     mainRoom: MainRoomInterface;
     memory: SourceCarrierMemory;
@@ -199,17 +214,19 @@ declare class SourceCarrier {
         mySource: MySourceInterface;
     };
     mySource: MySourceInterface;
+    private reassignMainRoom();
+    static staticTracer: Tracer;
+    tracer: Tracer;
     constructor(creep: Creep, mainRoom: MainRoomInterface);
-    pickUp(): void;
-    deliver(): void;
-    tick(): void;
+    pickUpEnergy(): boolean;
+    myTick(): void;
 }
 declare class MemoryObject {
 }
-declare class HarvestingManager extends MemoryObject implements HarvestingManagerInterface {
+declare class EnergyHarvestingManager extends MemoryObject implements EnergyHarvestingManagerInterface {
     mainRoom: MainRoom;
-    memory: HarvestingManagerMemory;
-    accessMemory(): HarvestingManagerMemory;
+    memory: EnergyHarvestingManagerMemory;
+    accessMemory(): EnergyHarvestingManagerMemory;
     _harvesterCreeps: {
         time: number;
         creeps: Array<Creep>;
@@ -221,7 +238,6 @@ declare class HarvestingManager extends MemoryObject implements HarvestingManage
     };
     sourceCarrierCreeps: Array<Creep>;
     constructor(mainRoom: MainRoom);
-    placeSourceContainers(): void;
     getHarvesterBodyAndCount(sourceInfo: MySourceInterface, noLocalRestriction?: boolean): {
         body: Body;
         count: number;
@@ -316,7 +332,7 @@ declare class TowerFiller {
 declare class TowerManager implements TowerManagerInterface {
     mainRoom: MainRoomInterface;
     memory: TowerManagerMemory;
-    accessMemory(): HarvestingManagerMemory;
+    accessMemory(): TowerManagerMemory;
     _creeps: {
         time: number;
         creeps: Array<Creep>;
@@ -326,21 +342,46 @@ declare class TowerManager implements TowerManagerInterface {
     checkCreeps(): void;
     tick(): void;
 }
-declare class MineralHarvester {
+declare class MineralHarvester extends MyCreep {
     creep: Creep;
     mainRoom: MainRoomInterface;
     memory: MineralHarvesterMemory;
+    _mineral: {
+        time: number;
+        mineral: Mineral;
+    };
+    mineral: Mineral;
+    _myMineral: {
+        time: number;
+        myMineral: MyMineralInterface;
+    };
+    myMineral: MyMineralInterface;
+    static staticTracer: Tracer;
+    tracer: Tracer;
     constructor(creep: Creep, mainRoom: MainRoomInterface);
-    tick(): void;
+    myTick(): void;
 }
-declare class MineralCarrier {
+declare class MineralCarrier extends MyCreep {
     creep: Creep;
     mainRoom: MainRoomInterface;
     memory: MineralCarrierMemory;
+    _mineral: {
+        time: number;
+        mineral: Mineral;
+    };
+    mineral: Mineral;
+    _myMineral: {
+        time: number;
+        myMineral: MyMineralInterface;
+    };
+    myMineral: MyMineralInterface;
+    static staticTracer: Tracer;
+    tracer: Tracer;
     constructor(creep: Creep, mainRoom: MainRoomInterface);
-    tick(): void;
+    pickUpMineral(): boolean;
+    myTick(): void;
 }
-declare class MineralHarvestingManager {
+declare class MineralHarvestingManager implements MineralHarvestingManagerInterface {
     mainRoom: MainRoomInterface;
     _harvesterCreeps: {
         time: number;
@@ -359,21 +400,42 @@ declare class MineralHarvestingManager {
 declare namespace TerminalFillerDefinition {
     function getDefinition(maxEnergy: number): Body;
 }
+declare class TerminalFiller {
+    creep: Creep;
+    mainRoom: MainRoomInterface;
+    private mainContainer;
+    private terminal;
+    static staticTracer: Tracer;
+    tracer: Tracer;
+    constructor(creep: Creep, mainRoom: MainRoomInterface);
+    private saveBeforeDeath();
+    private transferCompounds();
+    private transferEnergy();
+    tick(): void;
+}
 declare class TerminalManager implements TerminalManagerInterface {
     mainRoom: MainRoom;
+    memory: TerminalManagerMemory;
+    accessMemory(): TerminalManagerMemory;
     _creeps: {
         time: number;
         creeps: Array<Creep>;
     };
     creeps: Array<Creep>;
     maxCreeps: number;
+    static staticTracer: Tracer;
+    tracer: Tracer;
     constructor(mainRoom: MainRoom);
     checkCreeps(): void;
     tick(): void;
+    handleTradeAgreements(terminal: Terminal): void;
+    handleEnergyBalance(terminal: Terminal): void;
+    handleMineralBalance(terminal: Terminal): void;
+    send(resource: string, amount: number, destination: string, description?: string): boolean;
+    resourceSentOn: number;
     handleTerminal(terminal: Terminal): void;
-    handleCreep(creep: Creep): void;
 }
-declare class MyLab {
+declare class MyLab implements MyLabInterface {
     labManager: LabManagerInterface;
     id: string;
     memory: LabMemory;
@@ -382,8 +444,12 @@ declare class MyLab {
     connectedLabs: MyLab[];
     private _lab;
     lab: StructureLab;
+    static staticTracer: Tracer;
+    tracer: Tracer;
     constructor(labManager: LabManagerInterface, id: string);
-    setUpReaction(resource: string): any;
+    backup(): void;
+    restore(): void;
+    setUpReaction(resource: string): MyLab[];
     reset(): void;
     requiredLabsForReaction(resource: string): number;
     tick(): void;
@@ -397,6 +463,7 @@ declare class LabCarrier {
     constructor(creep: Creep, labManager: LabManagerInterface);
     private dropOffEnergy();
     private dropOffResource();
+    private pickUp();
     tick(): void;
 }
 declare class LabManager implements LabManagerInterface {
@@ -412,7 +479,9 @@ declare class LabManager implements LabManagerInterface {
     myLabs: {
         [id: string]: MyLab;
     };
+    freeLabs: MyLab[];
     imports: string[];
+    publishs: string[];
     reactions: string[];
     private _publish;
     publish: string[];
@@ -420,15 +489,22 @@ declare class LabManager implements LabManagerInterface {
     private bestLabForReaction(resource);
     requiredLabsForReaction(resource: string): number;
     reset(): void;
-    addReaction(resource: string): void;
-    setupPublishs(): void;
-    private checkCreeps();
+    addReaction(resource: string): MyLabInterface[];
+    backup(): void;
+    restore(): void;
+    addPublish(resource: string): void;
+    checkCreeps(): void;
     tick(): void;
 }
 declare class MyTower {
     tower: Tower;
     mainRoom: MainRoom;
+    static staticTracer: Tracer;
+    tracer: Tracer;
     constructor(tower: Tower, mainRoom: MainRoom);
+    private handleHostiles();
+    private handleWounded();
+    private repairEmergencies();
     tick(): void;
 }
 declare class TraceResult {
@@ -452,20 +528,26 @@ declare class MainRoom implements MainRoomInterface {
     tracer: Tracer;
     private _room;
     room: Room;
-    _mineralId: string;
-    _mineral: {
-        time: number;
-        mineral: Mineral;
+    private _connectedRooms;
+    connectedRooms: MyRoomInterface[];
+    private _harvestersShouldDeliver;
+    harvestersShouldDeliver: boolean;
+    private _dropOffStructure;
+    getDropOffStructure(resource: string): Structure;
+    private _energyDropOffStructure;
+    energyDropOffStructure: Structure;
+    allRooms: MyRoomInterface[];
+    getResourceAmount(resource: string): number;
+    private _sources;
+    sources: {
+        [id: string]: MySourceInterface;
     };
-    mineral: Mineral;
-    private _extractor;
-    extractor: StructureExtractor;
+    invalidateSources(): void;
+    private _minerals;
+    minerals: {
+        [id: string]: MyMineralInterface;
+    };
     terminal: StructureTerminal;
-    _extractorContainer: {
-        time: number;
-        container: Container;
-    };
-    extractorContainer: StructureContainer;
     _maxSpawnEnergy: {
         time: number;
         maxSpawnEnergy: number;
@@ -476,7 +558,7 @@ declare class MainRoom implements MainRoomInterface {
         creeps: Array<Creep>;
     };
     creeps: Array<Creep>;
-    _mainContainerId: string;
+    private mainContainerId;
     _mainContainer: {
         time: number;
         mainContainer: Container | Storage;
@@ -487,31 +569,24 @@ declare class MainRoom implements MainRoomInterface {
         spawns: Array<Spawn>;
     };
     spawns: Array<Spawn>;
-    _towers: {
-        time: number;
-        towers: Array<Tower>;
-    };
+    private _towerIds;
+    private _towers;
     towers: Array<Tower>;
     accessMemory(): MainRoomMemory;
     name: string;
     myRoom: MyRoomInterface;
-    connectedRooms: Array<MyRoomInterface>;
-    allRooms: Array<MyRoomInterface>;
     mainPosition: RoomPosition;
     spawnManager: SpawnManagerInterface;
     roadConstructionManager: RoadConstructionManagerInterface;
     labManager: LabManagerInterface;
     extensionCount: number;
     links: Array<MyLinkInterface>;
-    sources: {
-        [id: string]: MySourceInterface;
-    };
     creepManagers: {
         constructionManager: ConstructionManager;
         repairManager: RepairManager;
         upgradeManager: UpgradeManager;
         spawnFillManager: SpawnFillManager;
-        harvestingManager: HarvestingManager;
+        energyHarvestingManager: EnergyHarvestingManager;
         defenseManager: DefenseManager;
         reservationManager: ReservationManager;
         linkFillerManager: LinkFillerManager;
@@ -520,10 +595,6 @@ declare class MainRoom implements MainRoomInterface {
         mineralHarvestingManager: MineralHarvestingManager;
     };
     constructor(roomName: string);
-    getMaxSpawnEnergy(): number;
-    getAllSources(): _.Dictionary<MySourceInterface>;
-    update(runAll?: boolean): void;
-    placeExtensions(): void;
     placeMainContainer(): void;
     placeStorage(): void;
     checkAndPlaceMainContainer(): Container;
@@ -531,6 +602,40 @@ declare class MainRoom implements MainRoomInterface {
     checkCreeps(): void;
     tickCreeps(): void;
     tick(): void;
+}
+declare var METRICSOURCEDISTANCE: number;
+declare var METRICSOURCE: number;
+declare var METRICROOM: number;
+declare var MAXMETRIC: number;
+declare var MAXDISTANCE: number;
+declare class RoomAssignment implements RoomAssignmentInterface {
+    mainRoom: MainRoomInterface;
+    assignedRooms: Array<MyRoomInterface>;
+    metric: number;
+    maxMetric: number;
+    freeMetric: number;
+    constructor(mainRoom: MainRoomInterface);
+    canAssignRoom(myRoom: MyRoomInterface): boolean;
+    tryAddRoom(myRoom: MyRoomInterface): boolean;
+    calculateMetricFor(myRoom: MyRoomInterface): number;
+}
+declare class RoomAssignmentHandler implements RoomAssignmentHandlerInterface {
+    forbidden: Array<string>;
+    private assignments;
+    private roomsToAssign;
+    private roomFilter(myRoom);
+    private rooms;
+    private mainRooms;
+    constructor();
+    private assignRoomsByMinDistance();
+    private getMainRoomCandidates();
+    private assignCollisions();
+    getAssignments(): _.Dictionary<{
+        mainRoom: MainRoomInterface;
+        metric: number;
+        myRooms: MyRoomInterface[];
+    }>;
+    assignRooms(): void;
 }
 declare class ClaimingManager implements ClaimingManagerInterface {
     targetPosition: RoomPosition;
@@ -576,62 +681,68 @@ declare class InvasionManager implements InvasionManagerInterface {
     endInvasion(rallyFlag: Flag): void;
     tick(): void;
 }
-declare var METRICSOURCEDISTANCE: number;
-declare var METRICSOURCE: number;
-declare var METRICROOM: number;
-declare var MAXMETRIC: number;
-declare var MAXDISTANCE: number;
-declare class RoomAssignment implements RoomAssignmentInterface {
-    mainRoom: MainRoomInterface;
-    assignedRooms: Array<MyRoomInterface>;
-    metric: number;
-    maxMetric: number;
-    freeMetric: number;
-    constructor(mainRoom: MainRoomInterface);
-    canAssignRoom(myRoom: MyRoomInterface): boolean;
-    tryAddRoom(myRoom: MyRoomInterface): boolean;
-    calculateMetricFor(myRoom: MyRoomInterface): number;
+declare class Army implements ArmyInterface {
+    militaryManager: MilitaryManagerInterface;
+    id: any;
+    memory: ArmyMemory;
+    accessMemory(): ArmyMemory;
+    constructor(militaryManager: MilitaryManagerInterface, id: any);
 }
-declare class RoomAssignmentHandler implements RoomAssignmentHandlerInterface {
-    mainRooms: {
-        [roomName: string]: MainRoomInterface;
+declare class MilitaryManager implements MilitaryManagerInterface {
+    memory: MilitaryManagerMemory;
+    accessMemory(): MilitaryManagerMemory;
+    private _armies;
+    armies: {
+        [id: number]: ArmyInterface;
     };
-    forbidden: Array<string>;
-    private assignments;
-    private roomsToAssign;
-    private roomFilter(myRoom);
-    constructor(rooms: {
-        [roomName: string]: MyRoomInterface;
-    }, mainRooms: {
-        [roomName: string]: MainRoomInterface;
-    });
-    private assignRoomsByMinDistance();
-    private getMainRoomCandidates();
-    private assignCollisions();
-    getAssignments(): _.Dictionary<{
-        mainRoom: MainRoomInterface;
-        metric: number;
-        myRooms: MyRoomInterface[];
-    }>;
+    tick(): void;
 }
 declare class ReactionManager implements ReactionManagerInterface {
+    memory: ReactionManagerMemory;
+    accessMemory(): ReactionManagerMemory;
+    private labRooms;
+    private totalStorage(resource);
+    requiredAmount: number;
+    private forbiddenCompounds;
+    private _publishableCompunds;
+    publishableCompounds: string[];
+    private _highestPowerCompounds;
+    highestPowerCompounds: string[];
+    canProvide(resource: string, amount?: number): any;
+    private static _BOOSTPOWERS;
+    static BOOSTPOWERS: {
+        [power: string]: {
+            bodyPart: string;
+            resources: Array<{
+                resource: string;
+                factor: number;
+            }>;
+        };
+    };
+    private static basicCompounds;
+    private static powerPriority;
     private _ingredients;
     ingredients: {
         [output: string]: string[];
     };
+    private _highestTierPowers;
     private requiredResources;
-    canProduce(resource: string): any;
     private _availableResources;
     getAvailableResourceAmount(resource: string): number;
     private labManagers;
     registerLabManager(labManager: LabManagerInterface): void;
     private setupPublishs();
+    private importCounts;
+    private publishCounts;
     private imports;
     private reactions;
-    private setupProcess();
-    private setupTime;
+    private setupProcess(resource);
+    private setupProcessChain(resource);
+    private backup();
+    private restore();
     private setup();
     tick(): void;
+    private sendResourcesUsingTerminals();
 }
 declare class RoomPos {
     static fromObj(obj: {
@@ -639,25 +750,20 @@ declare class RoomPos {
         y: number;
         roomName: string;
     }): RoomPosition;
-}
-declare class MySourceMemory implements MySourceMemoryInterface {
-    id: string;
-    pos: RoomPositionMemory;
-    energyCapacity: number;
-    keeper: boolean;
-    harvestingSpots: number;
-    mainContainerRoadBuiltTo: string;
-    mainContainerPathLength: number;
-    hasSourceDropOff: boolean;
-    hasLink: boolean;
-    dropOffStructure: cachedProperty<{
-        id: string;
-        pos: RoomPosition;
-    }>;
-    sourceDropOffContainer: cachedProperty<{
-        id: string;
-        pos: RoomPosition;
-    }>;
+    static equals(pos1: {
+        x: number;
+        y: number;
+        roomName: string;
+    }, pos2: {
+        x: number;
+        y: number;
+        roomName: string;
+    }): boolean;
+    static isOnEdge(pos: {
+        x: number;
+        y: number;
+        roomName: string;
+    }): boolean;
 }
 declare class MySource implements MySourceInterface {
     id: string;
@@ -671,39 +777,45 @@ declare class MySource implements MySourceInterface {
     room: Room;
     private _source;
     source: Source;
-    private _sourceDropOffContainer;
-    sourceDropOffContainer: {
-        id: string;
-        pos: RoomPosition;
-    };
-    private _dropOffStructre;
-    dropOffStructure: {
-        id: string;
-        pos: RoomPosition;
-    };
-    private _nearByConstructionSite;
-    nearByConstructionSite: ConstructionSite;
     pos: RoomPosition;
     maxHarvestingSpots: number;
     hasKeeper: boolean;
-    roadBuiltToMainContainer: string;
+    roadBuiltToRoom: string;
     _pathLengthToMainContainer: {
         time: number;
         length: number;
     };
     pathLengthToMainContainer: number;
-    _requiresCarrier: {
-        time: number;
-        value: boolean;
-    };
-    requiresCarrier: boolean;
-    energyCapacity: number;
-    hasLink: boolean;
+    private _capacityLastFresh;
+    capacity: number;
+    private _link;
+    link: StructureLink;
     constructor(id: string, myRoom: MyRoom);
     getHarvestingSpots(source: any): number;
-    containerMissing: boolean;
-    private getSourceDropOffContainer();
-    private getDropOffStructure();
+}
+declare class MyMineral implements MyMineralInterface {
+    myRoom: MyRoom;
+    id: string;
+    private memory;
+    static staticTracer: Tracer;
+    tracer: Tracer;
+    private accessMemory();
+    constructor(myRoom: MyRoom, id: string);
+    room: Room;
+    mineral: Mineral;
+    private _pos;
+    pos: RoomPosition;
+    hasKeeper: boolean;
+    roadBuiltToTerminal: string;
+    _pathLengthToTerminal: {
+        time: number;
+        length: number;
+    };
+    pathLengthToTerminal: number;
+    amount: number;
+    refreshTime: number;
+    hasExtractor: boolean;
+    resource: string;
 }
 declare class MyContainer implements MyContainerInterface {
     id: string;
@@ -712,26 +824,74 @@ declare class MyContainer implements MyContainerInterface {
     accessMemory(): MyContainerMemory;
     constructor(id: string, myRoom: MyRoom);
 }
+declare class BodyInfo implements BodyInfoInterface {
+    parts: BodyPartDefinition[];
+    constructor(parts: BodyPartDefinition[]);
+    private _attackRate;
+    attackRate: number;
+    private _rangedAttackRate;
+    rangedAttackRate: number;
+    totalAttackRate: number;
+    private _healRate;
+    healRate: number;
+    private _damageRate;
+    damageRate: number;
+    private _toughAmount;
+    toughAmount: number;
+}
+declare class CreepInfo implements CreepInfoInterface {
+    id: string;
+    hostileScan: HostileScanInterface;
+    memory: CreepInfoMemory;
+    private accessMemory();
+    bodyParts: BodyPartDefinition[];
+    private _creep;
+    creep: Creep;
+    private _bodyInfo;
+    bodyInfo: BodyInfo;
+    hits: number;
+    hitsMax: number;
+    my: boolean;
+    owner: string;
+    private _roomPosition;
+    pos: RoomPosition;
+    ticksToLive: number;
+    constructor(id: string, hostileScan: HostileScanInterface);
+}
+declare class HostileScan implements HostileScanInterface {
+    myRoom: MyRoomInterface;
+    memory: HostileScanMemory;
+    private accessMemory();
+    scanTime: number;
+    private _creeps;
+    creeps: {
+        [id: string]: CreepInfoInterface;
+    };
+    refreshCreeps(): void;
+    constructor(myRoom: MyRoomInterface);
+}
 declare class MyRoom implements MyRoomInterface {
     name: string;
     memory: MyRoomMemory;
+    private accessMemory();
     static staticTracer: Tracer;
     tracer: Tracer;
-    _room: {
-        time: number;
-        room: Room;
-    };
+    hostileScan: HostileScanInterface;
+    private _repairStructures;
+    repairStructures: Structure[];
+    private _emergencyRepairs;
+    emergencyRepairs: Structure[];
+    private _resourceDrops;
+    resourceDrops: Resource[];
+    private _room;
     room: Room;
-    _myContainers: {
-        time: number;
-        myContainers: {
-            [id: string]: MyContainerInterface;
-        };
-    };
+    hasController: boolean;
+    private _myContainers;
     myContainers: {
         [id: string]: MyContainerInterface;
     };
     canHarvest: boolean;
+    myMineral: MyMineralInterface;
     private _mySources;
     mySources: {
         [id: string]: MySourceInterface;
@@ -739,19 +899,23 @@ declare class MyRoom implements MyRoomInterface {
     useableSources: MySourceInterface[];
     private _mainRoom;
     mainRoom: MainRoomInterface;
-    accessMemory(): MyRoomMemory;
     exitNames: Array<string>;
+    private _exits;
     exits: ExitDescription;
     constructor(name: string);
+    private _creepAvoidanceMatrix;
+    creepAvoidanceMatrix: CostMatrix;
+    private _travelMatrix;
+    travelMatrix: CostMatrix;
+    private createTravelMatrix();
+    requiresDefense: boolean;
     closestMainRoom: MainRoomInterface;
-    scan(): void;
-    scanForHostiles(): void;
+    refresh(): void;
 }
-declare class Scout {
-    creep: Creep;
+declare class Scout extends MyCreep {
     memory: ScoutMemory;
     constructor(creep: Creep);
-    tick(): void;
+    myTick(): void;
 }
 declare namespace Colony {
     var tracers: Array<Tracer>;
@@ -770,7 +934,10 @@ declare namespace Colony {
         [roomName: string]: InvasionManagerInterface;
     };
     var reactionManager: ReactionManagerInterface;
+    var militaryManager: MilitaryManagerInterface;
     function getRoom(roomName: string): MyRoomInterface;
+    function getCreepAvoidanceMatrix(roomName: string): CostMatrix;
+    function getTravelMatrix(roomName: string): CostMatrix;
     function assignMainRoom(room: MyRoomInterface): MainRoomInterface;
     function spawnCreep(requestRoom: MyRoomInterface, body: BodyInterface, memory: any, count?: number): boolean;
     function createScouts(): void;

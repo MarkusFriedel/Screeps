@@ -13,7 +13,7 @@
     public tick() {
         this.memory = <ReserverMemory>this.creep.memory;
         if (this.memory.targetRoomName != this.creep.room.name)
-            this.creep.moveTo(new RoomPosition(25, 25, this.memory.targetRoomName));
+            this.creep.moveTo(new RoomPosition(25, 25, this.memory.targetRoomName), { reusePath:20  } );
         else
             if (this.creep.reserveController(this.creep.room.controller) == ERR_NOT_IN_RANGE)
                 this.creep.moveTo(this.creep.room.controller);

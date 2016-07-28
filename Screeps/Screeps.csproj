@@ -33,20 +33,23 @@
     <TypeScriptCompile Include="src\colony\invasionManager.ts" />
     <TypeScriptCompile Include="src\colony\military\army.ts" />
     <TypeScriptCompile Include="src\colony\military\militaryManager.ts" />
+    <TypeScriptCompile Include="src\components\creeps\keeperBuster\keeperBuster.ts" />
+    <TypeScriptCompile Include="src\components\creeps\keeperBuster\keeperBusterDefinition.ts" />
     <TypeScriptCompile Include="src\components\creeps\myCreep.ts" />
+    <TypeScriptCompile Include="src\components\creeps\terminalFiller\terminalFiller.ts" />
     <TypeScriptCompile Include="src\components\path.ts" />
     <TypeScriptCompile Include="src\components\rooms\hostileScan.ts" />
     <TypeScriptCompile Include="src\colony\reactionManager.ts" />
     <TypeScriptCompile Include="src\colony\roomAssignment.ts" />
     <TypeScriptCompile Include="src\components\creeps\body.ts" />
     <TypeScriptCompile Include="src\components\creeps\bodyInfo.ts" />
-    <TypeScriptCompile Include="src\components\creeps\constructor\constructor.ts" />
+    <TypeScriptCompile Include="src\components\creeps\constructor\builder.ts" />
     <TypeScriptCompile Include="src\components\creeps\constructor\constructorDefinition.ts" />
     <TypeScriptCompile Include="src\components\creeps\creepInfo.ts" />
     <TypeScriptCompile Include="src\components\creeps\defender\defender.ts" />
     <TypeScriptCompile Include="src\components\creeps\defender\defenderDefinition.ts" />
-    <TypeScriptCompile Include="src\components\creeps\harvester\harvesterDefinition.ts" />
-    <TypeScriptCompile Include="src\components\creeps\harvester\harvester.ts" />
+    <TypeScriptCompile Include="src\components\creeps\energyHarvester\energyHarvesterDefinition.ts" />
+    <TypeScriptCompile Include="src\components\creeps\energyHarvester\energyHarvester.ts" />
     <TypeScriptCompile Include="src\components\creeps\invader\invader.ts" />
     <TypeScriptCompile Include="src\components\creeps\labCarrier\labCarrier.ts" />
     <TypeScriptCompile Include="src\components\creeps\labCarrier\labCarrierDefinition.ts" />
@@ -78,13 +81,15 @@
     <TypeScriptCompile Include="src\components\memory\LazyLoadCache.ts" />
     <TypeScriptCompile Include="src\components\rooms\constructionManager.ts" />
     <TypeScriptCompile Include="src\components\rooms\defenseManager.ts" />
-    <TypeScriptCompile Include="src\components\rooms\harvestingManager.ts" />
+    <TypeScriptCompile Include="src\components\rooms\energyHarvestingManager.ts" />
     <TypeScriptCompile Include="src\components\rooms\labManager.ts" />
     <TypeScriptCompile Include="src\components\rooms\linkFillerManager.ts" />
+    <TypeScriptCompile Include="src\components\rooms\manager.ts" />
     <TypeScriptCompile Include="src\components\rooms\mineralHarvestingManager.ts" />
     <TypeScriptCompile Include="src\components\rooms\repairManager.ts" />
     <TypeScriptCompile Include="src\components\rooms\reservationManager.ts" />
     <TypeScriptCompile Include="src\components\rooms\roadConstructionManager.ts" />
+    <TypeScriptCompile Include="src\components\rooms\sourceKeeperManager.ts" />
     <TypeScriptCompile Include="src\components\rooms\spawnFillManager.ts" />
     <TypeScriptCompile Include="src\components\rooms\mainRoom.ts" />
     <TypeScriptCompile Include="src\components\rooms\myRoom.ts" />
@@ -97,6 +102,7 @@
     <TypeScriptCompile Include="src\components\structures\myContainer.ts" />
     <TypeScriptCompile Include="src\components\structures\myLab.ts" />
     <TypeScriptCompile Include="src\components\structures\myLink.ts" />
+    <TypeScriptCompile Include="src\components\structures\myObserver.ts" />
     <TypeScriptCompile Include="src\components\structures\myTower.ts" />
     <TypeScriptCompile Include="src\config\config.ts" />
     <TypeScriptCompile Include="src\game-manager.ts" />
@@ -116,6 +122,9 @@
   </ItemGroup>
   <ItemGroup>
     <Folder Include="src\shared\" />
+  </ItemGroup>
+  <ItemGroup>
+    <Reference Include="System" />
   </ItemGroup>
   <PropertyGroup>
     <VisualStudioVersion Condition="'$(VisualStudioVersion)' == ''">12.0</VisualStudioVersion>

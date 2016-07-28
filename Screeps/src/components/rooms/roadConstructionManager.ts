@@ -1,4 +1,5 @@
-﻿class RoadConstructionManager implements RoadConstructionManagerInterface {
+﻿/// <reference path="./manager.ts" />
+class RoadConstructionManager extends Manager implements RoadConstructionManagerInterface {
 
     public get memory(): RoadConstructionManagerMemory {
         return this.accessMemory();
@@ -12,7 +13,17 @@
         return this.mainRoom.memory.roadConstructionManager;
     }
 
+    private static _staticTracer: Tracer;
+    public static get staticTracer(): Tracer {
+        if (RoadConstructionManager._staticTracer == null) {
+            RoadConstructionManager._staticTracer = new Tracer('RoadConstructionManager');
+            Colony.tracers.push(RoadConstructionManager._staticTracer);
+        }
+        return RoadConstructionManager._staticTracer;
+    }
+
     constructor(public mainRoom: MainRoom) {
+        super(RoadConstructionManager.staticTracer);
     }
 
     buildExtensionRoads() {
@@ -53,19 +64,27 @@
         if (!this.mainRoom.mainContainer)
             return;
 
-        let sources = _.filter(this.mainRoom.sources, (x) => !x.hasKeeper && x.sourceDropOffContainer != null && (x.roadBuiltToMainContainer != this.mainRoom.name || (Game.time % 500 == 0)) && x.myRoom.canHarvest);
+        let sources = _.filter(this.mainRoom.sources, (x) => !x.hasKeeper && (x.roadBuiltToRoom != this.mainRoom.name || (Game.time % 500 == 0)) && x.myRoom.canHarvest);
         for (let sourceIdx = 0; sourceIdx < sources.length; sourceIdx++) {
             let mySource = sources[sourceIdx];
 
-            let path = PathFinder.search(this.mainRoom.mainContainer.pos, { pos: mySource.sourceDropOffContainer.pos, range: 1 }, { plainCost: 2, swampCost: 3, roomCallback: Colony.getTravelMatrix });
+            let path = PathFinder.search(this.mainRoom.mainContainer.pos, { pos: mySource.pos, range: 1 }, { plainCost: 2, swampCost: 3, roomCallback: Colony.getTravelMatrix });
             this.constructRoad(path.path, 0);
-            mySource.roadBuiltToMainContainer = this.mainRoom.name;
+            mySource.roadBuiltToRoom = this.mainRoom.name;
         }
 
-        if (this.mainRoom.terminal && this.mainRoom.extractorContainer) {
-            let path = PathFinder.search(this.mainRoom.extractorContainer.pos, { pos: this.mainRoom.terminal.pos, range: 1 }, { plainCost: 2, swampCost: 3, roomCallback: Colony.getTravelMatrix });
-            this.constructRoad(path.path, 0);
-        }
+        _.forEach(_.filter(this.mainRoom.minerals, m => m.roadBuiltToRoom!= this.mainRoom.name), myMineral => {
+            if (this.mainRoom.terminal) {
+                let path = PathFinder.search(myMineral.pos, { pos: this.mainRoom.terminal.pos, range: 1 }, { plainCost: 2, swampCost: 3, roomCallback: Colony.getTravelMatrix });
+                this.constructRoad(path.path, 0);
+                myMineral.roadBuiltToRoom = this.mainRoom.name;
+            };
+        });
+
+        //if (this.mainRoom.terminal && this.mainRoom.extractorContainer) {
+        //    let path = PathFinder.search(this.mainRoom.extractorContainer.pos, { pos: this.mainRoom.terminal.pos, range: 1 }, { plainCost: 2, swampCost: 3, roomCallback: Colony.getTravelMatrix });
+        //    this.constructRoad(path.path, 0);
+        //}
     }
 
     buildControllerRoad() {
@@ -80,7 +99,7 @@
     }
 
 
-    public tick() {
+    public _tick() {
         try {
             if (Game.cpu.bucket < 5000)
                 return;
@@ -90,7 +109,7 @@
                 this.constructRoad(remainingPath);
             }
             else if (Game.time % 50 == 0 && !(Game.time % 100 == 0)) {
-                this.buildExtensionRoads();
+                //this.buildExtensionRoads();
             }
             else if (Game.time % 100 == 0 && !(Game.time % 200 == 0)) {
                 this.buildHarvestPaths();

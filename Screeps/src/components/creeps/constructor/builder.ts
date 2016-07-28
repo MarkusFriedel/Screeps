@@ -1,4 +1,6 @@
-﻿class Constructor {
+﻿/// <reference path="../myCreep.ts" />
+
+class Builder extends MyCreep {
     public get memory(): ConstructorMemory { return this.creep.memory; }
     target: ConstructionSite;
     targetPosition: RoomPosition;
@@ -6,6 +8,8 @@
 
 
     constructor(public creep: Creep, public mainRoom: MainRoomInterface) {
+        super(creep);
+        this.memory.autoFlee = true;
 
         this.target = Game.getObjectById<ConstructionSite>(this.memory.targetId);
         if (this.target != null) {
@@ -44,11 +48,17 @@
     }
 
     upgrade() {
-        if (this.creep.upgradeController(this.mainRoom.room.controller) == ERR_NOT_IN_RANGE)
-            this.creep.moveTo(this.mainRoom.room.controller);
+        if (this.mainRoom.room.controller.level == 8) {
+            if (this.mainRoom.spawns[0].recycleCreep(this.creep) == ERR_NOT_IN_RANGE)
+                this.creep.moveTo(this.mainRoom.spawns[0]);
+        }
+        else {
+            if (this.creep.upgradeController(this.mainRoom.room.controller) == ERR_NOT_IN_RANGE)
+                this.creep.moveTo(this.mainRoom.room.controller);
+        }
     }
 
-    public tick() {
+    public myTick() {
         if (this.creep.carry.energy > 0) {
             if (this.targetPosition != null && this.mainRoom.room.controller.ticksToDowngrade >= 1000)
                 this.construct();
@@ -68,13 +78,13 @@
             if (mainContainer == null)
                 mainContainer = this.mainRoom.mainContainer;
             if (mainContainer != null) {
-                this.creep.say('Main');
+                //this.creep.say('Main');
                 if (!this.mainRoom.mainContainer || mainContainer.store.energy > this.mainRoom.maxSpawnEnergy  || this.mainRoom.mainContainer && mainContainer.id != this.mainRoom.mainContainer.id)
                     if (mainContainer.transfer(this.creep, RESOURCE_ENERGY) == ERR_NOT_IN_RANGE)
                         this.creep.moveTo(mainContainer);
             }
             else {
-                this.creep.say('NoMain');
+                //this.creep.say('NoMain');
                 if (this.mainRoom.spawnManager.isIdle) {
                     let spawn = this.mainRoom.room.find<Spawn>(FIND_MY_SPAWNS)[0];
 

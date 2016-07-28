@@ -2,7 +2,7 @@
 
 var METRICSOURCEDISTANCE = 1;
 var METRICSOURCE = 0.5;
-var METRICROOM = 0.5;
+var METRICROOM = 0;
 var MAXMETRIC = 10;
 
 var MAXDISTANCE = 2;
@@ -24,7 +24,7 @@ class RoomAssignment implements RoomAssignmentInterface {
         //    return 8;
         ////console.log('MaxMetric for ' + this.mainRoom.name + ': ' + this.mainRoom.spawns.length * MAXMETRIC);
         //else
-            return this.mainRoom.spawns.length * MAXMETRIC;
+        return this.mainRoom.spawns.length * MAXMETRIC;
     }
 
     get freeMetric() {
@@ -49,7 +49,7 @@ class RoomAssignment implements RoomAssignmentInterface {
     }
 
     calculateMetricFor(myRoom: MyRoomInterface) {
-        let value = METRICROOM + (myRoom.useableSources.length * ((myRoom.memory.mainRoomDistanceDescriptions[this.mainRoom.name].distance * METRICSOURCEDISTANCE) + METRICSOURCE));
+        let value = METRICROOM + (_.size(myRoom.mySources) * ((myRoom.memory.mainRoomDistanceDescriptions[this.mainRoom.name].distance * METRICSOURCEDISTANCE) + METRICSOURCE));
         //if (myRoom.name == this.mainRoom.name) {
         //console.log('Metric for ' + this.mainRoom.name + '=>' + myRoom.name + ': ' + value);
         //console.log('MetricRoom: ' + METRICROOM);
@@ -66,14 +66,14 @@ class RoomAssignment implements RoomAssignmentInterface {
 }
 class RoomAssignmentHandler implements RoomAssignmentHandlerInterface {
 
-    forbidden: Array<string> = ['E15S26', 'E15S27', 'E15S28', 'E15S29'];
+    forbidden: Array<string> = [];
 
     private assignments: { [mainRoomName: string]: RoomAssignmentInterface } = {};
 
     private roomsToAssign: { [roomName: string]: MyRoomInterface } = {};
 
     private roomFilter(myRoom: MyRoom) {
-        return _.every(this.forbidden, x => x != myRoom.name) && !Game.map.isRoomProtected(myRoom.name) && myRoom.useableSources.length > 0 && !myRoom.memory.foreignOwner && !myRoom.memory.foreignReserver && _.min(myRoom.memory.mainRoomDistanceDescriptions, x => x.distance).distance <= MAXDISTANCE;
+        return _.every(this.forbidden, x => x != myRoom.name) && !Game.map.isRoomProtected(myRoom.name) && _.size(myRoom.mySources) > 0 && !myRoom.memory.foreignOwner && !myRoom.memory.foreignReserver && _.min(myRoom.memory.mainRoomDistanceDescriptions, x => x.distance).distance <= MAXDISTANCE;
     }
 
     private rooms: { [roomName: string]: MyRoomInterface };
@@ -87,8 +87,19 @@ class RoomAssignmentHandler implements RoomAssignmentHandlerInterface {
     }
 
     private assignRoomsByMinDistance() {
-        _.forEach(_.sortByAll(_.values<MyRoomInterface>(this.roomsToAssign), x => [_.min(x.memory.mainRoomDistanceDescriptions, y => y.distance).distance, (10 - x.useableSources.length)], ['asc', 'desc']), (myRoom) => {
-            let possibleMainRooms = _.filter(myRoom.memory.mainRoomDistanceDescriptions, x => (x.distance <= MAXDISTANCE) && (x.distance <= 2 || x.distance == 2 && myRoom.useableSources.length > 1) && this.assignments[x.roomName].canAssignRoom(myRoom));
+        let avaiableResources = RESOURCES_ALL; //_.map(Colony.mainRooms, mainRoom => mainRoom.myRoom.myMineral.resource);
+        let sortedRooms = _.sortByOrder(_.values<MyRoomInterface>(this.roomsToAssign), [
+            x=> _.min(x.memory.mainRoomDistanceDescriptions, y => y.distance).distance == 0 ? 0 : 1,
+            x => _.min(x.memory.mainRoomDistanceDescriptions, y => y.distance).distance,
+            x => x.useableSources.length,
+            x=> (x.myMineral && x.myMineral.hasKeeper && avaiableResources.indexOf(x.myMineral.resource) < 0) ? 0 : 1,
+            x=> _.size(x.mySources)
+        ], ['asc', 'desc', 'asc', 'asc', 'desc']);
+
+        console.log('Assigning MyRooms: ' + _.map(sortedRooms,x=>x.name).join(', '));
+
+        _.forEach(sortedRooms, (myRoom) => {
+            let possibleMainRooms = _.filter(myRoom.memory.mainRoomDistanceDescriptions, x => x.distance <= MAXDISTANCE && (myRoom.useableSources.length > 0 || Colony.mainRooms[x.roomName].room.controller.level >= 6) && this.assignments[x.roomName].canAssignRoom(myRoom));
             console.log('Room: [' + myRoom.name + '] Distances to MainRooms [' + _.map(possibleMainRooms, x => x.roomName + ' ' + x.distance).join(', ') + ']');
             console.log('Room: [' + myRoom.name + '] Possible MainRooms [' + _.map(possibleMainRooms, x => x.roomName).join(', ') + ']');
             let sorted = _.sortBy(possibleMainRooms, x => x.distance);
@@ -112,7 +123,7 @@ class RoomAssignmentHandler implements RoomAssignmentHandlerInterface {
         } = {};
         _.forEach(this.roomsToAssign, (myRoom) => {
             _.forEach(myRoom.memory.mainRoomDistanceDescriptions, (distanceDescription) => {
-                if ((distanceDescription.distance <= 2 || distanceDescription.distance == 2 && myRoom.useableSources.length > 1) && this.assignments[distanceDescription.roomName].canAssignRoom(myRoom)) {
+                if (distanceDescription.distance <= MAXDISTANCE && (Colony.mainRooms[distanceDescription.roomName].room.controller.level >= 6 || myRoom.useableSources.length > 0) && this.assignments[distanceDescription.roomName].canAssignRoom(myRoom)) {
                     if (mainRoomCandidates[distanceDescription.roomName] == null)
                         mainRoomCandidates[distanceDescription.roomName] = {
                             mainRoom: this.mainRooms[distanceDescription.roomName],
@@ -128,14 +139,15 @@ class RoomAssignmentHandler implements RoomAssignmentHandlerInterface {
     }
 
     private assignCollisions() {
+        let avaiableResources = RESOURCES_ALL; //_.map(Colony.mainRooms, mainRoom => mainRoom.myRoom.myMineral.resource);
         let mainRoomCandidates = this.getMainRoomCandidates();
         Memory['MainRoomCandidates'] = _.map(mainRoomCandidates, x => {
             return { mainRoom: x.mainRoom.name, myRooms: _.map(x.myRooms, y => y.name) }
         });
         while (_.size(mainRoomCandidates) > 0) {
-            let candidate = _.sortByAll(_.filter(mainRoomCandidates, x => x), x => [_.size(x.myRooms), this.assignments[x.mainRoom.name].freeMetric])[0];
-            let rooms = _.sortByAll(_.values<MyRoom>(candidate.myRooms), [x => 10 - _.size(x.mySources), x => x.name]);
-            //console.log('TryAddRoom: '+this.roomsToAssign[candidate.myRooms[0].name]);
+            let candidate = _.sortByAll(_.filter(mainRoomCandidates, x => x), [x => _.size(x.mainRoom.connectedRooms), x => _.size(x.myRooms), x => this.assignments[x.mainRoom.name].freeMetric])[0];
+            let rooms = _.sortByAll(_.values<MyRoom>(candidate.myRooms), [x => (candidate.mainRoom.room.controller.level >= 6 && x.myMineral && x.myMineral.hasKeeper && avaiableResources.indexOf(x.myMineral.resource) < 0) ? 0 : 1, x => 10 - (candidate.mainRoom.room.controller.level >= 6 ? _.size(x.mySources) : _.size(x.useableSources)), x => x.name]);
+            console.log('Candidate: ' + candidate.mainRoom.name + ' Rooms: ' + _.map(rooms, x => x.name).join(', '));
             this.assignments[candidate.mainRoom.name].tryAddRoom(rooms[0]);
             delete this.roomsToAssign[rooms[0].name];
             mainRoomCandidates = this.getMainRoomCandidates();
@@ -159,23 +171,26 @@ class RoomAssignmentHandler implements RoomAssignmentHandlerInterface {
     public assignRooms() {
         try {
 
-            let result = this.getAssignments();
+            let assignments = this.getAssignments();
 
-            let stringResult = _.map(result, x => {
+            let stringResult = _.map(assignments, x => {
                 return {
                     mainRoom: x.mainRoom.name,
                     rooms: _.map(x.myRooms, y => y.name),
                     metric: x.metric
                 }
             });
-            _.forEach(this.rooms, (x) => x.mainRoom = null);
 
-            _.forEach(result, (x) => _.forEach(x.myRooms, (y) => y.mainRoom = x.mainRoom));
+            console.log('Assigning Rooms');
 
-            _.forEach(_.filter(this.rooms, room => room.mainRoom == null && _.any(room.memory.mainRoomDistanceDescriptions, x => x.distance == 1) && !room.memory.foreignOwner && !room.memory.foreignReserver), room => {
-                let mainRoom = this.mainRooms[_.min(room.memory.mainRoomDistanceDescriptions, x => x.distance).roomName];
-                room.mainRoom = mainRoom;
-            });
+            //_.forEach(this.rooms, (x) => x.mainRoom = null);
+
+            //_.forEach(assignments, (assignment) => _.forEach(assignment.myRooms, (myRoom) =>myRoom.mainRoom = assignment.mainRoom));
+
+            //_.forEach(_.filter(this.rooms, room => room.mainRoom == null && _.any(room.memory.mainRoomDistanceDescriptions, x => x.distance == 1) && !room.memory.foreignOwner && !room.memory.foreignReserver), room => {
+            //    let mainRoom = this.mainRooms[_.min(room.memory.mainRoomDistanceDescriptions, x => x.distance).roomName];
+            //    room.mainRoom = mainRoom;
+            //});
 
             Memory['RoomAssignment'] = stringResult;
         }

@@ -7,20 +7,22 @@ class Scout extends MyCreep {
     constructor(creep: Creep) {
         super(creep);
         this.memory = <ScoutMemory>creep.memory;
+
+        this.memory.autoFlee = true;
     }
 
-    public tick() {
+    public myTick() {
         try {
-            this.creep.say('SCOUT');
+            //this.creep.say('SCOUT');
 
             this.memory = <ScoutMemory>this.creep.memory;
             if (!this.memory.path) {
-                let path = PathFinder.search(this.creep.pos, { pos: RoomPos.fromObj(this.memory.targetPosition), range: 10 }, { roomCallback: Colony.getTravelMatrix });
+                let path = PathFinder.search(this.creep.pos, { pos: RoomPos.fromObj(this.memory.targetPosition), range: 10 }, { roomCallback: Colony.getTravelMatrix, plainCost:1, swampCost:1 });
                 path.path.unshift(this.creep.pos);
                 this.memory.path = path;
             }
 
-            if (this.moveByPath(this.memory.path) == ERR_INVALID_ARGS)
+            if (this.moveByPath() == ERR_INVALID_ARGS)
                 this.memory.path = null;
 
             //let pos = this.creep.pos;

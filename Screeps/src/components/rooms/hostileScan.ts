@@ -22,29 +22,55 @@ class HostileScan implements HostileScanInterface {
 
     private _creeps: { time: number, creeps: { [id: string]: CreepInfoInterface } }
     public get creeps() {
-        if (this.myRoom.room && (this._creeps == null || this._creeps.time < Game.time)) {
+        if (this.allCreeps == null)
+            return null;
+        if (this._creeps == null || this._creeps.time < Game.time)
+            this._creeps = { time: Game.time, creeps: _.indexBy(_.filter(this.allCreeps, c => c.owner != 'Source Keeper'), c => c.id) };
+
+        return this._creeps.creeps;
+    }
+
+    private _keepers: { time: number, creeps: { [id: string]: CreepInfoInterface } }
+    public get keepers() {
+        if (this.allCreeps == null)
+            return null;
+        if (this._keepers == null || this._creeps.time < Game.time)
+            this._keepers = { time: Game.time, creeps: _.indexBy(_.filter(this.allCreeps, c => c.owner == 'Source Keeper'), c => c.id) };
+
+        return this._keepers.creeps;
+    }
+
+    private _allCreeps: { time: number, creeps: { [id: string]: CreepInfoInterface } }
+    public get allCreeps() {
+        if (this.myRoom.room && (this._allCreeps == null || this._allCreeps.time < Game.time)) {
             this.refreshCreeps();
         }
         else if (this.memory.creeps) {
-            this._creeps = { time: this.memory.creeps.time, creeps: {} };
-            this._creeps.creeps = _.indexBy(_.map(this.memory.creeps.creeps, creep => new CreepInfo(creep.id, this)), x => x.id);
+            this._allCreeps = { time: this.memory.creeps.time, creeps: {} };
+            this._allCreeps.creeps = _.indexBy(_.map(this.memory.creeps.creeps, creep => new CreepInfo(creep.id, this)), x => x.id);
         }
-        if (this._creeps)
+        else
+            return null;
+        if (this._allCreeps)
 
-            return this._creeps.creeps;
+            return this._allCreeps.creeps;
         else return null;
     }
 
+
+
     public refreshCreeps() {
         if (this.myRoom.room) {
-            this._creeps = { time: Game.time, creeps: {} };
+            this._allCreeps = { time: Game.time, creeps: {} };
             this.memory.creeps = { time: Game.time, creeps: {} };
-            this._creeps.creeps = _.indexBy(_.map(this.myRoom.room.find<Creep>(FIND_HOSTILE_CREEPS, { filter: (c: Creep) => c.owner.username != 'Source Keeper' }), creep => new CreepInfo(creep.id, this)), x => x.id);
+            this._allCreeps.creeps = _.indexBy(_.map(this.myRoom.room.find<Creep>(FIND_HOSTILE_CREEPS), creep => new CreepInfo(creep.id, this)), x => x.id);
         }
     }
 
     constructor(public myRoom: MyRoomInterface) {
-        if (this.myRoom.room)
-            this.refreshCreeps();
+        //if (this.myRoom.room)
+        //this.refreshCreeps();
+        if (this._allCreeps && this._allCreeps.time + 500 < Game.time)
+            this._allCreeps = null;
     }
 }

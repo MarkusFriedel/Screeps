@@ -5,8 +5,8 @@ namespace LabCarrierDefinition {
     export function getDefinition(maxEnergy: number) {
         let body = new Body();
 
-        body.carry = 10;
-        body.move = 5;
+        body.carry = 20;
+        body.move = 10;
 
         return body;
     }

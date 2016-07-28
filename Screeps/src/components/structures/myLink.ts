@@ -20,10 +20,10 @@
 
     public get minLevel() {
         if (this.nextToStorage) {
-            if (_.any(this.mainRoom.links, x => !x.nextToStorage && x.link && x.link.energy < x.minLevel)) {
+            if (_.any(this.mainRoom.links, x => x.id!=this.id && !x.nextToStorage && !x.nearSource && x.link && x.link.energy < x.minLevel)) {
                 return this.link.energyCapacity;
             }
-            else return this.link.energyCapacity / 2;
+            else return 0;
         }
         else if (this.drain && this.fill)
             return 400;
@@ -35,10 +35,10 @@
 
     public get maxLevel() {
         if (this.nextToStorage) {
-            if (_.any(this.mainRoom.links, x => !x.nextToStorage && x.link && x.link.energy < x.minLevel)) {
+            if (_.any(this.mainRoom.links, x => x.id != this.id && !x.nextToStorage && !x.nearSource && x.link && x.link.energy < x.minLevel)) {
                 return this.link.energyCapacity;
             }
-            else return this.link.energyCapacity / 2;
+            else return 0;
         }
         else if (this.drain && this.fill)
             return 400;
@@ -50,8 +50,17 @@
 
     id: string;
 
+    public static staticTracer: Tracer;
+    public tracer: Tracer;
+
     constructor(link: Link, public mainRoom: MainRoom) {
         this.id = link.id;
+        if (MyLink.staticTracer == null) {
+            MyLink.staticTracer = new Tracer('MyLink');
+            Colony.tracers.push(MyLink.staticTracer);
+        }
+        //this.tracer = new Tracer('MySource ' + id);
+        this.tracer = MyLink.staticTracer;
 
         let surroundingStructures = <Array<LookAtResultWithPos>>mainRoom.room.lookForAtArea(LOOK_STRUCTURES, link.pos.y - 2, link.pos.x - 2, link.pos.y +2, link.pos.x + 2, true);
         this.nextToStorage = _.any(surroundingStructures, x => x.structure.structureType == STRUCTURE_STORAGE);
@@ -67,6 +76,7 @@
     }
 
     public tick() {
+        let trace = this.tracer.start('tick()');
         if (this.nextToStorage) {
             let myLinkToFill = _.sortBy(_.filter(this.mainRoom.links, x => x.minLevel > x.link.energy), x => 800-(x.minLevel - x.link.energy))[0];
             if (myLinkToFill) {
@@ -75,9 +85,9 @@
         }
         else {
             if (this.link.energy > this.maxLevel) {
-                let myLinkToFill = _.sortBy(_.filter(this.mainRoom.links, x => x.minLevel > x.link.energy), x => 800-(x.minLevel - x.link.energy))[0];
+                let myLinkToFill = _.sortBy(_.filter(this.mainRoom.links, x => !x.nextToStorage && x.minLevel > x.link.energy), x => 800 - (x.minLevel - x.link.energy))[0];
                 if (myLinkToFill) {
-                    this.link.transferEnergy(myLinkToFill.link, Math.min(myLinkToFill.minLevel - myLinkToFill.link.energy, this.link.energy - this.maxLevel));
+                    this.link.transferEnergy(myLinkToFill.link, Math.min(myLinkToFill.maxLevel - myLinkToFill.link.energy, this.link.energy - this.maxLevel));
                 }
                 else {
                     myLinkToFill = _.filter(this.mainRoom.links, x => x.nextToStorage)[0];
@@ -88,6 +98,7 @@
 
             }
         }
+        trace.stop();
     }
 
 }

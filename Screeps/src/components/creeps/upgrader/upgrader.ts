@@ -11,23 +11,25 @@
     }
 
     upgrade() {
-        if (this.creep.upgradeController(this.creep.room.controller) == ERR_NOT_IN_RANGE)
+        let result = this.creep.upgradeController(this.creep.room.controller);
+        //this.creep.say(result.toString());
+        if (result == ERR_NOT_IN_RANGE)
             this.creep.moveTo(this.creep.room.controller);
     }
 
     public tick() {
 
-        if (this.creep.carry.energy > 0) {
+        if (this.creep.carry.energy >= _.sum(this.creep.body, x => x.type == WORK ? 1 : 0)) {
             this.upgrade();
         }
-        else {
+        else if (!this.mainRoom.mainContainer || this.mainRoom.mainContainer.structureType != STRUCTURE_STORAGE || this.mainRoom.mainContainer.store.energy > 10000 || this.mainRoom.room.controller.ticksToDowngrade <= 5000) {
             if (!this.mainRoom)
                 return;
-
-            let energy = this.creep.pos.findInRange<Resource>(FIND_DROPPED_RESOURCES, 4)[0];
+            
+            let resources = _.filter(Colony.getRoom(this.creep.room.name).resourceDrops, r => r.resourceType == RESOURCE_ENERGY);
+            let energy = _.filter(resources, r => (r.pos.x-this.creep.pos.x)**2+(r.pos.y-this.creep.pos.y)**2 <=9)[0];
             if (energy != null && this.creep.carry.energy < this.creep.carryCapacity) {
-                if (this.creep.pickup(energy) == ERR_NOT_IN_RANGE)
-                    this.creep.moveTo(energy);
+                this.creep.pickup(energy);
             }
             else {
 

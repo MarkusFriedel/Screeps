@@ -58,31 +58,42 @@
     private pickUp() {
         let wrongResourceLab = _.filter(this.labManager.myLabs, lab => lab.lab && lab.memory.mode != LabMode.available && lab.lab.mineralAmount > 0 && lab.memory.resource != lab.lab.mineralType)[0];
         if (wrongResourceLab) {
-            if (this.creep.withdraw(wrongResourceLab.lab, wrongResourceLab.lab.mineralType) == ERR_NOT_OWNER)
+            //this.creep.say('A');
+            if (this.creep.withdraw(wrongResourceLab.lab, wrongResourceLab.lab.mineralType) == ERR_NOT_IN_RANGE)
                 this.creep.moveTo(wrongResourceLab.lab);
         }
         else {
             let publishLab = _.filter(this.labManager.myLabs, lab => lab.memory.mode & LabMode.publish && lab.lab && lab.lab.energy <= lab.lab.energyCapacity - this.creep.carryCapacity)[0];
 
             if (publishLab && this.labManager.mainRoom.mainContainer && this.labManager.mainRoom.mainContainer.store.energy >= this.labManager.mainRoom.maxSpawnEnergy * 2) {
+                //this.creep.say('B');
                 if (this.creep.withdraw(this.labManager.mainRoom.mainContainer, RESOURCE_ENERGY) == ERR_NOT_IN_RANGE)
                     this.creep.moveTo(this.labManager.mainRoom.mainContainer);
             }
             else {
-                let outputLab = _.filter(this.labManager.myLabs, lab => lab.memory.mode & LabMode.reaction && lab.lab && (lab.lab.mineralAmount >= this.creep.carryCapacity && !(lab.memory.mode & LabMode.publish) || lab.lab.mineralAmount - this.creep.carryCapacity >= lab.lab.mineralCapacity / 2))[0];
+                let outputLab = _.filter(this.labManager.myLabs, lab => lab.memory.mode & LabMode.reaction && lab.lab && (lab.lab.mineralAmount >= 1000+ this.creep.carryCapacity && !(lab.memory.mode & LabMode.publish) || lab.lab.mineralAmount - this.creep.carryCapacity >= lab.lab.mineralCapacity / 2))[0];
 
                 if (outputLab && this.labManager.mainRoom.terminal && _.sum(this.labManager.mainRoom.terminal.store) <= this.labManager.mainRoom.terminal.storeCapacity - this.creep.carryCapacity) {
-
+                    //this.creep.say('C');
                     if (this.creep.withdraw(outputLab.lab, outputLab.lab.mineralType) == ERR_NOT_IN_RANGE)
                         this.creep.moveTo(outputLab.lab);
 
                 }
-                else if (this.labManager.mainRoom.terminal) {
-                    let inputLab = _.filter(this.labManager.myLabs, lab => lab.memory.mode & LabMode.import && lab.lab && (lab.lab.mineralAmount == 0 || lab.lab.mineralType == lab.memory.resource && lab.lab.mineralAmount <= lab.lab.mineralCapacity - this.creep.carryCapacity) && this.labManager.mainRoom.terminal.store[lab.memory.resource] >= this.creep.carryCapacity)[0];
-
+                else if (this.labManager.mainRoom.terminal || this.labManager.mainRoom.mainContainer) {
+                    let inputLab: MyLab = null;
+                    let source: Container | Storage | Terminal = null;
+                    if (this.labManager.mainRoom.terminal) {
+                        inputLab = _.sortBy(_.filter(this.labManager.myLabs, lab => lab.memory.mode & LabMode.import && lab.lab && (lab.lab.mineralAmount == 0 || lab.lab.mineralType == lab.memory.resource && lab.lab.mineralAmount <= 2000 - this.creep.carryCapacity) && this.labManager.mainRoom.terminal.store[lab.memory.resource] >= this.creep.carryCapacity), x => x.lab.mineralAmount ? x.lab.mineralAmount : 0)[0];
+                        source = this.labManager.mainRoom.terminal;
+                    }
+                    if (inputLab == null && this.labManager.mainRoom.mainContainer) {
+                        inputLab = _.sortBy(_.filter(this.labManager.myLabs, lab => lab.memory.mode & LabMode.import && lab.lab && (lab.lab.mineralAmount == 0 || lab.lab.mineralType == lab.memory.resource && lab.lab.mineralAmount <= 2000 - this.creep.carryCapacity) && this.labManager.mainRoom.mainContainer.store[lab.memory.resource] >= this.creep.carryCapacity), x => x.lab.mineralAmount ? x.lab.mineralAmount : 0)[0];
+                        source = this.labManager.mainRoom.mainContainer;
+                    }
                     if (inputLab) {
-                        if (this.creep.withdraw(this.labManager.mainRoom.terminal, inputLab.memory.resource) == ERR_NOT_IN_RANGE)
-                            this.creep.moveTo(this.labManager.mainRoom.terminal);
+                        //this.creep.say('D');
+                        if (this.creep.withdraw(source, inputLab.memory.resource) == ERR_NOT_IN_RANGE)
+                            this.creep.moveTo(source);
 
                     }
                 }

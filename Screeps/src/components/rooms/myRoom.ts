@@ -1,4 +1,5 @@
 ﻿/// <reference path="../sources/mySource.ts" />
+/// <reference path="../sources/myMineral.ts" />
 /// <reference path="../../tracer.ts" />
 /// <reference path="../structures/myContainer.ts" />
 /// <reference path="./hostileScan.ts" />
@@ -24,7 +25,8 @@ class MyRoom implements MyRoomInterface {
                 mainRoomDistanceDescriptions: null,
                 mainRoomName: null,
                 hasController: null,
-                travelMatrix: null
+                travelMatrix: null,
+                myMineral: null
             };
         return Colony.memory.rooms[this.name];
     }
@@ -35,6 +37,39 @@ class MyRoom implements MyRoomInterface {
 
     public hostileScan: HostileScanInterface;
 
+
+
+    private _repairStructures: { time: number, structures: Structure[] };
+    public get repairStructures() {
+        if (this._repairStructures == null || this._repairStructures.time + 20 < Game.time) {
+            if (this.room)
+                this._repairStructures = { time: Game.time, structures: this.room.find<Structure>(FIND_STRUCTURES, { filter: (s: Structure) => s.hits < s.hitsMax && (this.name == this.mainRoom.name || s.structureType != STRUCTURE_CONTAINER) }) }
+            else
+                this._repairStructures = { time: Game.time, structures: [] };
+        }
+        return this._repairStructures.structures;
+    }
+
+    private _emergencyRepairs: { time: number, structures: Structure[] };
+    public get emergencyRepairs() {
+        if (this._emergencyRepairs == null || this.repairStructures == null || this._emergencyRepairs.time+20 < this._repairStructures.time) {
+            let structures = _.filter(this.repairStructures, RepairManager.emergencyTargetDelegate);
+            this._emergencyRepairs = { time: this._repairStructures.time, structures: structures }
+        }
+
+        return this._emergencyRepairs.structures;
+    }
+
+    private _resourceDrops: { time: number, resources: Resource[] };
+    public get resourceDrops() {
+        if (this._resourceDrops == null || this._resourceDrops.time < Game.time) {
+            if (this.room)
+                this._resourceDrops = { time: Game.time, resources: this.room.find<Resource>(FIND_DROPPED_RESOURCES) };
+            else
+                this._resourceDrops = { time: Game.time, resources: [] };
+        }
+        return this._resourceDrops.resources;
+    }
 
     private _room: { time: number, room: Room } = { time: -1, room: null };
     public get room(): Room {
@@ -76,6 +111,9 @@ class MyRoom implements MyRoomInterface {
         return result;
     }
 
+    public myMineral: MyMineralInterface;
+
+
     private _mySources: { time: number, mySources: { [id: string]: MySourceInterface; } } = null;
 
     public get mySources(): { [id: string]: MySourceInterface; } {
@@ -110,8 +148,10 @@ class MyRoom implements MyRoomInterface {
         return this._mainRoom;
     }
     public set mainRoom(value: MainRoomInterface) {
+        if (value != null && (this._mainRoom == null || this._mainRoom.name != value.name))
+            value.invalidateSources();
         this._mainRoom = value;
-        this.memory.mainRoomName = value == null ? null : value.name;
+        this.memory.mainRoomName = (value == null ? null : value.name);
     }
 
 
@@ -144,12 +184,29 @@ class MyRoom implements MyRoomInterface {
 
         this.hostileScan = new HostileScan(this);
 
-        if (this.room != null)
             this.refresh();
+
+        
+    }
+
+    private _creepAvoidanceMatrix: { time: number, matrix: CostMatrix };
+    public get creepAvoidanceMatrix(): CostMatrix | boolean {
+        if (this.travelMatrix === false)
+            return false;
+        if (!this.room)
+            return this.travelMatrix;
+        if (this._travelMatrix == null || this._travelMatrix.time < Game.time && this.room) {
+            let matrix = (<CostMatrix>this.travelMatrix).clone();
+            _.forEach(this.room.find<Creep>(FIND_CREEPS), c => matrix.set(c.pos.x, c.pos.y, 255));
+            this._creepAvoidanceMatrix = { time: Game.time, matrix: matrix }
+        }
+        return this._creepAvoidanceMatrix.matrix;
     }
 
     private _travelMatrix: { time: number, matrix: CostMatrix };
-    public get travelMatrix() {
+    public get travelMatrix(): CostMatrix | boolean {
+        if (this.memory.foreignOwner)
+            return false;
         if (this._travelMatrix == null || this._travelMatrix.time + 200 < Game.time && this.room) {
             if (this.memory.travelMatrix && (!this.room || this.memory.travelMatrix.time + 200 >= Game.time))
                 this._travelMatrix = { time: this.memory.travelMatrix.time, matrix: PathFinder.CostMatrix.deserialize(this.memory.travelMatrix.matrix) };
@@ -180,7 +237,8 @@ class MyRoom implements MyRoomInterface {
         _.forEach(protectedPositions, pos => {
             for (let x = -4; x <= 4; x++) {
                 for (let y = -4; y <= 4; y++) {
-                    costMatrix.set(pos.x + x, pos.y + y, 255);
+                    if (Game.map.getTerrainAt(pos.x + x, pos.y + y, this.name) != 'wall')
+                        costMatrix.set(pos.x + x, pos.y + y, 100);
                 }
             }
         });
@@ -192,7 +250,7 @@ class MyRoom implements MyRoomInterface {
             for (let x = -1; x <= 1; x++) {
                 for (let y = -1; y <= 1; y++) {
                     if (Game.map.getTerrainAt(structure.pos.x + x, structure.pos.y + y, this.name) != 'wall')
-                    costMatrix.set(structure.pos.x + x, structure.pos.y + y, costMatrix.get(structure.pos.x + x, structure.pos.y + y) + 5);
+                        costMatrix.set(structure.pos.x + x, structure.pos.y + y, costMatrix.get(structure.pos.x + x, structure.pos.y + y) + 5);
                 }
             }
         });
@@ -203,7 +261,7 @@ class MyRoom implements MyRoomInterface {
             costMatrix.set(structure.pos.x, structure.pos.y, 255);
             for (let x = -1; x <= 1; x++) {
                 for (let y = -1; y <= 1; y++) {
-                    if (Game.map.getTerrainAt(structure.pos.x + x, structure.pos.y + y,this.name) != 'wall')
+                    if (Game.map.getTerrainAt(structure.pos.x + x, structure.pos.y + y, this.name) != 'wall')
                         costMatrix.set(structure.pos.x + x, structure.pos.y + y, costMatrix.get(structure.pos.x + x, structure.pos.y + y) + 5);
                 }
             }
@@ -213,7 +271,7 @@ class MyRoom implements MyRoomInterface {
             for (let x = -2; x <= 2; x++) {
                 for (let y = -2; y <= 2; y++) {
                     if (Game.map.getTerrainAt(structure.pos.x + x, structure.pos.y + y, this.name) != 'wall')
-                    costMatrix.set(structure.pos.x + x, structure.pos.y + y, costMatrix.get(structure.pos.x + x, structure.pos.y + y) + 10);
+                        costMatrix.set(structure.pos.x + x, structure.pos.y + y, costMatrix.get(structure.pos.x + x, structure.pos.y + y) + 10);
                 }
             }
         });
@@ -222,7 +280,7 @@ class MyRoom implements MyRoomInterface {
             for (let x = -2; x <= 2; x++) {
                 for (let y = -2; y <= 2; y++) {
                     if (Game.map.getTerrainAt(structure.pos.x + x, structure.pos.y + y, this.name) != 'wall')
-                    costMatrix.set(structure.pos.x + x, structure.pos.y + y, costMatrix.get(structure.pos.x + x, structure.pos.y + y) + 10);
+                        costMatrix.set(structure.pos.x + x, structure.pos.y + y, costMatrix.get(structure.pos.x + x, structure.pos.y + y) + 10);
                 }
             }
         });
@@ -248,10 +306,19 @@ class MyRoom implements MyRoomInterface {
     public refresh() {
         let room = this.room;
 
-
+        if (this.memory.myMineral == null && room) {
+            let mineral = room.find<Mineral>(FIND_MINERALS)[0];
+            if (mineral)
+                this.myMineral = new MyMineral(this, mineral.id);
+        }
+        else if (this.memory.myMineral != null)
+            this.myMineral = new MyMineral(this, this.memory.myMineral.id);
 
         if (room == null)
             return;
+
+
+
 
         this.memory.foreignOwner = room.controller != null && room.controller.owner != null && room.controller.owner.username != Colony.myName;
         this.memory.foreignReserver = room.controller != null && room.controller.reservation != null && room.controller.reservation.username != Colony.myName;
@@ -259,5 +326,7 @@ class MyRoom implements MyRoomInterface {
         this.memory.lastScanTime = Game.time;
 
         this.memory.hasController = this.room.controller != null;
+
+        this.mySources;
     }
 }

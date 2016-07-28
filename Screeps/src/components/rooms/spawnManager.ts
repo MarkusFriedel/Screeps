@@ -16,9 +16,13 @@ class SpawnManager implements SpawnManagerInterface {
         return this.mainRoom.memory.spawnManager;
     }
 
+    public get canSpawn():boolean {
+        return _.any(this.spawns, x => x.spawning==null);
+    }
+
     public get isBusy(): boolean {
         //return false;
-        return _.every(this.spawns, x => x.spawning);
+        return _.filter(this.spawns, x => x.spawning == null).length <= this.queue.length;
     }
 
     _spawns: { time: number, spawns: Array<Spawn> } = { time: 0, spawns: null };
@@ -49,7 +53,7 @@ class SpawnManager implements SpawnManagerInterface {
     }
 
     public spawn() {
-        if (this.isBusy) {
+        if (!this.canSpawn) {
             this.queue = [];
             return;
         }

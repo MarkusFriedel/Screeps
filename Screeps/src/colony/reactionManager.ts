@@ -4,6 +4,9 @@
         return this.accessMemory();
     }
 
+    public static staticTracer: Tracer;
+    public tracer: Tracer;
+
     accessMemory() {
         if (Colony.memory.reactionManager == null)
             Colony.memory.reactionManager = {
@@ -12,7 +15,111 @@
         return Colony.memory.reactionManager;
     }
 
+    constructor() {
+        if (ReactionManager.staticTracer == null) {
+            ReactionManager.staticTracer = new Tracer('ReactionManager');
+            Colony.tracers.push(ReactionManager.staticTracer);
+        }
+        //this.tracer = new Tracer('MySource ' + id);
+        this.tracer = ReactionManager.staticTracer;
+    }
+
+    private get labRooms() {
+        return _.filter(Colony.mainRooms, mainRoom => _.size(mainRoom.managers.labManager.myLabs) >= 1);
+    }
+
+    private totalStorage(resource: string) {
+        //let mainContainers = _.map(_.filter(Colony.mainRooms, mainRoom => mainRoom.mainContainer), mainRoom => mainRoom.mainContainer);
+        let terminals = _.map(_.filter(Colony.mainRooms, mainRoom => mainRoom.terminal && mainRoom.terminal.store[resource]), mainRoom => mainRoom.terminal);
+
+        //return _.sum(mainContainers, x => x.store[resource]) + _.sum(terminals, x => x.store[resource]);
+        return _.sum(terminals, x => x.store[resource]);
+    }
+
+    public get requiredAmount() {
+        //return this.labRooms.length * 5500 + 5000;
+        return 7500;
+    }
+
+    private forbiddenCompounds = [RESOURCE_CATALYZED_KEANIUM_ACID, RESOURCE_CATALYZED_LEMERGIUM_ACID, RESOURCE_CATALYZED_UTRIUM_ALKALIDE, RESOURCE_CATALYZED_ZYNTHIUM_ALKALIDE];
+
+    private _publishableCompunds: { time: number, compounds: string[] };
+    public get publishableCompounds() {
+        let trace = this.tracer.start('Property publishableCompounds');
+        if (this._publishableCompunds == null || this.highestPowerCompounds == null || this._publishableCompunds.time < this._highestPowerCompounds.time) {
+            let compounds = _.uniq(this.highestPowerCompounds.concat(_.filter(RESOURCES_ALL, r => this.ingredients[r] && this.ingredients[r].indexOf(RESOURCE_CATALYST) >= 0)));
+            this._publishableCompunds = { time: this._highestPowerCompounds.time, compounds: compounds };
+        }
+
+        trace.stop();
+        return this._publishableCompunds.compounds;
+    }
+
+    private _highestPowerCompounds: { time: number, compounds: string[] };
+    public get highestPowerCompounds() {
+        let trace = this.tracer.start('Property highestPowerCompounds');
+        if (this._highestPowerCompounds == null || this._highestPowerCompounds.time + 500 < Game.time) {
+            this._highestPowerCompounds = { time: Game.time, compounds: [] };
+            _.forEach(ReactionManager.powerPriority, power => {
+                let resources = _.sortBy(_.filter(ReactionManager.BOOSTPOWERS[power].resources, r => this.forbiddenCompounds.indexOf(r.resource) < 0), r => r.factor > 1 ? 100 - r.factor : r.factor);
+                for (let resource in resources) {
+                    if (this.canProvide(resources[resource].resource)) {
+                        this._highestPowerCompounds.compounds.push(resources[resource].resource);
+                        break;
+                    }
+                }
+            });
+        }
+        trace.stop();
+        return this._highestPowerCompounds.compounds;
+    }
+
+    public canProvide(resource: string, amount: number = null) {
+        let requiredAmount = this.requiredAmount;
+        if (amount != null)
+            requiredAmount = amount;
+        if (this.ingredients[resource] == null)
+            return _.any(Colony.mainRooms, mainRoom => _.any(mainRoom.minerals, m => m.resource == resource) && mainRoom.room.controller.level >= 6) || this.getAvailableResourceAmount(resource) > requiredAmount;
+        else if (this.totalStorage(resource) >= requiredAmount)
+            return true;
+        else
+            return this.canProvide(this.ingredients[resource][0], amount - this.totalStorage(this.ingredients[resource][0])) && this.canProvide(this.ingredients[resource][1], amount - this.totalStorage(this.ingredients[resource][1]));
+
+    }
+
+    private static _BOOSTPOWERS: { [power: string]: { bodyPart: string, resources: Array<{ resource: string, factor: number }> } };
+    public static get BOOSTPOWERS(): { [power: string]: { bodyPart: string, resources: Array<{ resource: string, factor: number }> } } {
+        if (!this._BOOSTPOWERS) {
+            this._BOOSTPOWERS = {};
+            for (let bodyPart in BOOSTS) {
+                for (let resource in BOOSTS[bodyPart]) {
+                    for (let power in BOOSTS[bodyPart][resource]) {
+                        if (this._BOOSTPOWERS[power] == null)
+                            this._BOOSTPOWERS[power] = { bodyPart: bodyPart, resources: [] };
+                        this._BOOSTPOWERS[power].resources.push({ resource: resource, factor: BOOSTS[bodyPart][resource][power] });
+                    }
+                }
+            }
+        }
+        return this._BOOSTPOWERS;
+    }
+
+
+
     private static basicCompounds = [RESOURCE_HYDROXIDE, RESOURCE_ZYNTHIUM_KEANITE, RESOURCE_UTRIUM_LEMERGITE, RESOURCE_GHODIUM];
+    private static powerPriority = [
+        'heal',
+        'damage',
+        'attack',
+        'rangedAttack',
+        'fatigue',
+        'upgradeController',
+        'dismantle',
+        'capacity',
+        'build',
+        'harvest',
+    ];
+
 
     private _ingredients: { [output: string]: string[] } = null;
     public get ingredients() {
@@ -28,15 +135,17 @@
         return this._ingredients;
     }
 
+    private _highestTierPowers: Array<string>;
+
     private requiredResources: { [resource: string]: number } = {};
 
-    public canProduce(resource: string) {
-        if (this.ingredients[resource] == null)
-            return _.any(Colony.mainRooms, mainRoom => mainRoom.mineral.mineralType == resource) || this.getAvailableResourceAmount(resource) > 2000;
-        else {
-            return this.canProduce(this.ingredients[resource][0]) && this.canProduce(this.ingredients[resource][1]);
-        }
-    }
+    //public canProduce(resource: string) {
+    //    if (this.ingredients[resource] == null)
+    //        return _.any(Colony.mainRooms, mainRoom => mainRoom.mineral.mineralType == resource && mainRoom.room.controller.level>=6) || this.getAvailableResourceAmount(resource) > 2000;
+    //    else {
+    //        return this.canProduce(this.ingredients[resource][0]) && this.canProduce(this.ingredients[resource][1]);
+    //    }
+    //}
 
     private _availableResources: { [resource: string]: { time: number, amount: number } } = {}
     public getAvailableResourceAmount(resource: string) {
@@ -57,7 +166,14 @@
     }
 
     private setupPublishs() {
-        _.forEach(this.labManagers, lm => lm.setupPublishs());
+        //_.forEach(this.labManagers, lm => lm.setupPublishs());
+    }
+
+    private get importCounts(): { [resource: string]: { resource: string, count: number } } {
+        return _.indexBy(_.map(_.groupBy(_.flatten(_.map(this.labManagers, lm => lm.imports))), x => { return { resource: x[0], count: x.length } }), x => x.resource);
+    }
+    private get publishCounts(): { [resource: string]: { resource: string, count: number } } {
+        return _.indexBy(_.map(_.groupBy(_.flatten(_.map(this.labManagers, lm => lm.publishs))), x => { return { resource: x[0], count: x.length } }), x => x.resource);
     }
 
     private get imports() {
@@ -68,43 +184,40 @@
         return _.uniq(_.flatten(_.map(this.labManagers, l => l.reactions)));
     }
 
-    private setupProcess(resource: string) {
-        if (this.ingredients[resource]==null || this.getAvailableResourceAmount(resource) > 10000)
-            return false;
-        let bestManager = _.sortBy(_.filter(_.map(this.labManagers, x => {
+    private setupProcess(resource: string): boolean {
+        if (this.ingredients[resource] == null || this.totalStorage(resource) >= this.requiredAmount)
+            return true;
+        let bestManager = _.sortByAll(_.filter(_.map(this.labManagers, x => {
             return { manager: x, requiredLabs: x.requiredLabsForReaction(resource) }
-        }), x => x.requiredLabs != null), x => x.requiredLabs)[0];
+        }), x => x.requiredLabs != null), [x => x.requiredLabs, x => CONTROLLER_STRUCTURES.lab[8] - x.manager.freeLabs.length])[0];
         if (bestManager) {
-            console.log('Best Manager for reaction: ' + bestManager.manager.mainRoom.name);
             bestManager.manager.addReaction(resource);
+            _.forEach(this.ingredients[resource], r => {
+                if (!this.setupProcess(r))
+                    return false;
+            });
             return true;
         }
         return false;
     }
 
-    private setupProcesses() {
-        let changed = false;
-        let requirements = _.difference(this.imports, this.reactions);
-        console.log('Mineral requirements: ' + requirements.join(','));
-        _.forEach(requirements, r => {
-            if (this.setupProcess(r))
-                changed = true;
-        });
-
-        return changed;
+    private setupProcessChain(resource: string) {
+        console.log('Reaction Manager: Setup process chain ' + resource);
+        this.backup();
+        if (!this.setupProcess(resource)) {
+            this.restore();
+            _.forEach(this.ingredients[resource], r => {
+                this.setupProcessChain(r);
+            });
+        }
     }
 
-    private setupBasics() {
-        let changed = false;
+    private backup() {
+        _.forEach(this.labManagers, lm => lm.backup());
+    }
 
-        let requirements = _.filter(ReactionManager.basicCompounds,x=> this.canProduce(x));
-        console.log('Mineral requirements: ' + requirements.join(','));
-        _.forEach(requirements, r => {
-            if (this.setupProcess(r))
-                changed = true;
-        });
-
-        return changed;
+    private restore() {
+        _.forEach(this.labManagers, lm => lm.restore());
     }
 
     private setup() {
@@ -112,24 +225,29 @@
             _.forEach(this.labManagers, x => x.reset());
             this.memory.setupTime = Game.time;
             this.requiredResources = {};
-            this.setupPublishs();
-            let changed = true;
-            while (changed) {
-                while (this.setupProcesses()) { }
-                changed = this.setupBasics();
-            }
-            //this.setupProcess();
-            //this.setupProcess();
-            //this.setupProcess();
 
+            let compoundsToProduce: Array<string> = [];
+
+            if (this.canProvide(RESOURCE_GHODIUM))
+                compoundsToProduce.push(RESOURCE_GHODIUM);
+
+            _.forEach(this.highestPowerCompounds, c => compoundsToProduce.push(c));
+
+            console.log('Reaction Manager: Compounds to produce: ' + compoundsToProduce.join(','));
+
+            _.forEach(compoundsToProduce, c => {
+                let result = this.setupProcessChain(c);
+                if (result)
+                    console.log('Reaction Manager: Succcessfully setup ' + c);
+            });
         }
     }
 
-    
+
 
     public tick() {
         this.setup();
-        this.sendResourcesUsingTerminals();
+        //this.sendResourcesUsingTerminals();
     }
 
     private sendResourcesUsingTerminals() {
@@ -140,7 +258,7 @@
                 console.log('reactionManager.sendResourcesUsingTerminals  LabManager: ' + labManager.mainRoom.name + ', imports: ' + labManager.imports.join(','));
                 _.forEach(_.filter(labManager.imports, x => !labManager.mainRoom.terminal.store[x] || labManager.mainRoom.terminal.store[x] < 2000), resource => {
                     console.log('reactionManager.sendResourcesUsingTerminals  Resource: ' + resource);
-                    let otherRoom = _.sortBy(_.filter(Colony.mainRooms, mainRoom => mainRoom.terminal && (mainRoom.terminal.store[resource] >= 4000 || (!mainRoom.labManager || !(resource in mainRoom.labManager.imports)) && mainRoom.terminal.store[resource] >= 2000)), x => labManager.mainRoom.myRoom.memory.mainRoomDistanceDescriptions[x.name])[0];
+                    let otherRoom = _.sortBy(_.filter(Colony.mainRooms, mainRoom => mainRoom.terminal && (mainRoom.terminal.store[resource] >= 4000 || (!mainRoom.managers.labManager || !(resource in mainRoom.managers.labManager.imports)) && mainRoom.terminal.store[resource] >= 2000)), x => labManager.mainRoom.myRoom.memory.mainRoomDistanceDescriptions[x.name])[0];
                     if (otherRoom) {
                         console.log('reactionManager.sendResourcesUsingTerminals  otherRoom: ' + otherRoom.name);
                         otherRoom.terminal.send(resource, 2000, labManager.mainRoom.name);

@@ -33,7 +33,7 @@ namespace GameManager {
         Colony.initialize(colonyMemory);
 
         let endCpu = Game.cpu.getUsed();
-        console.log('Booting: ' + (endCpu - startCpu).toFixed(2));
+        console.log('Booting: ' + (endCpu.toFixed(2)));
 
         console.log();
         console.log('Boot tracers :');
@@ -75,12 +75,12 @@ namespace GameManager {
         }
 
         let endCpu = Game.cpu.getUsed();
-        console.log('Time: ' + Game.time + ' CPU: ' + (endCpu - startCpu).toFixed(2) + ' Bucket: ' + Game.cpu.bucket);
+        console.log('Time: ' + Game.time + ' Measured CPU: ' + (endCpu - startCpu).toFixed(2) + ', CPU: ' + endCpu.toFixed(2) + ' Bucket: ' + Game.cpu.bucket);
 
         if (Memory['cpuStat'] == null)
             Memory['cpuStat'] = [];
 
-        Memory['cpuStat'].push(endCpu - startCpu);
+        Memory['cpuStat'].push(endCpu);
         if (Memory['cpuStat'].length > 100)
             (<Array<number>>Memory['cpuStat']).shift();
         console.log('100Avg: ' + (_.sum(Memory['cpuStat']) / Memory['cpuStat'].length).toFixed(2) + ' CPU');

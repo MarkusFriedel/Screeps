@@ -28,6 +28,8 @@
         return costs;
     }
 
+    boosts: { [compound: string]: { compound: string, amount: number } } = {};
+
     move: number=0;
     work: number = 0;
     attack: number = 0;
@@ -37,8 +39,14 @@
     tough: number = 0;
     claim: number = 0;
 
-    public get harvestingRate() {
-        return this.work * 2;
+    public get energyHarvestingRate() {
+        let rate = this.work * 2;
+        _.forEach(this.boosts, b => {
+            if (BOOSTS.work[b.compound] && BOOSTS.work[b.compound].harvest)
+                rate += 2 * (BOOSTS.work[b.compound].harvest - 1);
+        });
+
+        return rate;
     }
 
     public get isMilitaryDefender() {
@@ -48,6 +56,8 @@
     public get isMilitaryAttacker() {
         return (this.heal + this.ranged_attack + this.attack + this.work) > 0;
     }
+
+
 
     public getBody() {
         let body: string[] = [];
