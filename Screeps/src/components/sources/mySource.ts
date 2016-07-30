@@ -34,22 +34,22 @@ class MySource implements MySourceInterface {
 
     private _room: { time: number, room: Room } = { time: -1, room: null };
     public get room(): Room {
-        let trace = this.tracer.start('Property room');
+        //let trace = this.tracer.start('Property room');
         if (this._room.time < Game.time)
             this._room = {
                 time: Game.time, room: Game.rooms[this.pos.roomName]
             };
-        trace.stop();
+        //trace.stop();
         return this._room.room;
 
     }
 
     private _source: { time: number, source: Source } = { time: -1, source: null }
     public get source(): Source {
-        let trace = this.tracer.start('Property source');
+        //let trace = this.tracer.start('Property source');
         if (this._source.time < Game.time)
             this._source = { time: Game.time, source: Game.getObjectById<Source>(this.id) }
-        trace.stop();
+        //trace.stop();
         return this._source.source;
     }
 
@@ -117,37 +117,45 @@ class MySource implements MySourceInterface {
     //}
 
     public get pos(): RoomPosition {
-        let trace = this.tracer.start('Property pos');
-        trace.stop();
+        //let trace = this.tracer.start('Property pos');
+        //trace.stop();
         return this.source != null ? this.source.pos : RoomPos.fromObj(this.memory.pos);
     }
 
     public get maxHarvestingSpots(): number {
-        let trace = this.tracer.start('Property maxHarvestingSpots');
+        //let trace = this.tracer.start('Property maxHarvestingSpots');
         if (this.memory.harvestingSpots != null || this.source == null) {
-            trace.stop();
+            //trace.stop();
             return this.memory.harvestingSpots;
         }
         else {
             let pos = this.source.pos;
             let spots = _.filter((<LookAtResultWithPos[]>this.source.room.lookForAtArea(LOOK_TERRAIN, pos.y - 1, pos.x - 1, pos.y + 1, pos.x + 1, true)), x => x.terrain == 'swamp' || x.terrain == 'plain').length;
             this.memory.harvestingSpots = spots;
-            trace.stop();
+            //trace.stop();
             return spots;
         }
     }
 
+    public get usable() {
+        return !this.hasKeeper || this.maxHarvestingSpots > 1 && _.size(this.myRoom.mainRoom.managers.labManager.myLabs) > 1;
+    }
+
     public get hasKeeper(): boolean {
-        let trace = this.tracer.start('Property keeper');
+        //let trace = this.tracer.start('Property keeper');
         if (this.memory.keeper != null || !this.room) {
-            trace.stop();
+            //trace.stop();
             return this.memory.keeper;
         }
         else {
             this.memory.keeper = this.source.pos.findInRange(FIND_STRUCTURES, 5, { filter: (s) => s.structureType == STRUCTURE_KEEPER_LAIR }).length > 0;
-            trace.stop();
+            //trace.stop();
             return this.memory.keeper;
         }
+    }
+
+    public get rate() {
+        return this.capacity / ENERGY_REGEN_TIME;
     }
 
     public get roadBuiltToRoom() {
@@ -197,19 +205,19 @@ class MySource implements MySourceInterface {
 
     private _capacityLastFresh: number;
     public get capacity() {
-        let trace = this.tracer.start('Property energyCapacity');
+        //let trace = this.tracer.start('Property energyCapacity');
         if (this.source && (this._capacityLastFresh == null || this._capacityLastFresh + 50 < Game.time)) {
             this.memory.capacity = this.source.energyCapacity;
             this._capacityLastFresh = Game.time;
         }
-        trace.stop();
+        //trace.stop();
         return this.memory.capacity;
     }
 
     private _link: { time: number, link: Link };
 
     public get link() {
-        let trace = this.tracer.start('Property link');
+        //let trace = this.tracer.start('Property link');
         if (!this.myRoom.mainRoom || this.myRoom.name != this.myRoom.mainRoom.name)
             return null;
         if (this._link == null || this._link.time < Game.time) {
@@ -230,7 +238,7 @@ class MySource implements MySourceInterface {
                     this.memory.linkId = { time: Game.time, id: null };
             }
         }
-        trace.stop();
+        //trace.stop();
         if (this._link)
             return this._link.link;
         else

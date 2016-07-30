@@ -83,11 +83,11 @@
                     let inputLab: MyLab = null;
                     let source: Container | Storage | Terminal = null;
                     if (this.labManager.mainRoom.terminal) {
-                        inputLab = _.sortBy(_.filter(this.labManager.myLabs, lab => lab.memory.mode & LabMode.import && lab.lab && (lab.lab.mineralAmount == 0 || lab.lab.mineralType == lab.memory.resource && lab.lab.mineralAmount <= 2000 - this.creep.carryCapacity) && this.labManager.mainRoom.terminal.store[lab.memory.resource] >= this.creep.carryCapacity), x => x.lab.mineralAmount ? x.lab.mineralAmount : 0)[0];
+                        inputLab = _.sortBy(_.filter(this.labManager.myLabs, lab => lab.memory.mode & LabMode.import && lab.lab && (lab.lab.mineralAmount == 0 || lab.lab.mineralType == lab.memory.resource && lab.lab.mineralAmount <= 2000 - this.creep.carryCapacity) && this.labManager.mainRoom.terminal.store[lab.memory.resource] >= 0), x => x.lab.mineralAmount ? x.lab.mineralAmount : 0)[0];
                         source = this.labManager.mainRoom.terminal;
                     }
                     if (inputLab == null && this.labManager.mainRoom.mainContainer) {
-                        inputLab = _.sortBy(_.filter(this.labManager.myLabs, lab => lab.memory.mode & LabMode.import && lab.lab && (lab.lab.mineralAmount == 0 || lab.lab.mineralType == lab.memory.resource && lab.lab.mineralAmount <= 2000 - this.creep.carryCapacity) && this.labManager.mainRoom.mainContainer.store[lab.memory.resource] >= this.creep.carryCapacity), x => x.lab.mineralAmount ? x.lab.mineralAmount : 0)[0];
+                        inputLab = _.sortBy(_.filter(this.labManager.myLabs, lab => lab.memory.mode & LabMode.import && lab.lab && (lab.lab.mineralAmount == 0 || lab.lab.mineralType == lab.memory.resource && lab.lab.mineralAmount <= 2000 - this.creep.carryCapacity) && this.labManager.mainRoom.mainContainer.store[lab.memory.resource] >= 0), x => x.lab.mineralAmount ? x.lab.mineralAmount : 0)[0];
                         source = this.labManager.mainRoom.mainContainer;
                     }
                     if (inputLab) {
@@ -105,7 +105,16 @@
 
     }
 
+    private saveBeforeDeath() {
+        if (this.labManager.mainRoom.terminal && this.creep.transfer(this.labManager.mainRoom.terminal, _.filter(_.keys(this.creep.carry), r => this.creep.carry[r] > 0)[0]) == ERR_NOT_IN_RANGE)
+            this.creep.moveTo(this.labManager.mainRoom.terminal);
+    }
+
     public tick() {
+        if (this.creep.ticksToLive <= 20 && _.sum(this.creep.carry) > 0) {
+            this.saveBeforeDeath();
+        }
+
         if (this.creep.carry.energy > 0) {
             this.dropOffEnergy();
         }

@@ -34,7 +34,7 @@ class HostileScan implements HostileScanInterface {
     public get keepers() {
         if (this.allCreeps == null)
             return null;
-        if (this._keepers == null || this._creeps.time < Game.time)
+        if (this._keepers == null || this._keepers.time < Game.time)
             this._keepers = { time: Game.time, creeps: _.indexBy(_.filter(this.allCreeps, c => c.owner == 'Source Keeper'), c => c.id) };
 
         return this._keepers.creeps;

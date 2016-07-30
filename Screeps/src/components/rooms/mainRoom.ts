@@ -35,12 +35,12 @@ class MainRoom implements MainRoomInterface {
 
     private _room: { time: number, room: Room };
     public get room(): Room {
-        let trace = this.tracer.start('Property room');
+        //let trace = this.tracer.start('Property room');
         if (this._room == null || this._room.time < Game.time)
             this._room = {
                 time: Game.time, room: Game.rooms[this.name]
             };
-        trace.stop();
+        //trace.stop();
         return this._room.room;
     }
     private _connectedRooms: { time: number, rooms: MyRoomInterface[] };
@@ -55,7 +55,7 @@ class MainRoom implements MainRoomInterface {
         if (this._harvestersShouldDeliver == null || this._harvestersShouldDeliver.time < Game.time)
             this._harvestersShouldDeliver = {
                 time: Game.time,
-                value: !this.mainContainer || (this.managers.energyHarvestingManager.sourceCarrierCreeps.length == 0 && this.mainContainer.store.energy < this.maxSpawnEnergy)
+                value: !this.mainContainer || (this.managers.energyHarvestingManager.sourceCarrierCreeps.length == 0 && this.mainContainer.store.energy < this.maxSpawnEnergy) || (this.managers.spawnFillManager.creeps.length == 0 && this.room.energyAvailable<500)
             };
 
         return this._harvestersShouldDeliver.value;
@@ -74,7 +74,12 @@ class MainRoom implements MainRoomInterface {
     private _energyDropOffStructure: { time: number, structure: Structure };
     public get energyDropOffStructure() {
         if (this._energyDropOffStructure == null || this._energyDropOffStructure.time < Game.time) {
-            this._energyDropOffStructure = { time: Game.time, structure: this.mainContainer || this.spawns[0] };
+            let structure: Structure = null;
+            if (this.mainContainer && this.managers.spawnFillManager.creeps.length > 0)
+                structure = this.mainContainer;
+            else
+                structure = _.sortBy(this.spawns, s => s.energy)[0];
+            this._energyDropOffStructure = { time: Game.time, structure: structure };
         }
         return this._energyDropOffStructure.structure;
     }
@@ -90,6 +95,16 @@ class MainRoom implements MainRoomInterface {
         if (this.terminal && this.terminal.store[resource])
             value += this.terminal.store[resource];
         return value;
+    }
+
+    public get harvestingActive() {
+        if (this.memory.harvestingActive == null)
+            this.memory.harvestingActive = true;
+        return this.memory.harvestingActive;
+    }
+
+    public set harvestingActive(value: boolean) {
+        this.memory.harvestingActive = value;
     }
 
     private _sources: { [id: string]: MySourceInterface };
@@ -111,7 +126,7 @@ class MainRoom implements MainRoomInterface {
     private _minerals: { time: number, minerals: { [id: string]: MyMineralInterface } }
     public get minerals() {
         if (this._minerals == null || this._minerals.time < Game.time) {
-            this._minerals = { time: Game.time, minerals: _.indexBy(_.map(_.filter(this.allRooms, x => x.myMineral != null && !x.myMineral.hasKeeper && x.myMineral.hasExtractor), x => x.myMineral), x => x.id) }
+            this._minerals = { time: Game.time, minerals: _.indexBy(_.map(_.filter(this.allRooms, x => x.myMineral != null && (!x.myMineral.hasKeeper || _.size(this.managers.labManager.myLabs)>0) && x.myMineral.hasExtractor), x => x.myMineral), x => x.id) }
         }
 
         return this._minerals.minerals;
@@ -201,9 +216,9 @@ class MainRoom implements MainRoomInterface {
 
     _maxSpawnEnergy: { time: number, maxSpawnEnergy: number } = { time: -101, maxSpawnEnergy: 300 };
     public get maxSpawnEnergy(): number {
-        let trace = this.tracer.start('Property maxSpawnEnergy');
+        //let trace = this.tracer.start('Property maxSpawnEnergy');
         if (this.mainContainer == null || this.managers.spawnFillManager.creeps.length == 0 || this.mainContainer.store.energy == 0 && this.managers.energyHarvestingManager.harvesterCreeps.length == 0) {
-            trace.stop();
+            //trace.stop();
             return 300;
         }
         //if (this._maxSpawnEnergy.time + 100 < Game.time)
@@ -212,7 +227,7 @@ class MainRoom implements MainRoomInterface {
         //        time: Game.time, maxSpawnEnergy: this.room.energyCapacityAvailable
         //    };
         
-        trace.stop();
+        //trace.stop();
         return this.room.energyCapacityAvailable;
         //return this._maxSpawnEnergy.maxSpawnEnergy;
         //return 400;
@@ -220,21 +235,21 @@ class MainRoom implements MainRoomInterface {
 
     private _creeps: { time: number, creeps: Array<Creep> };
     public get creeps(): Array<Creep> {
-        let trace = this.tracer.start('Property creeps');
+        //let trace = this.tracer.start('Property creeps');
         if (this._creeps==null || this._creeps.time < Game.time)
             this._creeps = {
                 time: Game.time, creeps: _.filter(Game.creeps, (c) => (<CreepMemory>c.memory).mainRoomName === this.name && !(<CreepMemory>c.memory).handledByColony)
             };
-        trace.stop();
+        //trace.stop();
         return this._creeps.creeps;
     }
 
     private _creepsByRole: { time: number, creeps: _.Dictionary<Creep[]> };
     public creepsByRole(role:string) {
-        let trace = this.tracer.start('Property creepsByRole');
+        //let trace = this.tracer.start('Property creepsByRole');
         if (this._creepsByRole == null || this._creepsByRole.time < Game.time)
             this._creepsByRole = { time: Game.time, creeps: _.groupBy(this.creeps, c => c.memory.role) };
-        trace.stop(); 
+        //trace.stop(); 
         if (this._creepsByRole.creeps[role] != null) {
             //console.log(role + ': Exists [' + _.size(this._creepsByRole.creeps[role])+']');
             return this._creepsByRole.creeps[role];
@@ -247,39 +262,39 @@ class MainRoom implements MainRoomInterface {
     }
 
     private get mainContainerId() {
-        let trace = this.tracer.start('Property mainContainerId');
+        //let trace = this.tracer.start('Property mainContainerId');
         if (this.memory.mainContainerId == null || this.memory.mainContainerId.time + 100 > Game.time) {
             let container = this.checkAndPlaceStorage();
             this.memory.mainContainerId = { time: Game.time, id: container ? container.id : null }
         }
-        trace.stop();
+        //trace.stop();
         return this.memory.mainContainerId.id;
     }
 
     _mainContainer: { time: number, mainContainer: Container | Storage };
     public get mainContainer(): Container | Storage {
-        let trace = this.tracer.start('Property mainContainer');
+        //let trace = this.tracer.start('Property mainContainer');
         if (this._mainContainer == null || this._mainContainer.time < Game.time)
             this._mainContainer = { time: Game.time, mainContainer: Game.getObjectById<Container | Storage>(this.mainContainerId) }
-        trace.stop();
+        //trace.stop();
         return this._mainContainer.mainContainer;
     }
 
     _spawns: { time: number, spawns: Array<Spawn> } = { time: -1, spawns: null };
     public get spawns(): Array<Spawn> {
-        let trace = this.tracer.start('Property spawns');
+        //let trace = this.tracer.start('Property spawns');
         if (this._spawns.time < Game.time)
             this._spawns = {
                 time: Game.time, spawns: _.filter(Game.spawns, x => x.room.name == this.name)
             };
-        trace.stop();
+        //trace.stop();
         return this._spawns.spawns;
     }
 
     private _towerIds: { time: number, ids: Array<string> };
     private _towers: { time: number, towers: Array<Tower> };
     public get towers(): Array<Tower> {
-        let trace = this.tracer.start('Property towers');
+        //let trace = this.tracer.start('Property towers');
         if (this._towerIds == null || this._towerIds.time + 100 < Game.time)
             this._towerIds = {
                 time: Game.time, ids: _.map(_.filter(this.room.find<Tower>(FIND_MY_STRUCTURES, { filter: (x: Structure) => x.structureType == STRUCTURE_TOWER })), t => t.id)
@@ -297,7 +312,7 @@ class MainRoom implements MainRoomInterface {
 
 
         }
-        trace.stop();
+        //trace.stop();
         return this._towers.towers;
     }
 
@@ -322,7 +337,8 @@ class MainRoom implements MainRoomInterface {
                 terminalManager: null,
                 labManager: null,
                 extractorContainerId: null,
-                myObserver: null
+                myObserver: null,
+                harvestingActive:null
             };
         return Colony.memory.mainRooms[this.name];
     }
@@ -555,6 +571,7 @@ class MainRoom implements MainRoomInterface {
         let trace = this.tracer.start('checkCreeps()');
         this.managers.towerManager.preTick();
 
+        this.managers.labManager.preTick();
         this.managers.sourceKeeperManager.preTick();
 
         this.managers.reservationManager.preTick();
@@ -566,7 +583,7 @@ class MainRoom implements MainRoomInterface {
         this.managers.constructionManager.preTick();
         this.managers.terminalManager.preTick();
         this.managers.mineralHarvestingManager.preTick();
-        this.managers.labManager.preTick();
+        
         this.managers.upgradeManager.preTick();
         trace.stop();
     }

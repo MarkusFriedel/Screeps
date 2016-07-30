@@ -13,8 +13,9 @@ abstract class MyCreep {
     }
 
     public get haveToFlee() {
-        let hostileCreeps = _.filter(this.myRoom.hostileScan.creeps, creep => creep.bodyInfo.totalAttackRate > 0);
-        return hostileCreeps.length > 0 && _.any(hostileCreeps, c => c.bodyInfo.totalAttackRate>20 && new BodyInfo(this.creep.body).healRate < c.bodyInfo.totalAttackRate && this.creep.pos.inRangeTo(c.pos, c.bodyInfo.rangedAttackRate > 0 ? 4 : 2));
+        let hostileCreeps = _.filter(this.myRoom.hostileScan.allCreeps, creep => creep.bodyInfo.totalAttackRate > 0);
+        let result = hostileCreeps.length > 0 && _.any(hostileCreeps, c => c.bodyInfo.totalAttackRate > 20 && new BodyInfo(this.creep.body).healRate < c.bodyInfo.totalAttackRate && this.creep.pos.inRangeTo(c.pos, this.memory.fleeing ? (c.bodyInfo.rangedAttackRate > 0 ? 5 : 3) : (c.bodyInfo.rangedAttackRate > 0 ? 4 : 2) ));
+        return result;
     }
 
     constructor(public creep: Creep) {
@@ -42,7 +43,7 @@ abstract class MyCreep {
             else
                 this.creep.memory.myPathMovement.movementBlockedCount = 0;
 
-            if (this.creep.memory.myPathMovement.movementBlockedCount >= 3) {
+            if (this.creep.memory.myPathMovement.movementBlockedCount >= 5) {
                 this.creep.memory.myPathMovement.movementBlockedCount = 0;
                 //this.creep.say('shift');
                 path.shift();
@@ -57,7 +58,7 @@ abstract class MyCreep {
         }
 
         else if (!RoomPos.equals(this.creep.pos, path[0]) && this.creep.fatigue == 0) {
-            this.creep.moveTo(RoomPos.fromObj(path[0]));
+            this.creep.moveTo(RoomPos.fromObj(path[0]), { reusePath: 0 } );
 
             if (RoomPos.equals(this.creep.memory.myPathMovement.lastPos, this.creep.pos) && !RoomPos.isOnEdge(this.creep.pos))
                 path.shift();
@@ -66,9 +67,9 @@ abstract class MyCreep {
     }
 
     flee() {
-        if (this.creep.spawning || _.size(this.myRoom.hostileScan.creeps) == 0)
+        if (this.creep.spawning || _.size(this.myRoom.hostileScan.allCreeps) == 0)
             return;
-        let path = PathFinder.search(this.creep.pos, _.map(_.filter(this.myRoom.hostileScan.creeps, c => c.bodyInfo.totalAttackRate > 0), c => {
+        let path = PathFinder.search(this.creep.pos, _.map(_.filter(this.myRoom.hostileScan.allCreeps, c => c.bodyInfo.totalAttackRate > 0), c => {
             return {
                 pos: c.pos,
                 range: c.bodyInfo.rangedAttackRate > 0 ? 6 : 4
@@ -113,7 +114,7 @@ abstract class MyCreep {
 
         }
         else if (this.memory.autoFlee && this.haveToFlee) {
-            this.creep.say('OH NO!');
+            this.creep.say('OH NO!',true);
             this.flee();
         }
         else

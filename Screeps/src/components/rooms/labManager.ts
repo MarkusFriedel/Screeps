@@ -134,6 +134,8 @@ class LabManager extends Manager implements LabManagerInterface {
 
 
     public _preTick() {
+        if (this.mainRoom.spawnManager.isBusy)
+            return;
         if (_.any(this.myLabs, x => x.memory.mode != LabMode.available) && this.creeps.length == 0) {
             let body = LabCarrierDefinition.getDefinition(this.mainRoom.maxSpawnEnergy);
             this.mainRoom.spawnManager.addToQueue(body.getBody(), { role: 'labCarrier' });
@@ -181,6 +183,14 @@ class LabManager extends Manager implements LabManagerInterface {
                 continue;
             }
             lab = _.filter(this.myLabs, l => _.all(this.myLabs, other => other.memory.reactionLabIds.indexOf(l.id) < 0))[0];
+            if (lab) {
+                lab.backupPublish();
+                lab.memory.mode = LabMode.import | LabMode.publish;
+                lab.memory.resource = resource;
+                lab.memory.reactionLabIds = [];
+                continue;
+            }
+            lab = _.sortBy(_.filter(this.myLabs, l => ~(l.memory.mode & LabMode.publish)), l => l.lab.mineralAmount)[0];
             if (lab) {
                 lab.backupPublish();
                 lab.memory.mode = LabMode.import | LabMode.publish;

@@ -32,7 +32,7 @@
         let trace = this.tracer.start('transferCompounds()');
         let publishableCompounds = _.indexBy(Colony.reactionManager.publishableCompounds, x => x);
 
-        if (_.sum(this.creep.carry) > 0) {
+        if (_.sum(this.creep.carry) > this.creep.carry.energy) {
             let dropTrace = this.tracer.start('transferCompounds() - drop');
             for (let resource in this.creep.carry) {
                 if (resource == RESOURCE_ENERGY)
@@ -52,8 +52,8 @@
             dropTrace.stop();
         }
         else {
-            let pickupTrace = this.tracer.start('transferCompounds() - pickup');
-            let resourceToTransfer = _.filter(publishableCompounds, c => (this.mainContainer.store[c] == null || this.mainContainer.store[c] < 5000) && this.terminal.store[c] > 0)[0];
+            let pickupTrace = this.tracer.start('transferCompounds() - pickup1');
+            let resourceToTransfer = _.filter(Colony.reactionManager.publishableCompounds, c => (this.mainContainer.store[c] == null || this.mainContainer.store[c] < 5000) && this.terminal.store[c] > 0)[0];
             if (resourceToTransfer) {
                 if (this.creep.withdraw(this.terminal, resourceToTransfer) == ERR_NOT_IN_RANGE)
                     this.creep.moveTo(this.terminal);
@@ -61,11 +61,13 @@
                 pickupTrace.stop();
                 return true;
             }
+            pickupTrace.stop();
+            pickupTrace = this.tracer.start('transferCompounds() - pickup2');
             resourceToTransfer = null;
             for (let resource in this.mainContainer.store) {
                 if (resource == RESOURCE_ENERGY)
                     continue;
-                if (publishableCompounds[resource] && this.mainContainer.store[resource] > this.creep.carryCapacity || this.mainContainer.store[resource] > 5000 + this.creep.carryCapacity) {
+                if (!publishableCompounds[resource] && this.mainContainer.store[resource] > 0 || this.mainContainer.store[resource] > 5000 + this.creep.carryCapacity) {
                     if (this.creep.withdraw(this.mainContainer, resource) == ERR_NOT_IN_RANGE)
                         this.creep.moveTo(this.mainContainer);
                     trace.stop();
@@ -116,7 +118,7 @@
         let store = this.mainRoom.mainContainer;
         let terminal = this.mainRoom.room.terminal;
 
-        if (this.creep.ticksToLive <= 10 && _.sum(this.creep.carry) > 0) {
+        if (this.creep.ticksToLive <= 20 && _.sum(this.creep.carry) > 0) {
             this.saveBeforeDeath();
         }
         else {

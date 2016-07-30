@@ -51,7 +51,10 @@ class RoadConstructionManager extends Manager implements RoadConstructionManager
         for (let pathIdx = startIdx; pathIdx <= end; pathIdx++) {
             let result = RoomPos.fromObj(path[pathIdx]).createConstructionSite(STRUCTURE_ROAD);
             if (result == ERR_FULL) {
-                this.memory.remainingPath = path.slice(pathIdx);
+                if (this.memory.remainingPath == null)
+                    this.memory.remainingPath = path.slice(pathIdx);
+                else
+                    this.memory.remainingPath = this.memory.remainingPath.concat(path.slice(pathIdx));
                 break;
             }
         }
@@ -64,18 +67,24 @@ class RoadConstructionManager extends Manager implements RoadConstructionManager
         if (!this.mainRoom.mainContainer)
             return;
 
-        let sources = _.filter(this.mainRoom.sources, (x) => !x.hasKeeper && (x.roadBuiltToRoom != this.mainRoom.name || (Game.time % 500 == 0)) && x.myRoom.canHarvest);
+        let sources = _.filter(this.mainRoom.sources, (x) => (!x.hasKeeper || x.maxHarvestingSpots>1) && (x.roadBuiltToRoom != this.mainRoom.name || (Game.time % 500 == 0) && x.myRoom.canHarvest));
         for (let sourceIdx = 0; sourceIdx < sources.length; sourceIdx++) {
+            if (_.size(Game.constructionSites) == 100)
+                return;
             let mySource = sources[sourceIdx];
-
-            let path = PathFinder.search(this.mainRoom.mainContainer.pos, { pos: mySource.pos, range: 1 }, { plainCost: 2, swampCost: 3, roomCallback: Colony.getTravelMatrix });
+            _.forEach(this.mainRoom.allRooms, room => room.recreateTravelMatrix());
+            let path = PathFinder.search(this.mainRoom.mainContainer.pos, { pos: mySource.pos, range: 1 }, { plainCost: 2, swampCost: 3, roomCallback: Colony.getTravelMatrix, maxOps:10000 });
             this.constructRoad(path.path, 0);
+            
             mySource.roadBuiltToRoom = this.mainRoom.name;
         }
 
-        _.forEach(_.filter(this.mainRoom.minerals, m => m.roadBuiltToRoom!= this.mainRoom.name), myMineral => {
+        _.forEach(_.filter(this.mainRoom.minerals, m => m.roadBuiltToRoom != this.mainRoom.name), myMineral => {
+            if (_.size(Game.constructionSites) == 100)
+                return;
             if (this.mainRoom.terminal) {
-                let path = PathFinder.search(myMineral.pos, { pos: this.mainRoom.terminal.pos, range: 1 }, { plainCost: 2, swampCost: 3, roomCallback: Colony.getTravelMatrix });
+                _.forEach(this.mainRoom.allRooms, room => room.recreateTravelMatrix());
+                let path = PathFinder.search(myMineral.pos, { pos: this.mainRoom.terminal.pos, range: 1 }, { plainCost: 2, swampCost: 3, roomCallback: Colony.getTravelMatrix, maxOps: 10000 });
                 this.constructRoad(path.path, 0);
                 myMineral.roadBuiltToRoom = this.mainRoom.name;
             };
@@ -101,12 +110,15 @@ class RoadConstructionManager extends Manager implements RoadConstructionManager
 
     public _tick() {
         try {
-            if (Game.cpu.bucket < 5000)
-                return;
+            //if (Game.cpu.bucket < 2000)
+            //    return;
+            
             if (this.memory.remainingPath && this.memory.remainingPath.length > 0) {
+
                 let remainingPath = this.memory.remainingPath;
                 this.memory.remainingPath = null;
                 this.constructRoad(remainingPath);
+                
             }
             else if (Game.time % 50 == 0 && !(Game.time % 100 == 0)) {
                 //this.buildExtensionRoads();

@@ -30,12 +30,14 @@
     <TypeScriptCompile Include="src\boot\main.ts" />
     <TypeScriptCompile Include="src\colony\claimingManager.ts" />
     <TypeScriptCompile Include="src\colony\colony.ts" />
-    <TypeScriptCompile Include="src\colony\invasionManager.ts" />
+    <TypeScriptCompile Include="src\colony\military\armyManager.ts" />
     <TypeScriptCompile Include="src\colony\military\army.ts" />
-    <TypeScriptCompile Include="src\colony\military\militaryManager.ts" />
     <TypeScriptCompile Include="src\components\creeps\keeperBuster\keeperBuster.ts" />
     <TypeScriptCompile Include="src\components\creeps\keeperBuster\keeperBusterDefinition.ts" />
+    <TypeScriptCompile Include="src\components\creeps\military\armyCreep.ts" />
+    <TypeScriptCompile Include="src\components\creeps\minerals\mineralHarvesterDefinition.ts" />
     <TypeScriptCompile Include="src\components\creeps\myCreep.ts" />
+    <TypeScriptCompile Include="src\components\creeps\spawnConstructor\spawnConstructor.ts" />
     <TypeScriptCompile Include="src\components\creeps\terminalFiller\terminalFiller.ts" />
     <TypeScriptCompile Include="src\components\path.ts" />
     <TypeScriptCompile Include="src\components\rooms\hostileScan.ts" />

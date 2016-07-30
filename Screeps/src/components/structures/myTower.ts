@@ -52,11 +52,18 @@
     }
 
     private repairEmergencies() {
+        if (Game.time % 20 != 0)
+            return false;
         let trace = this.tracer.start('repairEmergencies()');
-        var repairTarget = this.mainRoom.myRoom.emergencyRepairs[0];
+
+        if (this.tower.id != this.mainRoom.towers[0].id && !this.mainRoom.myRoom.requiresDefense) {
+            trace.stop();
+            return false;
+        }
+        var repairTarget = this.mainRoom.myRoom.emergencyRepairStructures[0];
 
         if (repairTarget != null && this.tower.energy > this.tower.energyCapacity / 2) {
-            this.tower.repair(repairTarget);
+            this.tower.repair(Game.getObjectById<Structure>(repairTarget.id));
             trace.stop();
             return true;
         }

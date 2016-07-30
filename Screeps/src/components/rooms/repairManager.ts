@@ -41,20 +41,20 @@ class RepairManager extends Manager implements RepairManagerInterface {
             this._idleCreeps.creeps = value;
     }
 
-    public static forceStopRepairDelegate(s: Structure): boolean {
+    public static forceStopRepairDelegate(s: RepairStructure): boolean {
         return s.hits >= s.hitsMax || s.hits>2000000;
         //return (s.structureType == STRUCTURE_WALL || s.structureType == STRUCTURE_RAMPART) && s.hits > 600000 || (s.hits >= s.hitsMax);
     }
 
-    public static targetDelegate(s: Structure): boolean {
+    public static targetDelegate(s: RepairStructure): boolean {
         return (s.structureType != STRUCTURE_RAMPART && s.structureType != STRUCTURE_WALL && s.hits < 0.5 * s.hitsMax || (s.structureType == STRUCTURE_RAMPART || s.structureType == STRUCTURE_WALL) && s.hits < 500000) && s.hits < s.hitsMax
     }
 
-    public static emergencyTargetDelegate(s: Structure): boolean {
+    public static emergencyTargetDelegate(s: RepairStructure): boolean {
         return (s.hits < s.hitsMax * 0.2 && s.structureType == STRUCTURE_CONTAINER || s.hits < 1000 && s.structureType == STRUCTURE_ROAD || s.structureType == STRUCTURE_RAMPART && s.hits < 5000) && s.hits < s.hitsMax;
     }
 
-    public static emergencyStopDelegate(s: Structure): boolean {
+    public static emergencyStopDelegate(s: RepairStructure): boolean {
         return ((s.structureType == STRUCTURE_WALL || s.structureType == STRUCTURE_RAMPART) && s.hits > 20000 || s.hits >= s.hitsMax && s.structureType == STRUCTURE_ROAD || s.hits > 0.5 * s.hitsMax && s.structureType == STRUCTURE_CONTAINER) || s.hits >= s.hitsMax;
     }
 
@@ -84,7 +84,7 @@ class RepairManager extends Manager implements RepairManagerInterface {
             if (myRoom.name == myRoom.mainRoom.name || myRoom.room && _.filter(myRoom.repairStructures, s => RepairManager.targetDelegate(s)).length>0) {
 
                 let roomCreeps = _.filter(this.creeps, x => x.memory.roomName == myRoom.name);
-                if (roomCreeps.length < (myRoom.name == this.mainRoom.name ? Math.min(2, _.size(this.mainRoom.sources)) : 1)) {
+                if (roomCreeps.length < (myRoom.name == this.mainRoom.name ? Math.min(1, _.size(this.mainRoom.sources)) : 1)) {
                     let definition = (myRoom.name == myRoom.mainRoom.name) ? RepairerDefinition.getDefinition(this.mainRoom.maxSpawnEnergy).getBody() : [WORK,WORK, CARRY, CARRY,CARRY,CARRY, MOVE, MOVE,MOVE];
 
                     this.mainRoom.spawnManager.addToQueue(definition, { role: 'repairer', roomName: myRoom.name, state: RepairerState.Refilling }, 1);

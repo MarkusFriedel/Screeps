@@ -11,3 +11,31 @@
     }
 }
 
+class MyCostMatrix {
+    static compress(costMatrix: CostMatrix): CompressedCostMatrix {
+        let serializedCostMatrix = costMatrix.serialize();
+        let result: CompressedCostMatrix = { matrix: [] };
+
+        for (let i = 0; i < serializedCostMatrix.length; i++) {
+            if (serializedCostMatrix[i] != 0) {
+                result.matrix.push({
+                    i: i, v: serializedCostMatrix[i]
+                });
+            }
+        }
+        return result;
+    }
+
+    static decompress(compressedCostMatrix: CompressedCostMatrix): CostMatrix {
+        let result: number[] = [625];
+
+        _.fill(result, 0);
+
+        for (let i = 0; i < compressedCostMatrix.matrix.length; i++) {
+            result[compressedCostMatrix.matrix[i].i] = compressedCostMatrix.matrix[i].v;
+        }
+
+        return PathFinder.CostMatrix.deserialize(result);
+    }
+}
+

@@ -27,7 +27,7 @@
                 return;
             
             let resources = _.filter(Colony.getRoom(this.creep.room.name).resourceDrops, r => r.resourceType == RESOURCE_ENERGY);
-            let energy = _.filter(resources, r => (r.pos.x-this.creep.pos.x)**2+(r.pos.y-this.creep.pos.y)**2 <=9)[0];
+            let energy = _.filter(resources, r => (r.pos.x-this.creep.pos.x)**2+(r.pos.y-this.creep.pos.y)**2 <=1)[0];
             if (energy != null && this.creep.carry.energy < this.creep.carryCapacity) {
                 this.creep.pickup(energy);
             }
@@ -43,7 +43,7 @@
                     var mainContainer = this.mainRoom.mainContainer;
                     if (mainContainer != null) {
                         if (mainContainer.store.energy > this.mainRoom.maxSpawnEnergy * 2)
-                            if (mainContainer.transfer(this.creep, RESOURCE_ENERGY) == ERR_NOT_IN_RANGE)
+                            if (this.creep.withdraw(mainContainer, RESOURCE_ENERGY) == ERR_NOT_IN_RANGE)
                                 this.creep.moveTo(mainContainer);
                     }
                     else {

@@ -1,79 +1,84 @@
 ﻿namespace EnergyHarvesterDefinition {
 
-    function getHarvesterDefinition(maxEnergy: number, maxWorkParts: number) {
+    function getHarvesterDefinition(maxEnergy: number, mySource: MySourceInterface) {
         let body = new Body();
 
-        let remainingEnergy = Math.min(maxEnergy, 1500);
-        var basicModulesCount = ~~(remainingEnergy / 200); //work,carry,move
 
-        body.work = basicModulesCount;
-        body.carry = basicModulesCount;
-        body.move = basicModulesCount;
+        body.work = mySource.rate / HARVEST_POWER;
 
-        var remaining = remainingEnergy - basicModulesCount * 200;
+        body.carry = body.work;
 
-        while (remaining >= 100) {
-            if (remaining >= 150) {
-                body.carry++; body.carry++; body.move++;
-                remaining -= 150;
-            }
-            else if (remaining >= 100) {
-                body.carry++; body.move++;
-                remaining -= 100;
-            }
-            else
-                break;
-        }
-        return body;
-    }
+        body.move = body.work;
 
-    function getMinerDefinition(maxEnergy: number, maxWorkParts: number, resources?: { [resource: string]: number }, hasKeeper: boolean = false) {
-        let body = new Body();
-        body.carry = 2;
-        var remainingEnergy = maxEnergy - 2 * BODYPART_COST.carry;
-        let requiredMaxWorkParts = maxWorkParts;
+        let count = 1;
 
-        if (hasKeeper) {
-            body.heal = 2;
-            remainingEnergy -= 2 * BODYPART_COST.heal;
+        if (body.costs > maxEnergy) {
+            count = Math.ceil(body.costs / maxEnergy);
+            body.work = Math.ceil(body.work / count);
+            body.carry = Math.ceil(body.carry / count);
+            body.move = Math.ceil(body.move / count);
         }
 
-        let boostCompound = _.filter(_.sortByOrder(ReactionManager.BOOSTPOWERS['harvest'].resources, [r => r.resource], ['desc']), r => resources[r.resource] >= Math.ceil(maxWorkParts / r.factor) * LAB_BOOST_MINERAL)[0];
-
-
-        if (boostCompound) {
-            requiredMaxWorkParts = Math.ceil(requiredMaxWorkParts / boostCompound.factor);
-            body.boosts[boostCompound.resource] = { compound: boostCompound.resource, amount: requiredMaxWorkParts };
-        }
-
-        var basicModulesCount = Math.floor(remainingEnergy / (2 * BODYPART_COST.work + BODYPART_COST.move)); //work,carry,move
-
-        
-
-        
-
-        body.move = basicModulesCount + body.heal/2;
-        body.work = 2 * basicModulesCount;
-        remainingEnergy -= basicModulesCount * (2 * BODYPART_COST.work + BODYPART_COST.move);
-
-        if (remainingEnergy >= (BODYPART_COST.work + BODYPART_COST.move)) {
-            body.work++;
+        if (body.costs + BODYPART_COST.carry + BODYPART_COST.move <= maxEnergy) {
             body.move++;
+            body.carry++;
         }
 
-        if (body.work > requiredMaxWorkParts) {
-            body.work = requiredMaxWorkParts;
-            body.move = Math.ceil((body.work + body.heal) / 2);
-        }
 
-        return body;
+        return { count: Math.min(mySource.maxHarvestingSpots, count), body: body };
     }
 
-    export function getDefinition(maxEnergy: number, hasSourceContainer: boolean = false, maxWorkParts: number = 50, resources?: { [resource: string]: number }, hasKeeper: boolean = false) {        
-        if (!hasSourceContainer) 
-            return getHarvesterDefinition(maxEnergy, maxWorkParts);
+    function getMinerDefinition(maxEnergy: number, mySource: MySourceInterface,resources?: {[resource: string]: number}) {
+        let baseBody = new Body();
+
+        if (mySource.link)
+            baseBody.carry = 2;
+
+        if (mySource.hasKeeper) {
+            baseBody.heal = 2;
+            baseBody.move = 1;
+        }
+        let remainingEnergy = maxEnergy - baseBody.costs;
+
+        if (remainingEnergy < BODYPART_COST.work + BODYPART_COST.move)
+            return { count: 0, body: baseBody };
+
+        let workBody = new Body();
+        workBody.work = mySource.rate / HARVEST_POWER;
+
+        if (mySource.hasKeeper)
+            workBody.work *= 2;
+        
+        if (resources) {
+            let boostCompound = _.filter(_.sortByOrder(ReactionManager.BOOSTPOWERS['harvest'].resources, [r => r.resource], ['desc']), r => resources[r.resource] >= Math.ceil(workBody.work / r.factor) * LAB_BOOST_MINERAL)[0];
+
+            if (boostCompound) {
+                workBody.work = Math.ceil(workBody.work / boostCompound.factor);
+                workBody.boosts[boostCompound.resource] = { compound: boostCompound.resource, amount: workBody.work };
+            }
+        }
+        workBody.move = Math.ceil(workBody.work / 2);
+
+        let count = 1;
+        if (workBody.costs > remainingEnergy) {
+            count = Math.ceil(workBody.costs / maxEnergy);
+            workBody.work = Math.ceil(workBody.work / count);
+            workBody.move = Math.ceil(workBody.work / 2);
+            _.forEach(workBody.boosts, b => b.amount = Math.min(b.amount, workBody.work));
+        }
+
+        workBody.move += baseBody.move;
+        workBody.heal += baseBody.heal;
+        workBody.carry += baseBody.carry;
+
+        return { count: Math.min(count, mySource.maxHarvestingSpots), body: workBody };
+    }
+
+    export function getDefinition(maxEnergy: number, mySource: MySourceInterface, needsToDeliver: boolean = false, resources?: { [resource: string]: number }) {
+        if (needsToDeliver)
+            return getHarvesterDefinition(maxEnergy, mySource);
         else
-            return getMinerDefinition(maxEnergy, maxWorkParts, resources, hasKeeper);
+            return getMinerDefinition(maxEnergy, mySource, resources);
     }
 
 }

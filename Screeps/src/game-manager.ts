@@ -16,13 +16,6 @@ namespace GameManager {
         // You should extend prototypes before game loop in here.
 
 
-        if (Memory['reset'] == true) {
-            Memory['reset'] = false;
-            Memory['colony'] = {};
-            Colony.mainRooms = null;
-            Colony.rooms = null;
-        }
-
         console.log('Global reset');
         let startCpu = Game.cpu.getUsed();
         if (!Memory['colony'])

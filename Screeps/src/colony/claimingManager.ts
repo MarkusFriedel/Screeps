@@ -1,4 +1,5 @@
 ﻿/// <reference path="../components/creeps/body.ts" />
+/// <reference path="../components/creeps/spawnConstructor/spawnConstructor.ts" />
 /// <reference path="../components/rooms/mainRoom.ts" />
 /// <reference path="./roomAssignment.ts" />
 
@@ -32,47 +33,7 @@ class ClaimingManager implements ClaimingManagerInterface {
     }
 
     tickSpawnConstructors(creep: Creep) {
-        if (creep.memory.state == null)
-            creep.memory.state = 'moving';
-        if (creep.room.name != creep.memory.targetPosition.roomName) {
-            creep.moveTo(new RoomPosition(creep.memory.targetPosition.x, creep.memory.targetPosition.y, creep.memory.targetPosition.roomName));
-        } else {
-            if (creep.memory.state == 'moving') {
-                creep.moveTo(new RoomPosition(creep.memory.targetPosition.x, creep.memory.targetPosition.y, creep.memory.targetPosition.roomName));
-                creep.memory.state = 'harvesting';
-            }
-            else if (creep.carry.energy == creep.carryCapacity && creep.memory.state == 'harvesting')
-                creep.memory.state = 'constructing';
-            else if (creep.carry.energy == 0 && creep.memory.state == 'constructing')
-                creep.memory.state = 'harvesting';
-
-            if (creep.memory.state == 'harvesting') {
-                let source = Game.getObjectById<Source>(creep.memory.sourceId);
-
-                let energy = creep.pos.findInRange<Resource>(FIND_DROPPED_RESOURCES, 1, { filter: (x: Resource) => x.resourceType == RESOURCE_ENERGY })[0];
-                if (energy)
-                    creep.pickup(energy);
-
-                let container = creep.pos.findInRange<Container>(FIND_STRUCTURES, 1, { filter: (x: Container) => x.structureType == STRUCTURE_CONTAINER && x.store.energy > 0 })[0];
-                if (container)
-                    creep.withdraw(container, RESOURCE_ENERGY);
-                
-                if (creep.harvest(source) == ERR_NOT_IN_RANGE)
-                    creep.moveTo(source);
-            }
-            else if (creep.memory.state == 'constructing') {
-                let construction = creep.pos.findClosestByRange<ConstructionSite>(FIND_MY_CONSTRUCTION_SITES, { filter: (x: ConstructionSite) => x.structureType == STRUCTURE_SPAWN });
-                if (construction != null) {
-                    if (creep.build(construction) == ERR_NOT_IN_RANGE)
-                        creep.moveTo(construction);
-                }
-                else {
-                    if (creep.upgradeController(creep.room.controller) == ERR_NOT_IN_RANGE)
-                        creep.moveTo(creep.room.controller);
-                }
-            }
-        }
-
+        new SpawnConstructor(creep).tick();
     }
 
     tickClaimer(creep: Creep) {
@@ -141,7 +102,7 @@ class ClaimingManager implements ClaimingManagerInterface {
     finishClaimingManager() {
         let mainRoom = new MainRoom(this.roomName);
         Colony.mainRooms[this.roomName] = mainRoom;
-        let myRoom = Colony.rooms[this.roomName];
+        let myRoom = Colony.getRoom(this.roomName);
         myRoom.mainRoom = mainRoom;
         myRoom.memory.mainRoomName = this.roomName;
         myRoom.memory.mainRoomDistanceDescriptions[this.roomName] = { roomName: this.roomName, distance: 0 };
@@ -171,13 +132,13 @@ class ClaimingManager implements ClaimingManagerInterface {
         delete Colony.memory.claimingManagers[this.roomName];
         delete Colony.claimingManagers[this.roomName];
 
-        new RoomAssignmentHandler().assignRooms();
+        //new RoomAssignmentHandler().assignRooms();
     }
 
     public tick() {
         let room = Game.rooms[this.roomName];
-        if (Colony.rooms[this.roomName])
-            Colony.rooms[this.roomName].mainRoom = null;
+        if (Colony.getRoom(this.roomName))
+            Colony.getRoom(this.roomName).mainRoom = null;
 
         if (Memory['verbose'] || this.memory.verbose)
             console.log('Claiming Manager[' + this.roomName + '].tick');

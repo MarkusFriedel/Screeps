@@ -31,13 +31,13 @@ class ReservationManager extends Manager implements ReservationManagerInterface 
 
         if (Memory['verbose'] == true)
             console.log('ReservationManager.checkCreep');
-        let rooms = _.filter(this.mainRoom.connectedRooms, (r) => r.canHarvest == true && !r.requiresDefense && (r.room != null && r.room.controller != null && r.useableSources.length > 0));
+        let rooms = _.filter(this.mainRoom.connectedRooms, (r) => r.canHarvest == true && r.hasController && r.controllerPosition);
         for (var idx in rooms) {
             let myRoom = rooms[idx];
             if (Memory['verbose'] == true)
                 console.log('ReservationManager.checkCreep: 1 Room ' + myRoom.name);
             let room = myRoom.room;
-            if (room && room.controller.reservation != null && room.controller.reservation.ticksToEnd > 4500)
+            if (room && room.controller.reservation != null && (room.controller.reservation.ticksToEnd > 4500 || this.mainRoom.room.controller.level <= 3 && room.controller.reservation.ticksToEnd>500))
                 continue;
             if (Memory['verbose'] == true)
                 console.log('ReservationManager.checkCreep: 2 Room ' + myRoom.name);

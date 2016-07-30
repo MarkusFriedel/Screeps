@@ -10,7 +10,9 @@
     accessMemory() {
         if (Colony.memory.reactionManager == null)
             Colony.memory.reactionManager = {
-                setupTime: null
+                setupTime: null,
+                highestPowerCompounds: null,
+                publishableCompounds:null
             }
         return Colony.memory.reactionManager;
     }
@@ -43,35 +45,33 @@
 
     private forbiddenCompounds = [RESOURCE_CATALYZED_KEANIUM_ACID, RESOURCE_CATALYZED_LEMERGIUM_ACID, RESOURCE_CATALYZED_UTRIUM_ALKALIDE, RESOURCE_CATALYZED_ZYNTHIUM_ALKALIDE];
 
-    private _publishableCompunds: { time: number, compounds: string[] };
     public get publishableCompounds() {
         let trace = this.tracer.start('Property publishableCompounds');
-        if (this._publishableCompunds == null || this.highestPowerCompounds == null || this._publishableCompunds.time < this._highestPowerCompounds.time) {
+        if (this.memory.publishableCompounds == null || this.highestPowerCompounds == null || this.memory.publishableCompounds.time + 500 < this.memory.highestPowerCompounds.time) {
             let compounds = _.uniq(this.highestPowerCompounds.concat(_.filter(RESOURCES_ALL, r => this.ingredients[r] && this.ingredients[r].indexOf(RESOURCE_CATALYST) >= 0)));
-            this._publishableCompunds = { time: this._highestPowerCompounds.time, compounds: compounds };
+            this.memory.publishableCompounds = { time: this.memory.highestPowerCompounds.time, compounds: compounds };
         }
 
         trace.stop();
-        return this._publishableCompunds.compounds;
+        return this.memory.publishableCompounds.compounds;
     }
 
-    private _highestPowerCompounds: { time: number, compounds: string[] };
     public get highestPowerCompounds() {
         let trace = this.tracer.start('Property highestPowerCompounds');
-        if (this._highestPowerCompounds == null || this._highestPowerCompounds.time + 500 < Game.time) {
-            this._highestPowerCompounds = { time: Game.time, compounds: [] };
+        if (this.memory.highestPowerCompounds == null || this.memory.highestPowerCompounds.time + 500 < Game.time) {
+            this.memory.highestPowerCompounds = { time: Game.time, compounds: [] };
             _.forEach(ReactionManager.powerPriority, power => {
                 let resources = _.sortBy(_.filter(ReactionManager.BOOSTPOWERS[power].resources, r => this.forbiddenCompounds.indexOf(r.resource) < 0), r => r.factor > 1 ? 100 - r.factor : r.factor);
                 for (let resource in resources) {
                     if (this.canProvide(resources[resource].resource)) {
-                        this._highestPowerCompounds.compounds.push(resources[resource].resource);
+                        this.memory.highestPowerCompounds.compounds.push(resources[resource].resource);
                         break;
                     }
                 }
             });
         }
         trace.stop();
-        return this._highestPowerCompounds.compounds;
+        return this.memory.highestPowerCompounds.compounds;
     }
 
     public canProvide(resource: string, amount: number = null) {
@@ -87,37 +87,39 @@
 
     }
 
-    private static _BOOSTPOWERS: { [power: string]: { bodyPart: string, resources: Array<{ resource: string, factor: number }> } };
+    //private static _BOOSTPOWERS: { [power: string]: { bodyPart: string, resources: Array<{ resource: string, factor: number }> } };
     public static get BOOSTPOWERS(): { [power: string]: { bodyPart: string, resources: Array<{ resource: string, factor: number }> } } {
-        if (!this._BOOSTPOWERS) {
-            this._BOOSTPOWERS = {};
+        if (!Colony.memory.boostPowers) {
+            Colony.memory.boostPowers = {};
             for (let bodyPart in BOOSTS) {
                 for (let resource in BOOSTS[bodyPart]) {
                     for (let power in BOOSTS[bodyPart][resource]) {
-                        if (this._BOOSTPOWERS[power] == null)
-                            this._BOOSTPOWERS[power] = { bodyPart: bodyPart, resources: [] };
-                        this._BOOSTPOWERS[power].resources.push({ resource: resource, factor: BOOSTS[bodyPart][resource][power] });
+                        if (Colony.memory.boostPowers[power] == null)
+                            Colony.memory.boostPowers[power] = { bodyPart: bodyPart, resources: [] };
+                        Colony.memory.boostPowers[power].resources.push({ resource: resource, factor: BOOSTS[bodyPart][resource][power] });
                     }
                 }
             }
         }
-        return this._BOOSTPOWERS;
+        return Colony.memory.boostPowers;
     }
 
 
 
     private static basicCompounds = [RESOURCE_HYDROXIDE, RESOURCE_ZYNTHIUM_KEANITE, RESOURCE_UTRIUM_LEMERGITE, RESOURCE_GHODIUM];
     private static powerPriority = [
+        'harvest',
         'heal',
+        'rangedAttack',
         'damage',
         'attack',
-        'rangedAttack',
+        
         'fatigue',
         'upgradeController',
         'dismantle',
         'capacity',
         'build',
-        'harvest',
+        
     ];
 
 
@@ -221,7 +223,7 @@
     }
 
     private setup() {
-        if (this.memory.setupTime == null || this.memory.setupTime + 5000 < Game.time) {
+        if (this.memory.setupTime == null || this.memory.setupTime + 1000 < Game.time) {
             _.forEach(this.labManagers, x => x.reset());
             this.memory.setupTime = Game.time;
             this.requiredResources = {};

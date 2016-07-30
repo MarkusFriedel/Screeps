@@ -29,42 +29,39 @@ class SourceKeeperManager extends Manager implements SourceKeeperManagerInterfac
     }
 
     public _preTick() {
-        let trace = this.tracer.start('checkCreeps()');
-        if (this.mainRoom.spawnManager.isBusy || this.creeps.length > -1) {
-            trace.stop();
+        if (this.mainRoom.spawnManager.isBusy) {
             return;
         }
 
-        
+        _.forEach(_.filter(this.mainRoom.allRooms, r => _.any(r.mySources, s => s.hasKeeper)), myRoom => {
 
-        if (_.any(this.mainRoom.allRooms, r => _.any(r.mySources, s => s.hasKeeper) && _.filter(r.hostileScan.keepers, k => k.hits > 100).length > 0)) {
-            trace.stop();
-            return;
-        }
-        let definition = KeeperBusterDefinition.getDefinition(this.mainRoom.maxSpawnEnergy, this.mainRoom.managers.labManager.availablePublishResources);
+            if (_.filter(this.creeps, c => c.memory.roomName == myRoom.name).length == 0) {
+                let definition = KeeperBusterDefinition.getDefinition(this.mainRoom.maxSpawnEnergy, this.mainRoom.managers.labManager.availablePublishResources);
 
-        if (definition == null) {
-            trace.stop();
-            return;
-        }
+                if (definition != null) {
 
-        let memory: KeeperBusterMemory = {
-            role: 'keeperBuster',
-            autoFlee: false,
-            requiredBoosts: definition.boosts,
-            handledByColony: false,
-            mainRoomName: this.mainRoom.name
-        }
 
-        //this.mainRoom.spawnManager.addToQueue(definition.getBody(), memory);
+                    let memory: KeeperBusterMemory = {
+                        role: 'keeperBuster',
+                        autoFlee: false,
+                        requiredBoosts: definition.boosts,
+                        handledByColony: false,
+                        mainRoomName: this.mainRoom.name,
+                        roomName: myRoom.name,
+                        path: null,
+                        fleeing: null,
+                        targetId:null
+                    }
 
-        trace.stop();
+                    this.mainRoom.spawnManager.addToQueue(definition.getBody(), memory);
+                }
+            }
+        });
+
     }
 
     public _tick() {
-        let trace = this.tracer.start('tick()');
         _.forEach(this.creeps, c => new KeeperBuster(this.mainRoom, c).tick());
-        trace.stop();
     }
 
 }

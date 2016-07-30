@@ -19,7 +19,8 @@
                 pos: mineral.pos,
                 terminalRoadBuiltTo: null,
                 resource: mineral.mineralType,
-                hasExtractor: null
+                hasExtractor: null,
+                harvestingSpots:null
             };
         }
 
@@ -55,7 +56,7 @@
 
     public get hasKeeper(): boolean {
         if (this.memory.keeper == null && this.room) {
-            this.memory.keeper = this.pos.findInRange(FIND_HOSTILE_STRUCTURES, 4, { filter: (x: Structure) => x.structureType == STRUCTURE_KEEPER_LAIR }).length > 0;
+            this.memory.keeper = this.pos.findInRange(FIND_HOSTILE_STRUCTURES, 5, { filter: (x: Structure) => x.structureType == STRUCTURE_KEEPER_LAIR }).length > 0;
         }
         if (this.memory.keeper != null)
             return this.memory.keeper;
@@ -68,6 +69,21 @@
     }
     public set roadBuiltToRoom(value: string) {
         this.memory.terminalRoadBuiltTo = value;
+    }
+
+    public get maxHarvestingSpots(): number {
+        //let trace = this.tracer.start('Property maxHarvestingSpots');
+        if (this.memory.harvestingSpots != null || this.mineral == null) {
+            //trace.stop();
+            return this.memory.harvestingSpots;
+        }
+        else {
+            let pos = this.mineral.pos;
+            let spots = _.filter((<LookAtResultWithPos[]>this.mineral.room.lookForAtArea(LOOK_TERRAIN, pos.y - 1, pos.x - 1, pos.y + 1, pos.x + 1, true)), x => x.terrain == 'swamp' || x.terrain == 'plain').length;
+            this.memory.harvestingSpots = spots;
+            //trace.stop();
+            return spots;
+        }
     }
 
     _pathLengthToTerminal: { time: number, length: number };

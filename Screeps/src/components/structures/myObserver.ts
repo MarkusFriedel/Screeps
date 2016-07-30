@@ -40,11 +40,11 @@
     private _roomIndex: { x: number, y: number };
     public get roomIndex() {
         if (this._roomIndex == null) {
-        let indexGroups = this.mainRoom.name.match(/([EW])(\d+)([SN])(\d+)/);
-        this._roomIndex = {
-            x: indexGroups[1] == 'E' ? Number(indexGroups[2]) : -(Number(indexGroups[2]) + 1),
-            y: indexGroups[3] == 'S' ? Number(indexGroups[4]) : -(Number(indexGroups[4]) + 1),
-        }
+            let indexGroups = this.mainRoom.name.match(/([EW])(\d+)([SN])(\d+)/);
+            this._roomIndex = {
+                x: indexGroups[1] == 'E' ? Number(indexGroups[2]) : -(Number(indexGroups[2]) + 1),
+                y: indexGroups[3] == 'S' ? Number(indexGroups[4]) : -(Number(indexGroups[4]) + 1),
+            }
         }
         return this._roomIndex;
     }
@@ -60,15 +60,18 @@
         if (this.memory.scanTime == Game.time - 1) {
             let roomName = this.getRoomName(this.roomIndex.x + this.memory.scannedX, this.roomIndex.y + this.memory.scannedY);
             let myRoom = Colony.getRoom(roomName);
-            myRoom.refresh();
+            if (myRoom.memory.lastScanTime + 100 < Game.time) {
 
-            if (_.min(myRoom.memory.mainRoomDistanceDescriptions, x => x.distance).distance >= 5) {
-                delete Colony.memory.rooms[roomName];
-                delete Colony.rooms[roomName];
+                myRoom.refresh();
+
+                //if (_.min(myRoom.memory.mainRoomDistanceDescriptions, x => x.distance).distance >= 4) {
+                //    delete Colony.memory.rooms[roomName];
+                //    delete Colony.rooms[roomName];
+                //}
             }
         }
 
-        if (Game.time % 10 == 0) {
+        if (Game.time % 1 == 0) {
 
             if (this.memory.scannedX == null || this.memory.scannedY == null) {
                 this.memory.scannedX = -5;

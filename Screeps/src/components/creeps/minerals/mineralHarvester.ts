@@ -35,11 +35,20 @@ class MineralHarvester extends MyCreep {
         this.tracer = MineralHarvester.staticTracer;
     }
 
+    private healed: boolean = false;
+
     public myTick() {
         let trace = this.tracer.start('tick()');
         if (this.creep.spawning) {
             trace.stop();
             return;
+        }
+
+        this.healed = false;
+
+        if (this.creep.getActiveBodyparts(HEAL) > 0 && this.creep.hits + this.creep.getActiveBodyparts(HEAL) * HEAL_POWER <= this.creep.hitsMax) {
+            this.creep.heal(this.creep);
+            this.healed = true;
         }
 
         if (this.myMineral == null) {
@@ -59,17 +68,17 @@ class MineralHarvester extends MyCreep {
             if (this.myMineral.pos.roomName != this.creep.room.name) {
                 this.creep.moveTo(this.myMineral.pos);
             }
-            else {
+            else if (!this.healed){
                 if (this.creep.harvest(this.myMineral.mineral) == ERR_NOT_IN_RANGE)
                     this.creep.moveTo(this.myMineral.mineral);
 
-                if (this.creep.carry[this.myMineral.resource] > this.creep.carryCapacity - _.filter(this.creep.body, b => b.type == WORK).length) {
-                    let carrier = _.filter(this.mainRoom.managers.mineralHarvestingManager.carrierCreeps, c => c.memory.mineralId == this.myMineral.id && c.memory.state == MineralCarrierState.Pickup && c.pos.isNearTo(this.creep.pos))[0];
-                    if (carrier)
-                        this.creep.transfer(carrier, RESOURCE_ENERGY);
-                    else
-                        this.creep.drop(RESOURCE_ENERGY);
-                }
+                //if (this.creep.carry[this.myMineral.resource] > this.creep.carryCapacity - _.filter(this.creep.body, b => b.type == WORK).length) {
+                //    let carrier = _.filter(this.mainRoom.managers.mineralHarvestingManager.carrierCreeps, c => c.memory.mineralId == this.myMineral.id && c.memory.state == MineralCarrierState.Pickup && c.pos.isNearTo(this.creep.pos))[0];
+                //    if (carrier)
+                //        this.creep.transfer(carrier, RESOURCE_ENERGY);
+                //    else
+                //        this.creep.drop(RESOURCE_ENERGY);
+                //}
             }
 
         }

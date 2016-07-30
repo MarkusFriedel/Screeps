@@ -12,9 +12,14 @@
 
         remainingEnergy = remainingEnergy - 330 * basicModulesCount;
 
-        while (remainingEnergy >= (BODYPART_COST.attack + BODYPART_COST.move)) {
+        while (remainingEnergy >= (BODYPART_COST.attack + BODYPART_COST.move) && body.getBody().length <= 48) {
             body.attack++; body.move++;
             remainingEnergy -= (BODYPART_COST.attack + BODYPART_COST.move);
+        }
+
+        while (remainingEnergy >= (BODYPART_COST.tough + BODYPART_COST.move) && body.getBody().length<=48) {
+            body.tough++; body.move++;
+            remainingEnergy -= (BODYPART_COST.tough + BODYPART_COST.move);
         }
         return body;
     }

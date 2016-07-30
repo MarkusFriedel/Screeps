@@ -1,11 +1,10 @@
 ﻿/// <reference path="./claimingManager.ts" />
-/// <reference path="./invasionManager.ts" />
 /// <reference path="./roomAssignment.ts" />
-/// <reference path="./military/militaryManager.ts" />
 /// <reference path="./reactionManager.ts" />
 /// <reference path="../components/rooms/mainRoom.ts" />
 /// <reference path="../components/rooms/myRoom.ts" />
 /// <reference path="../components/creeps/scout/scout.ts" />
+/// <reference path="./military/armyManager.ts" />
 
 /// <reference path="../tracer.ts" />
 
@@ -22,7 +21,7 @@ namespace Colony {
         [roomName: string]: MainRoomInterface;
     } = {};
 
-    export var rooms: {
+    var rooms: {
         [roomName: string]: MyRoomInterface;
     } = {};
 
@@ -36,7 +35,6 @@ namespace Colony {
 
     export var reactionManager: ReactionManagerInterface = new ReactionManager();
 
-    export var militaryManager: MilitaryManagerInterface = new MilitaryManager();
 
     export function getRoom(roomName: string) {
         let room = rooms[roomName];
@@ -57,9 +55,22 @@ namespace Colony {
         }
     }
 
+    var allRoomsLoaded = false;
+    export function getAllRooms() {
+        if (!allRoomsLoaded) {
 
+            _.forEach(memory.rooms, room => getRoom(room.name));
+
+            allRoomsLoaded = true;
+        }
+
+        return rooms;
+
+    }
 
     var forbidden: Array<string> = [];
+
+    var tickCount = 0;
 
     export function getCreepAvoidanceMatrix(roomName: string) {
         let room = getRoom(roomName);
@@ -82,19 +93,35 @@ namespace Colony {
 
     function shouldSendScout(roomName): boolean {
         var myRoom = getRoom(roomName);
-        var result = (myRoom != null && myRoom.memory.lastScanTime + 1500 < Game.time) && (
-            !Game.map.isRoomProtected(roomName) && (myRoom == null || !myRoom.mainRoom) && !(_.any(forbidden, x => x == roomName))
-            && (myRoom == null || !myRoom.requiresDefense && !myRoom.memory.foreignOwner && !myRoom.memory.foreignReserver) || (Game.time % 2000) == 0);
+        var result = (myRoom != null && myRoom.memory.lastScanTime + 500 < Game.time)
+            && (
+                !Game.map.isRoomProtected(roomName)
+                && (myRoom == null || !myRoom.mainRoom)
+                && !(_.any(forbidden, x => x == roomName))
+                && (
+                    myRoom == null
+                    || !myRoom.requiresDefense
+                    && !myRoom.memory.foreignOwner
+                    && !myRoom.memory.foreignReserver)
+                || (Game.time % 2000) == 0);
 
         return result;
     }
 
 
     export function spawnCreep(requestRoom: MyRoomInterface, body: BodyInterface, memory, count = 1) {
+        if (count <= 0)
+            return true;
         console.log('Colony.spawnCreep costs: ' + body.costs);
-        let mainRoom = _.sortBy(_.filter(mainRooms, x => x.maxSpawnEnergy > body.costs), x => requestRoom.memory.mainRoomDistanceDescriptions[x.name].distance)[0];
+        console.log('Body: ' + body.getBody().join(', '));
+        console.log('MainRoom: ' + memory.mainRoomName);
+        console.log('Role: ' + memory.role);
+        console.log('SourceId: ' + memory.sourceId);
+        console.log('Count: ' + count);
+        let mainRoom = _.sortBy(_.filter(_.filter(mainRooms, mainRoom => !mainRoom.spawnManager.isBusy), x => x.maxSpawnEnergy > body.costs), x => requestRoom.memory.mainRoomDistanceDescriptions[x.name].distance)[0];
         if (mainRoom) {
             mainRoom.spawnManager.addToQueue(body.getBody(), memory, count);
+            console.log('Spawn request success: ' + mainRoom.name);
             return true;
         }
         else
@@ -103,9 +130,9 @@ namespace Colony {
 
     export function createScouts() {
         let scouts = _.filter(Game.creeps, (c) => (<ScoutMemory>c.memory).role == 'scout' && (<ScoutMemory>c.memory).handledByColony == true && (<ScoutMemory>c.memory).targetPosition != null);
-        let myRooms = _.uniq(_.filter(rooms, x => x.mainRoom != null && !x.mainRoom.spawnManager.isBusy && !Game.map.isRoomProtected(x.name)));
-        for (let idx in myRooms) {
-            let myRoom = myRooms[idx];
+        let roomNames = _.map(_.uniq(_.filter(memory.rooms, x => x.mainRoomName != null && !mainRooms[x.mainRoomName].spawnManager.isBusy && !Game.map.isRoomProtected(x.name))), x => x.name);
+        for (let name of roomNames) {
+            let myRoom = getRoom(name);
             let exits = myRoom.exits;
             if (Memory['exits'] == null)
                 Memory['exits'] = {};
@@ -158,11 +185,7 @@ namespace Colony {
             }
         }
 
-        if (memory.invasionManagers != null) {
-            for (var idx in memory.invasionManagers) {
-                invasionManagers[memory.invasionManagers[idx].targetRoomName] = new InvasionManager(memory.invasionManagers[idx].targetRoomName);
-            }
-        }
+
     }
 
     function calculateDistances(myRoom: MyRoomInterface) {
@@ -172,7 +195,7 @@ namespace Colony {
             let mainRoom = mainRooms[mainIdx];
             let routeResult = Game.map.findRoute(myRoom.name, mainRoom.name, {
                 routeCallback: function (roomName, fromRoomName) {
-                    let myRoom = Colony.rooms[roomName];
+                    let myRoom = getRoom(roomName);
                     if (myRoom == null)
                         return 2;
                     else if (myRoom.memory.foreignReserver)
@@ -231,26 +254,18 @@ namespace Colony {
         }
     }
 
-    function handleInvasionManagers() {
-        if (Memory['trace'])
-            var startCpu = Game.cpu.getUsed();
-
-        let flags = _.filter(Game.flags, (x) => x.memory.invasion == true && !invasionManagers[x.pos.roomName]);
-
-        flags.forEach(x => { invasionManagers[x.pos.roomName] = new InvasionManager(x.pos.roomName) });
-
-        _.values<InvasionManager>(invasionManagers).forEach(x => x.tick());
 
 
-        let invasionsToDelete = _.filter(invasionManagers, x => !_.any(Game.flags, f => (f.memory.invasion == true || f.memory.invasion == 'true') && f.pos.roomName == x.roomName));
+    export function loadRooms() {
 
-        if (Memory['trace']) {
-            var endCpu = Game.cpu.getUsed();
-            console.log('Colony: Handle InvasionManagers ' + (endCpu - startCpu).toFixed(2));
-        }
     }
 
     export function tick() {
+
+
+
+        console.log('Tick: ' + (++tickCount));
+
         Colony.memory = Memory['colony'];
 
         if (memory.traceThreshold == null)
@@ -265,12 +280,11 @@ namespace Colony {
         if (Memory['trace'])
             startCpu = Game.cpu.getUsed();
         if (Game.time % 10 == 0 && Game.cpu.bucket > 2000) {
-            let roomArray: Array<MyRoomInterface> = [];
-            for (let x in rooms)
-                roomArray.push(rooms[x]);
+            let roomNames = _.map(memory.rooms, x => x.name);
+            
 
-            let idx = ~~((Game.time % (roomArray.length * 10)) / 10);
-            let myRoom = roomArray[idx];
+            let idx = ~~((Game.time % (roomNames.length * 10)) / 10);
+            let myRoom = getRoom(roomNames[idx]);
             calculateDistances(myRoom);
 
 
@@ -284,28 +298,20 @@ namespace Colony {
 
 
 
-        if (Memory['trace'])
-            startCpu = Game.cpu.getUsed();
-        for (let roomName in Memory.rooms) {
-            getRoom(roomName);
-        }
-        if (Memory['trace']) {
-            endCpu = Game.cpu.getUsed();
-            if ((endCpu - startCpu) > Colony.memory.traceThreshold)
-                console.log('Colony: Query all rooms ' + (endCpu - startCpu).toFixed(2));
-        }
+        //if (Memory['trace'])
+        //    startCpu = Game.cpu.getUsed();
+        //for (let roomName in Memory.rooms) {
+        //    getRoom(roomName);
+        //}
+        //if (Memory['trace']) {
+        //    endCpu = Game.cpu.getUsed();
+        //    if ((endCpu - startCpu) > Colony.memory.traceThreshold)
+        //        console.log('Colony: Query all rooms ' + (endCpu - startCpu).toFixed(2));
+        //}
 
-        if (Memory['trace'])
-            startCpu = Game.cpu.getUsed();
-        try { militaryManager.tick() } catch (e) { console.log(e.stack) }
 
-        if (Memory['trace']) {
-            endCpu = Game.cpu.getUsed();
-            if ((endCpu - startCpu) > Colony.memory.traceThreshold)
-                console.log('Colony: MilitaryManager.tick() ' + (endCpu - startCpu).toFixed(2));
-        }
         handleClaimingManagers();
-        handleInvasionManagers();
+
         if (Game.time % 100 == 0) {
             if (Memory['trace'])
                 startCpu = Game.cpu.getUsed();
@@ -411,7 +417,7 @@ namespace Colony {
         });
         try {
             //if (Game.cpu.bucket > 5000)
-                reactionManager.tick();
+            reactionManager.tick();
         }
         catch (e) {
             console.log(e.stack);

@@ -1,4 +1,4 @@
-﻿/// <reference path="../creeps/energyHarvester/energyHarvesterDefinition.ts" />
+﻿/// <reference path="../creeps/minerals/mineralHarvesterDefinition.ts" />
 /// <reference path="../creeps/minerals/mineralHarvester.ts" />
 /// <reference path="../creeps/sourceCarrier/sourceCarrierDefinition.ts" />
 /// <reference path="../creeps/minerals/mineralCarrier.ts" />
@@ -46,7 +46,7 @@ class MineralHarvestingManager extends Manager implements MineralHarvestingManag
 
 
             //console.log('MineralHarvestingManager.checkCreeps()');
-            if (!myMineral.hasKeeper && this.mainRoom.terminal && myMineral.hasExtractor && (myMineral.amount > 0 || myMineral.refreshTime <= Game.time)) {
+            if ((!myMineral.hasKeeper || _.size(this.mainRoom.managers.labManager.myLabs) > 0 && myMineral.maxHarvestingSpots>1) && this.mainRoom.terminal && myMineral.hasExtractor && (myMineral.amount > 0 || myMineral.refreshTime <= Game.time)) {
                 //  console.log('MineralHarvestingManager.checkCreeps - 2');
                 let targetAmount = Colony.reactionManager.requiredAmount * 5;
                 let mineralType = myMineral.resource;
@@ -61,8 +61,8 @@ class MineralHarvestingManager extends Manager implements MineralHarvestingManag
                     //console.log('MineralHarvestingManager.checkCreeps - 3');
                     if (harvesters.length == 0) {
                         //      console.log('MineralHarvestingManager.checkCreeps - 4');
-                        let definition = EnergyHarvesterDefinition.getDefinition(this.mainRoom.maxSpawnEnergy, true, 10 * (['O', 'H'].indexOf(myMineral.resource) >= 0 ? 2 : 1));
-                        this.mainRoom.spawnManager.addToQueue(definition.getBody(), { role: 'mineralHarvester', mineralId: myMineral.id });
+                        let definition = MineralHarvesterDefinition.getDefinition(this.mainRoom.maxSpawnEnergy, myMineral);
+                        this.mainRoom.spawnManager.addToQueue(definition.body.getBody(), { role: 'mineralHarvester', mineralId: myMineral.id }, definition.count);
                     }
 
                     let carriers = _.filter(this.carrierCreeps, c => c.memory.mineralId == myMineral.id);
@@ -70,10 +70,10 @@ class MineralHarvestingManager extends Manager implements MineralHarvestingManag
                     if (carriers.length == 0) {
                         //        console.log('MineralHarvestingManager.checkCreeps - 5');
                         //let pathLength = PathFinder.search(this.mainRoom.extractor.pos, { pos: this.mainRoom.terminal.pos, range: 2 }).path.length;
-                        let pathLength = (myMineral.pathLengthToDropOff+10) * 1.1;
-                        let requiredCarryModules = Math.ceil(pathLength * 2 * 10 * (['O','H'].indexOf(myMineral.resource)>=0 ? 2 : 1) / 50);
-                        let definition = SourceCarrierDefinition.getDefinition(this.mainRoom.maxSpawnEnergy, requiredCarryModules);
-                        this.mainRoom.spawnManager.addToQueue(definition.getBody(), { role: 'mineralCarrier', mineralId: myMineral.id });
+                        let pathLength = (myMineral.pathLengthToDropOff + 10) * 1.1;
+                        let requiredCapacity = Math.ceil(pathLength * 2 * 10 * (['O', 'H'].indexOf(myMineral.resource) >= 0 ? 2 : 1) / (myMineral.hasKeeper ? 2 : 1));
+                        let definition = SourceCarrierDefinition.getDefinition(this.mainRoom.maxSpawnEnergy, requiredCapacity, this.mainRoom.managers.labManager.availablePublishResources);
+                        this.mainRoom.spawnManager.addToQueue(definition.body.getBody(), { role: 'mineralCarrier', mineralId: myMineral.id }, definition.count - carriers.length);
                     }
                 }
             }

@@ -40,13 +40,17 @@
     claim: number = 0;
 
     public get energyHarvestingRate() {
-        let rate = this.work * 2;
+        let rate = this.work * HARVEST_POWER;
         _.forEach(this.boosts, b => {
             if (BOOSTS.work[b.compound] && BOOSTS.work[b.compound].harvest)
-                rate += 2 * (BOOSTS.work[b.compound].harvest - 1);
+                rate += HARVEST_POWER * (BOOSTS.work[b.compound].harvest - 1) * b.amount;
         });
 
         return rate;
+    }
+
+    public get mineralHarvestingRate() {
+        return this.energyHarvestingRate / 2;
     }
 
     public get isMilitaryDefender() {

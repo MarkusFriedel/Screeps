@@ -80,7 +80,8 @@ class RoomAssignmentHandler implements RoomAssignmentHandlerInterface {
     private mainRooms: { [roomName: string]: MainRoomInterface };
 
     constructor() {
-        this.rooms = Colony.rooms;
+
+        this.rooms = Colony.getAllRooms();
         this.mainRooms = Colony.mainRooms;
         _.forEach(this.mainRooms, x => this.assignments[x.name] = new RoomAssignment(x));
         _.forEach(_.filter(this.rooms, this.roomFilter.bind(this)), x => this.roomsToAssign[x.name] = x);
@@ -183,9 +184,9 @@ class RoomAssignmentHandler implements RoomAssignmentHandlerInterface {
 
             console.log('Assigning Rooms');
 
-            //_.forEach(this.rooms, (x) => x.mainRoom = null);
+            _.forEach(this.rooms, (x) => x.mainRoom = null);
 
-            //_.forEach(assignments, (assignment) => _.forEach(assignment.myRooms, (myRoom) =>myRoom.mainRoom = assignment.mainRoom));
+            _.forEach(assignments, (assignment) => _.forEach(assignment.myRooms, (myRoom) =>myRoom.mainRoom = assignment.mainRoom));
 
             //_.forEach(_.filter(this.rooms, room => room.mainRoom == null && _.any(room.memory.mainRoomDistanceDescriptions, x => x.distance == 1) && !room.memory.foreignOwner && !room.memory.foreignReserver), room => {
             //    let mainRoom = this.mainRooms[_.min(room.memory.mainRoomDistanceDescriptions, x => x.distance).roomName];

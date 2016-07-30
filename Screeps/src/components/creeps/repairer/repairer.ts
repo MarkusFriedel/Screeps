@@ -4,28 +4,73 @@ class Repairer extends MyCreep {
 
     public get memory(): RepairerMemory { return this.creep.memory; }
 
+    public static staticTracer: Tracer;
+    public tracer: Tracer;
 
     constructor(public creep: Creep, public mainRoom: MainRoom) {
         super(creep);
         this.memory.autoFlee = true;
+        if (Repairer.staticTracer == null) {
+            Repairer.staticTracer = new Tracer('Repairer');
+            Colony.tracers.push(Repairer.staticTracer);
+        }
+        this.tracer = Repairer.staticTracer;
     }
 
     getEmergencyTarget() {
         let myRoom = Colony.getRoom(this.creep.room.name);
         if (myRoom)
-            var target = _.sortBy(_.filter(myRoom.repairStructures, RepairManager.emergencyTargetDelegate), x => (x.pos.x - this.creep.pos.x) ** 2 + (x.pos.y - this.creep.pos.y) ** 2)[0];
+            var target = _.sortBy(myRoom.emergencyRepairStructures, x => (x.pos.x - this.creep.pos.x) ** 2 + (x.pos.y - this.creep.pos.y) ** 2)[0];
         return target;
     }
 
     pickUpEnergy(): boolean {
+        let trace = this.tracer.start('pickupEnergy()');
         let resources = _.filter(Colony.getRoom(this.creep.room.name).resourceDrops, r => r.resourceType == RESOURCE_ENERGY);
         let energy = _.sortBy(_.filter(resources, r => r.pos.inRangeTo(this.creep.pos, 4)), r => r.pos.getRangeTo(this.creep.pos))[0];
         if (energy != null) {
             if (this.creep.pickup(energy) == ERR_NOT_IN_RANGE)
                 this.creep.moveTo(energy);
+            trace.stop();
             return true;
         }
+        trace.stop();
         return false;
+    }
+
+
+    private getTarget(myRoom: MyRoomInterface): RepairStructure {
+        if (this.memory.targetCheckTime != null && this.memory.targetCheckTime + 20 > Game.time) {
+            return;
+        }
+        this.memory.targetCheckTime = Game.time;
+        let trace = this.tracer.start('getTarget()');
+        let sortedStructures = _.sortBy(myRoom.repairStructures, x => (x.pos.x - this.creep.pos.x) ** 2 + (x.pos.y - this.creep.pos.y) ** 2);
+        let target = _.filter(sortedStructures, RepairManager.targetDelegate)[0];
+        //target = this.creep.pos.findClosestByRange<Structure>(FIND_STRUCTURES, { filter: RepairManager.targetDelegate });
+        if (target) {
+            this.memory.targetId = target.id;
+            this.memory.isEmergency = false;
+        }
+        else {
+            //target = this.creep.pos.findClosestByRange<Structure>(FIND_STRUCTURES, { filter: (x: Structure) => !RepairManager.forceStopRepairDelegate(x) && x.hits < x.hitsMax });
+            target = _.sortBy(_.filter(myRoom.repairStructures, s => !RepairManager.forceStopRepairDelegate(s) && (s.structureType == STRUCTURE_WALL || s.structureType == STRUCTURE_RAMPART)), x => x.hits)[0];
+            //target = _.sortBy(this.creep.room.find<Structure>(FIND_STRUCTURES, { filter: (x: Structure) => !RepairManager.forceStopRepairDelegate(x) && (x.structureType == STRUCTURE_WALL || x.structureType == STRUCTURE_RAMPART) }), x => x.hits)[0];
+            if (target) {
+                this.memory.targetId = target.id;
+                this.memory.isEmergency = false;
+            }
+            else {
+                target = sortedStructures[0];
+                //target = this.creep.pos.findClosestByPath<Structure>(FIND_STRUCTURES, { filter: (x: Structure) => x.hits < x.hitsMax });
+                if (target) {
+                    this.memory.targetId = target.id;
+                    this.memory.isEmergency = false;
+                }
+            }
+        }
+        trace.stop();
+        return target;
     }
 
     public myTick() {
@@ -65,28 +110,10 @@ class Repairer extends MyCreep {
                         this.memory.isEmergency = true;
                     }
                     else {
-                        target = _.sortBy(_.filter(myRoom.repairStructures, RepairManager.targetDelegate), x => (x.pos.x - this.creep.pos.x) ** 2 + (x.pos.y - this.creep.pos.y) ** 2)[0];
-                        //target = this.creep.pos.findClosestByRange<Structure>(FIND_STRUCTURES, { filter: RepairManager.targetDelegate });
+                        target = this.getTarget(myRoom);
                         if (target) {
                             this.memory.targetId = target.id;
                             this.memory.isEmergency = false;
-                        }
-                        else {
-                            //target = this.creep.pos.findClosestByRange<Structure>(FIND_STRUCTURES, { filter: (x: Structure) => !RepairManager.forceStopRepairDelegate(x) && x.hits < x.hitsMax });
-                            target = _.sortBy(_.filter(myRoom.repairStructures, s => !RepairManager.forceStopRepairDelegate(s) && (s.structureType == STRUCTURE_WALL || s.structureType == STRUCTURE_RAMPART)), x => x.hits)[0];
-                            //target = _.sortBy(this.creep.room.find<Structure>(FIND_STRUCTURES, { filter: (x: Structure) => !RepairManager.forceStopRepairDelegate(x) && (x.structureType == STRUCTURE_WALL || x.structureType == STRUCTURE_RAMPART) }), x => x.hits)[0];
-                            if (target) {
-                                this.memory.targetId = target.id;
-                                this.memory.isEmergency = false;
-                            }
-                            else {
-                                target = _.sortBy(myRoom.repairStructures, x => (x.pos.x - this.creep.pos.x) ** 2 + (x.pos.y - this.creep.pos.y) ** 2)[0];
-                                //target = this.creep.pos.findClosestByPath<Structure>(FIND_STRUCTURES, { filter: (x: Structure) => x.hits < x.hitsMax });
-                                if (target) {
-                                    this.memory.targetId = target.id;
-                                    this.memory.isEmergency = false;
-                                }
-                            }
                         }
                     }
                 }

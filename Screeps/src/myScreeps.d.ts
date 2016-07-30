@@ -31,10 +31,15 @@ interface ColonyMemory {
     reactionManager: ReactionManagerMemory;
     militaryManager: MilitaryManagerMemory;
     traceThreshold: number;
+    boostPowers: { [power: string]: { bodyPart: string, resources: Array<{ resource: string, factor: number }> } };
+    active: boolean;
+    armyManager: ArmyManagerMemory;
 }
 
 interface ReactionManagerMemory {
     setupTime: number;
+    publishableCompounds: { time: number, compounds: string[] }
+    highestPowerCompounds: { time: number, compounds: string[] }
 }
 
 interface TowerManagerMemory {
@@ -60,6 +65,8 @@ interface MainRoomMemory {
     terminalManager: TerminalManagerMemory;
     extractorContainerId: { time: number, id: string };
     myObserver: MyObserverMemory;
+    harvestingActive: boolean;
+
 }
 
 interface RoomPositionMemory {
@@ -83,6 +90,7 @@ interface MyMineralMemory {
     pathLengthToTerminal: { time: number, length: number };
     resource: string;
     hasExtractor: { time: number, hasExtractor: boolean };
+    harvestingSpots: number;
 }
 
 interface MySourceMemory {
@@ -105,6 +113,14 @@ interface MyContainerMemory {
     lastScanTime: number;
 }
 
+interface RepairStructure {
+    id: string;
+    hits: number;
+    hitsMax: number;
+    pos: RoomPosition;
+    structureType: string;
+}
+
 interface MyRoomMemory {
     name: string;
     lastScanTime: number;
@@ -120,8 +136,12 @@ interface MyRoomMemory {
     hostileScan: HostileScanMemory;
     mainRoomDistanceDescriptions: MainRoomDistanceDescriptions;
     hasController: boolean;
+    controllerPosition: RoomPosition;
     travelMatrix: { time: number, matrix: number[] };
+    compressedTravelMatrix: { time: number, matrix: CompressedCostMatrix };
     myMineral: MyMineralMemory;
+    repairStructures: { time: number, structures: Array<RepairStructure> };
+    emergencyRepairStructures: { time: number, structures: Array<RepairStructure> };
 }
 
 interface HostilesInformationMemory {
@@ -189,11 +209,12 @@ interface CreepMemory {
     role: string;
     path?: { path: RoomPosition[], ops: number };
     autoFlee?: boolean;
+    fleeing?: boolean;
     requiredBoosts?: { [compound: string]: { compound: string, amount: number } }
 }
 
 interface ScoutMemory extends CreepMemory {
-    targetPosition: RoomPosition | { x: number, y: number, roomName: string }; 
+    targetPosition: RoomPosition | { x: number, y: number, roomName: string };
 }
 
 declare const enum EnergyHarvesterState {
@@ -246,6 +267,7 @@ interface RepairerMemory extends CreepMemory {
     roomName: string;
     state: RepairerState;
     fillupContainerId: string;
+    targetCheckTime: number;
 }
 
 interface ConstructorMemory extends CreepMemory {
@@ -339,6 +361,7 @@ interface MyMineralInterface extends MyResourceInterface {
     refreshTime: number;
     hasExtractor: boolean;
     resource: string;
+    maxHarvestingSpots: number;
 }
 
 interface MySourceInterface extends MyResourceInterface {
@@ -346,18 +369,20 @@ interface MySourceInterface extends MyResourceInterface {
     capacity: number;
     link: Link,
     maxHarvestingSpots: number;
+    rate: number;
 }
 
 interface MyContainerInterface {
 
 }
 
-
+interface CompressedCostMatrix {
+    matrix: { i: number, v: number }[];
+}
 
 interface MyRoomInterface {
     name: string;
     room: Room;
-    myContainers: { [id: string]: MyContainerInterface; };
     mySources: { [id: string]: MySourceInterface; };
     useableSources: MySourceInterface[];
     mainRoom: MainRoomInterface;
@@ -369,12 +394,15 @@ interface MyRoomInterface {
     hostileScan: HostileScanInterface;
     requiresDefense: boolean;
     hasController: boolean;
+    controllerPosition: RoomPosition;
     travelMatrix: CostMatrix | boolean;
     resourceDrops: Resource[];
-    repairStructures: Structure[];
+    repairStructures: Array<RepairStructure>;
     myMineral: MyMineralInterface;
-    emergencyRepairs: Array<Structure>;
+    emergencyRepairStructures: Array<RepairStructure>;
     creepAvoidanceMatrix: CostMatrix | boolean;
+    recreateTravelMatrix();
+
 }
 
 interface SpawnQueueItem {
@@ -413,7 +441,7 @@ interface MainRoomInterface {
     room: Room,
     maxSpawnEnergy: number,
     creeps: Array<Creep>,
-    creepsByRole(role:string): Array<Creep>,
+    creepsByRole(role: string): Array<Creep>,
     mainContainer: Container | Storage,
     spawns: Array<Spawn>,
     spawnManager: SpawnManagerInterface,
@@ -422,7 +450,7 @@ interface MainRoomInterface {
     connectedRooms: Array<MyRoomInterface>,
     mainPosition: RoomPosition,
     roadConstructionManager: RoadConstructionManagerInterface,
-    
+
     extensionCount: number,
     links: Array<MyLinkInterface>,
     sources: {
@@ -456,7 +484,7 @@ interface MainRoomInterface {
     energyDropOffStructure: Structure;
     harvestersShouldDeliver: boolean;
     myObserver: MyObserverInterface;
-    
+    harvestingActive: boolean;
 }
 
 interface ClaimingManagerInterface {
@@ -566,8 +594,8 @@ interface LabManagerInterface {
     preTick();
     backup();
     restore();
-    
-    availablePublishResources:{ [resource: string]: number };
+
+    availablePublishResources: { [resource: string]: number };
 }
 
 interface ReactionManagerInterface {
@@ -595,29 +623,7 @@ interface MilitaryManagerMemory {
 
 
 
-interface ArmyInterface {
-    id: number;
-}
 
-declare const enum ArmyState {
-    Idle = 0,
-    Rally = 1,
-    Movement = 2,
-    Fighting = 3,
-}
-
-declare const enum ArmyMission {
-    None = 0,
-    Defend = 1,
-    Guard = 2,
-    Attack = 3
-}
-
-interface ArmyMemory {
-    id: number;
-    state: ArmyState;
-    mission: ArmyMission;
-}
 
 interface HostileScanMemory {
     scanTime: number;
@@ -681,10 +687,72 @@ interface MyObserverMemory {
 }
 
 interface KeeperBusterMemory extends CreepMemory {
-
+    roomName: string;
+    targetId: string;
 }
 
 interface SourceKeeperManagerInterface {
     preTick();
     tick();
+}
+
+declare const enum SpawnConstructorState {
+    moving = 0,
+    harvesting = 1,
+    constructing = 2
+}
+
+interface SpawnConstructorMemory extends CreepMemory {
+    state: SpawnConstructorState;
+    targetPosition: RoomPosition;
+    sourceId: string;
+}
+
+interface ArmyManagerInterface {
+
+}
+
+interface ArmyManagerMemory {
+    nextId: number;
+    armies: { [id: string]: ArmyMemory }
+}
+
+interface ArmyInterface {
+    id: number;
+}
+
+declare const enum ArmyState {
+    Idle = 0,
+    Rally = 1,
+    Movement = 2
+}
+
+declare const enum ArmyMission {
+    None = 0,
+    Defend = 1,
+    Guard = 2,
+    Attack = 3
+}
+
+interface ArmyMemory {
+    id: number;
+    state: ArmyState;
+    mission: ArmyMission;
+    rallyPoint: RoomPosition;
+}
+
+interface ArmyCreepMemory extends CreepMemory {
+    armyId: number;
+}
+
+interface ArmyHealerMemory extends ArmyCreepMemory {
+
+}
+
+interface ArmyWarriorMemory extends ArmyCreepMemory {
+
+}
+
+interface ArmyDismantlerMemory extends ArmyCreepMemory {
+
 }

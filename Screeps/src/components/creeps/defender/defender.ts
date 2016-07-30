@@ -25,7 +25,8 @@
             else if (this.creep.pos.x == 0 || this.creep.pos.x == 49 || this.creep.pos.y == 0 || this.creep.pos.y == 49)
                 this.creep.moveTo(new RoomPosition(25, 25, this.creep.room.name));
             else {
-                this.creep.moveTo(this.mainRoom.mainPosition);
+                if (this.mainRoom.spawns[0].recycleCreep(this.creep) == ERR_NOT_IN_RANGE)
+                    this.creep.moveTo(this.mainRoom.spawns[0]);
             }
         }
     }

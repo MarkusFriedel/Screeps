@@ -9,7 +9,7 @@ namespace ConstructorDefinition {
         body.carry = 2;
         body.move = 2;
 
-        let remainingEnergy = Math.min(maxEnergy, 1050);
+        let remainingEnergy = Math.min(maxEnergy, maxEnergy);
         var remaining = remainingEnergy - 300;
 
         if (remaining >= 50) {

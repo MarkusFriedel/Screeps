@@ -42,7 +42,7 @@ class EnergyHarvester extends MyCreep {
 
         if (EnergyHarvester.staticTracer == null) {
             EnergyHarvester.staticTracer = new Tracer('Harvester');
-            Colony.tracers.push(EnergyHarvester.staticTracer);
+            //Colony.tracers.push(EnergyHarvester.staticTracer);
         }
         this.tracer = EnergyHarvester.staticTracer;
     }
@@ -71,6 +71,11 @@ class EnergyHarvester extends MyCreep {
 
     healed: boolean = false;
 
+    createHarvestPath() {
+        this.memory.path = PathFinder.search(this.creep.pos, { pos: this.mySource.pos, range: 5 }, { roomCallback: Colony.getTravelMatrix, plainCost: 2, swampCost: 10 });
+        this.memory.path.path.unshift(this.creep.pos);
+    }
+
     public myTick() {
         let trace = this.tracer.start('tick()');
 
@@ -88,10 +93,16 @@ class EnergyHarvester extends MyCreep {
             this.creep.heal(this.creep);
             this.healed = true;
         }
+        //else if (this.creep.getActiveBodyparts(HEAL) > 0) {
+        //    let surroundingCreep = this.creep.pos.findInRange<Creep>(FIND_MY_CREEPS, 1, { filter: (c: Creep) => this.creep.hits + this.creep.getActiveBodyparts(HEAL) * HEAL_POWER <= c.hitsMax })[0];
+        //    if (surroundingCreep) {
+        //        this.creep.heal(surroundingCreep);
+        //        this.healed = true;
+        //    }
+        //}
 
         if (this.memory.state == null || this.memory.path == null || this.memory.state == EnergyHarvesterState.Delivering && this.creep.carry.energy == 0) {
-            this.memory.path = PathFinder.search(this.creep.pos, { pos: this.mySource.pos, range: 6 }, { roomCallback: Colony.getTravelMatrix, plainCost: 2, swampCost: 10 });
-            this.memory.path.path.unshift(this.creep.pos);
+            this.createHarvestPath();
             this.memory.state = EnergyHarvesterState.Harvesting;
         }
         else if (this.memory.state == EnergyHarvesterState.Harvesting && _.sum(this.creep.carry) == this.creep.carryCapacity && !this.mySource.link && this.mainRoom.harvestersShouldDeliver) {
@@ -100,7 +111,7 @@ class EnergyHarvester extends MyCreep {
                 return;
             }
 
-            this.memory.path = null;
+            this.memory.path = PathFinder.search(this.creep.pos, { pos: this.mainRoom.energyDropOffStructure.pos, range: 2 }, { roomCallback: Colony.getTravelMatrix, plainCost: 2, swampCost: 10 });
 
 
             this.memory.state = EnergyHarvesterState.Delivering;
@@ -108,8 +119,12 @@ class EnergyHarvester extends MyCreep {
 
         if (this.memory.state == EnergyHarvesterState.Harvesting) {
 
-            if (this.memory.path.path.length > 2)
+            if (this.memory.path && this.memory.path.path.length > 2)
                 this.moveByPath();
+            else if (this.creep.room.name != this.mySource.myRoom.name) {
+                this.createHarvestPath();
+                this.moveByPath();
+            }
             else if (!this.healed) {
                 if (this.creep.harvest(this.mySource.source) == ERR_NOT_IN_RANGE)
                     this.creep.moveTo(this.mySource.source);
@@ -129,20 +144,21 @@ class EnergyHarvester extends MyCreep {
                         else if (this.creep.transfer(this.mainRoom.energyDropOffStructure, RESOURCE_ENERGY) == ERR_NOT_IN_RANGE)
                             this.creep.moveTo(this.mainRoom.energyDropOffStructure);
                     }
-                    else {
-                        let carrier = _.filter(this.mainRoom.managers.energyHarvestingManager.sourceCarrierCreeps, c => c.memory.sourceId == this.mySource.id && c.memory.state == SourceCarrierState.Pickup && c.pos.isNearTo(this.creep.pos))[0];
-                        if (carrier)
-                            this.creep.transfer(carrier, RESOURCE_ENERGY);
-                        else
-                            this.creep.drop(RESOURCE_ENERGY);
-                    }
-                        
-                }
+                    //else {
+                    //    //let carrier = _.filter(this.mainRoom.managers.energyHarvestingManager.sourceCarrierCreeps, c => c.memory.sourceId == this.mySource.id && c.memory.state == SourceCarrierState.Pickup && c.pos.isNearTo(this.creep.pos))[0];
+                    //    //if (carrier)
+                    //    //    this.creep.transfer(carrier, RESOURCE_ENERGY);
+                    //    //else
+                    //        //this.creep.drop(RESOURCE_ENERGY);
+                    //}
 
+                }
             }
+            else if (this.healed && !this.mySource.pos.isNearTo(this.creep.pos))
+                this.creep.moveTo(this.mySource.pos);
         }
         else if (this.memory.state == EnergyHarvesterState.Delivering) {
-            if (this.memory.path.path.length > 2)
+            if (this.memory.path && this.memory.path.path.length > 2)
                 this.moveByPath();
             else {
                 if (this.creep.transfer(this.mainRoom.energyDropOffStructure, RESOURCE_ENERGY) == ERR_NOT_IN_RANGE)

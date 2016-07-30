@@ -49,14 +49,11 @@ class TerminalManager extends Manager implements TerminalManagerInterface {
     }
 
     public _tick() {
-        let trace = this.tracer.start('tick()');
         if (!this.mainRoom.room || !this.mainRoom.mainContainer || !this.mainRoom.room.terminal || !this.mainRoom.room.terminal.isActive()) {
-            trace.stop();
             return;
         }
         _.forEach(this.creeps, x => new TerminalFiller(x, this.mainRoom).tick());
         this.handleTerminal(this.mainRoom.room.terminal);
-        trace.stop();
     }
 
     handleTradeAgreements(terminal: Terminal) {
@@ -112,23 +109,23 @@ class TerminalManager extends Manager implements TerminalManagerInterface {
 
     handleEnergyBalance(terminal: Terminal) {
         let trace = this.tracer.start('handleEnergyBalance()');
-        if ((this.resourceSentOn == null || this.resourceSentOn < Game.time) && this.mainRoom.mainContainer.store.energy > 450000 && terminal.store.energy > 1000) {
-            let targetMainRoom = _.sortByAll(_.filter(Colony.mainRooms, x => x.mainContainer && x.room && x.room.terminal && x.room.terminal.isActive() && x.mainContainer.store.energy < 350000 && Game.map.getRoomLinearDistance(this.mainRoom.name, x.name) <= 3), [x => Game.map.getRoomLinearDistance(this.mainRoom.name, x.name), x => x.mainContainer.store.energy])[0];
-            if (targetMainRoom) {
+        //if ((this.resourceSentOn == null || this.resourceSentOn < Game.time) && this.mainRoom.mainContainer.store.energy > 450000 && terminal.store.energy > 1000) {
+        //    let targetMainRoom = _.sortByAll(_.filter(Colony.mainRooms, x => x.mainContainer && x.room && x.room.terminal && x.room.terminal.isActive() && x.mainContainer.store.energy < 350000 && Game.map.getRoomLinearDistance(this.mainRoom.name, x.name) <= 3), [x => Game.map.getRoomLinearDistance(this.mainRoom.name, x.name), x => x.mainContainer.store.energy])[0];
+        //    if (targetMainRoom) {
 
-                let amountToTransfer = Math.min(this.mainRoom.mainContainer.store.energy - 400000, 400000 - targetMainRoom.mainContainer.store.energy, terminal.store.energy, targetMainRoom.room.terminal.storeCapacity - targetMainRoom.room.terminal.store.energy);
+        //        let amountToTransfer = Math.min(this.mainRoom.mainContainer.store.energy - 400000, 400000 - targetMainRoom.mainContainer.store.energy, terminal.store.energy, targetMainRoom.room.terminal.storeCapacity - targetMainRoom.room.terminal.store.energy);
 
-                let distance = Game.map.getRoomLinearDistance(this.mainRoom.name, targetMainRoom.name);
+        //        let distance = Game.map.getRoomLinearDistance(this.mainRoom.name, targetMainRoom.name);
 
-                let tax = Math.ceil(0.1 * amountToTransfer * distance);
+        //        let tax = Math.ceil(0.1 * amountToTransfer * distance);
 
-                amountToTransfer -= tax;
+        //        amountToTransfer -= tax;
 
-                console.log('Terminal send ' + amountToTransfer + '  from ' + this.mainRoom.name + ' to ' + targetMainRoom.name + ': ' + terminal.send(RESOURCE_ENERGY, amountToTransfer, targetMainRoom.name));
+        //        console.log('Terminal send ' + amountToTransfer + '  from ' + this.mainRoom.name + ' to ' + targetMainRoom.name + ': ' + terminal.send(RESOURCE_ENERGY, amountToTransfer, targetMainRoom.name));
 
-            }
-        }
-        else if (this.mainRoom.mainContainer.store.energy + terminal.store.energy < 50000) {
+        //    }
+        //}
+        if ((this.resourceSentOn == null || this.resourceSentOn < Game.time) && this.mainRoom.mainContainer.store.energy + terminal.store.energy < 50000) {
             let amount = 10000;
             let supplierRoom = _.sortBy(_.filter(Colony.mainRooms, x => x.terminal && x.managers.terminalManager && (x.managers.terminalManager.resourceSentOn == null || x.managers.terminalManager.resourceSentOn < Game.time) && x.terminal.store.energy > amount && x.mainContainer && x.mainContainer.store.energy > 100000), x => Game.map.getRoomLinearDistance(x.name, this.mainRoom.name))[0];
             if (supplierRoom) {
@@ -183,10 +180,10 @@ class TerminalManager extends Manager implements TerminalManagerInterface {
 
 
     handleTerminal(terminal: Terminal) {
-        this.handleTradeAgreements(this.mainRoom.room.terminal);
-        if ((Game.time + 1) % 25 == 0)
+        //this.handleTradeAgreements(this.mainRoom.room.terminal);
+        if (Game.time % 15 == 0 && Game.time % 30 != 0)
             this.handleEnergyBalance(terminal);
-        if (Game.time % 25 == 0)
+        if (Game.time % 30 == 0)
             this.handleMineralBalance(terminal);
     }
 
