@@ -1,6 +1,7 @@
 /// <reference path="../game-manager.ts" />
 
 declare function require(string): any;
+var profiler = require('screeps-profiler');
 /**
  * Application bootstrap.
  * BEFORE CHANGING THIS FILE, make sure you read this:
@@ -9,6 +10,13 @@ declare function require(string): any;
  * Write your code to GameManager class in ./src/start/game-manager.ts
  */
 declare var module: any;
+declare var RawMemory: any;
+
+//Object.prototype.getName = function () {
+//    var funcNameRegex = /function (.{1,})\(/;
+//    var results = (funcNameRegex).exec((this).constructor.toString());
+//    return (results && results.length > 1) ? results[1] : "";
+//};
 
 /*
 * Singleton object. Since GameManager doesn't need multiple instances we can use it as singleton object.
@@ -16,24 +24,42 @@ declare var module: any;
 
 // Any modules that you use that modify the game's prototypes should be require'd 
 // before you require the profiler. 
-//var profiler = require('screeps-profiler');
+
 
 // This line monkey patches the global prototypes. 
-//profiler.enable();
+if (Memory['profilerActive']==true)
+    profiler.enable();
 
 GameManager.globalBootstrap();
+
+function deleteNulls() {
+
+}
 
 // This doesn't look really nice, but Screeps' system expects this method in main.js to run the application.
 // If we have this line, we can make sure that globals bootstrap and game loop work.
 // http://support.screeps.com/hc/en-us/articles/204825672-New-main-loop-architecture
 module.exports.loop = function () {
+    console.log('Tick Start CPU:' + Game.cpu.getUsed() + ' Bucket: ' + Game.cpu.bucket);
+
     if (!Memory['colony'].active) {
-        console.log('CPU:' + Game.cpu.getUsed() +' Bucket: ' + Game.cpu.bucket);
+        
         return;
     }
 
-    //profiler.wrap(function () {
+    
+
+    //console.log('Before parse: CPU:' + Game.cpu.getUsed() + ' Bucket: ' + Game.cpu.bucket);
+    //var myMemory = JSON.parse((<any>RawMemory).get());
+    //console.log('After parse: CPU:' + Game.cpu.getUsed() + ' Bucket: ' + Game.cpu.bucket);
+    if (Memory['profilerActive'] == true) {
+        profiler.wrap(function () {
+            console.log();
+            GameManager.loop();
+        });
+    }
+    else {
         console.log();
         GameManager.loop();
-    //});
+    }
 };

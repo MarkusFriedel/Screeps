@@ -4,104 +4,155 @@ class Repairer extends MyCreep {
 
     public get memory(): RepairerMemory { return this.creep.memory; }
 
-    public static staticTracer: Tracer;
-    public tracer: Tracer;
+    private _repairCost: number;
+    public get repairCost() {
+        if (!this._repairCost)
+            this.repairPower* REPAIR_COST;
+        return this._repairCost;
+    }
+
+    private _repairPower: number;
+    public get repairPower() {
+        if (!this._repairPower)
+            this._repairPower = this.creep.getActiveBodyparts(WORK) * REPAIR_POWER;
+        return this._repairPower;
+    }
 
     constructor(public creep: Creep, public mainRoom: MainRoom) {
         super(creep);
         this.memory.autoFlee = true;
-        if (Repairer.staticTracer == null) {
-            Repairer.staticTracer = new Tracer('Repairer');
-            Colony.tracers.push(Repairer.staticTracer);
-        }
-        this.tracer = Repairer.staticTracer;
+       
+
+        this.myTick = profiler.registerFN(this.myTick, 'Repairer.tick');
+        this.pickUpEnergy = profiler.registerFN(this.pickUpEnergy, 'Repairer.pickupEnergy');
+        this.getEmergencyTarget = profiler.registerFN(this.getEmergencyTarget, 'Repairer.getEmergencyTarget');
+        this.getTarget = profiler.registerFN(this.getTarget, 'Repairer.getTarget');
     }
 
     getEmergencyTarget() {
         let myRoom = Colony.getRoom(this.creep.room.name);
         if (myRoom)
-            var target = _.sortBy(myRoom.emergencyRepairStructures, x => (x.pos.x - this.creep.pos.x) ** 2 + (x.pos.y - this.creep.pos.y) ** 2)[0];
+            var target = myRoom.emergencyRepairStructures[0];
         return target;
     }
 
     pickUpEnergy(): boolean {
-        let trace = this.tracer.start('pickupEnergy()');
         let resources = _.filter(Colony.getRoom(this.creep.room.name).resourceDrops, r => r.resourceType == RESOURCE_ENERGY);
         let energy = _.sortBy(_.filter(resources, r => r.pos.inRangeTo(this.creep.pos, 4)), r => r.pos.getRangeTo(this.creep.pos))[0];
         if (energy != null) {
             if (this.creep.pickup(energy) == ERR_NOT_IN_RANGE)
                 this.creep.moveTo(energy);
-            trace.stop();
             return true;
         }
-        trace.stop();
         return false;
     }
 
 
+
+
     private getTarget(myRoom: MyRoomInterface): RepairStructure {
-        if (this.memory.targetCheckTime != null && this.memory.targetCheckTime + 20 > Game.time) {
-            return;
-        }
-        this.memory.targetCheckTime = Game.time;
-        let trace = this.tracer.start('getTarget()');
-        let sortedStructures = _.sortBy(myRoom.repairStructures, x => (x.pos.x - this.creep.pos.x) ** 2 + (x.pos.y - this.creep.pos.y) ** 2);
-        let target = _.filter(sortedStructures, RepairManager.targetDelegate)[0];
-        //target = this.creep.pos.findClosestByRange<Structure>(FIND_STRUCTURES, { filter: RepairManager.targetDelegate });
+        //if (this.memory.targetCheckTime != null && this.memory.targetCheckTime + 20 > Game.time) {
+        //    return;
+        //}
+        //this.memory.targetCheckTime = Game.time;
+        let target = _.filter(myRoom.repairStructures, RepairManager.targetDelegate)[0];
         if (target) {
             this.memory.targetId = target.id;
             this.memory.isEmergency = false;
         }
         else {
-            //target = this.creep.pos.findClosestByRange<Structure>(FIND_STRUCTURES, { filter: (x: Structure) => !RepairManager.forceStopRepairDelegate(x) && x.hits < x.hitsMax });
             target = _.sortBy(_.filter(myRoom.repairStructures, s => !RepairManager.forceStopRepairDelegate(s) && (s.structureType == STRUCTURE_WALL || s.structureType == STRUCTURE_RAMPART)), x => x.hits)[0];
-            //target = _.sortBy(this.creep.room.find<Structure>(FIND_STRUCTURES, { filter: (x: Structure) => !RepairManager.forceStopRepairDelegate(x) && (x.structureType == STRUCTURE_WALL || x.structureType == STRUCTURE_RAMPART) }), x => x.hits)[0];
             if (target) {
                 this.memory.targetId = target.id;
                 this.memory.isEmergency = false;
             }
             else {
-                target = sortedStructures[0];
-                //target = this.creep.pos.findClosestByPath<Structure>(FIND_STRUCTURES, { filter: (x: Structure) => x.hits < x.hitsMax });
+                target = myRoom.repairStructures[0];
                 if (target) {
                     this.memory.targetId = target.id;
                     this.memory.isEmergency = false;
                 }
             }
         }
-        trace.stop();
         return target;
     }
 
     public myTick() {
         let myRoom = Colony.getRoom(this.creep.room.name);
-        if (this.creep.room.name == this.memory.roomName && (this.creep.pos.x == 0 || this.creep.pos.x == 49 || this.creep.pos.y == 0 || this.creep.pos.y == 49)) {
-            if (this.creep.pos.x == 0)
-                this.creep.move(RIGHT);
-            else if (this.creep.pos.x == 49)
-                this.creep.move(LEFT);
-            else if (this.creep.pos.y == 0)
-                this.creep.move(BOTTOM);
-            else if (this.creep.pos.y == 49)
-                this.creep.move(TOP);
-        }
-        else {
 
-            if (this.memory.state == RepairerState.Repairing && this.creep.carry.energy == 0) {
-                this.memory.state = RepairerState.Refilling;
-                this.memory.fillupContainerId = null;
-                this.memory.targetId = null;
-            }
-            else if (this.memory.state == RepairerState.Refilling && this.creep.carry.energy == this.creep.carryCapacity)
-                this.memory.state = RepairerState.Repairing;
+        if (this.creep.carry.energy >= this.repairCost) {
+            let roadDummy = _.filter(this.myRoom.repairStructures, r => this.creep.pos.inRangeTo(r.pos, 3) && r.structureType == STRUCTURE_ROAD && r.hits < r.hitsMax)[0];
+            if (roadDummy) {
+                let road = Game.getObjectById<StructureRoad>(roadDummy.id);
+                if (this.creep.hits < this.creep.hitsMax) { // Step away from keepers
+                    let keepers = _.filter(this.myRoom.hostileScan.keepers, k => k.pos.inRangeTo(this.creep.pos, 3));
+                    if (keepers.length > 0) {
 
+                        let fleePath = PathFinder.search(this.creep.pos, _.map(keepers, k => {
+                            return { pos: k.pos, range: 4 }
+                        }), {
+                                roomCallback: Colony.getCreepAvoidanceMatrix, flee: true, plainCost: 2, swampCost: 10
+                            });
+                        this.creep.say('StepAway');
+                        let structure = Game.getObjectById<Structure>(this.memory.targetId);
+                        if (structure == null) {
+                            this.creep.repair(structure);
+                        }
+                        this.creep.move(this.creep.pos.getDirectionTo(fleePath.path[0]));
 
-
-            if (this.memory.state == RepairerState.Repairing) {
-                if (this.creep.room.name != this.memory.roomName) {
-                    this.creep.moveTo(new RoomPosition(25, 25, this.memory.roomName));
+                        return;
+                    }
                 }
 
+                this.creep.say('Repair' + this.creep.repair(<Structure>road));
+                if (road.hitsMax - road.hits <= this.repairPower)
+                    delete this.myRoom.repairStructures[road.id];
+                return;
+            }
+        }
+
+
+
+        if (this.repairPower == 0)
+            this.recycle();
+
+        if (this.memory.state == RepairerState.Repairing && this.creep.carry.energy == 0) {
+            this.memory.state = RepairerState.Refilling;
+            this.memory.fillupContainerId = null;
+            this.memory.targetId = null;
+        }
+        else if (this.memory.state == RepairerState.Refilling && this.creep.carry.energy == this.creep.carryCapacity) {
+            this.memory.state = RepairerState.Repairing;
+        }
+
+
+        if (this.memory.state == RepairerState.Repairing) {
+            if (this.creep.hits < this.creep.hitsMax) { // Step away from keepers
+                let keepers = _.filter(this.myRoom.hostileScan.keepers, k => k.pos.inRangeTo(this.creep.pos, 3));
+                if (keepers.length > 0) {
+
+                    let fleePath = PathFinder.search(this.creep.pos, _.map(keepers, k => {
+                        return { pos: k.pos, range: 4 }
+                    }), {
+                            roomCallback: Colony.getCreepAvoidanceMatrix, flee: true, plainCost: 2, swampCost: 10
+                        });
+
+                    this.creep.say('StepAway');
+                    this.creep.move(this.creep.pos.getDirectionTo(fleePath.path[0]));
+
+                    return;
+                }
+            }
+
+            if (this.creep.room.name != this.memory.roomName || this.isOnEdge) {
+                if (this.memory.path == null || this.memory.path.path.length <= 2) {
+                    this.memory.path = PathFinder.search(this.creep.pos, { pos: new RoomPosition(25, 25, this.memory.roomName), range: 20 }, { roomCallback: Colony.getTravelMatrix, plainCost: 2, swampCost: 10 });
+                    this.memory.path.path.unshift(this.creep.pos);
+                }
+                this.moveByPath();
+            }
+            else {
+                delete this.memory.path;
                 if (this.creep.room.name == this.memory.roomName && this.memory.targetId == null) {
                     let target = this.getEmergencyTarget();
 
@@ -123,9 +174,11 @@ class Repairer extends MyCreep {
                         this.memory.targetId = null;
                     }
                     else {
-                        if (!this.creep.pos.isNearTo(structure))
-                            this.creep.moveTo(structure);
+                        if (!this.creep.pos.inRangeTo(structure.pos, 3))
+                            this.moveTo({ pos: structure.pos, range: 3 });
                         this.creep.repair(structure);
+                        if (structure.hitsMax - structure.hits <= this.repairPower)
+                            delete this.myRoom.repairStructures[structure.id];
 
                         if (this.memory.isEmergency && RepairManager.emergencyStopDelegate(structure))
                             this.memory.isEmergency = false;
@@ -134,30 +187,43 @@ class Repairer extends MyCreep {
                             this.memory.targetId = null;
                     }
                 }
+                //else
+                //    this.memory.recycle = true;
+            }
+        }
+        else if (this.memory.state == RepairerState.Refilling) {
+            if (!this.memory.fillupContainerId) {
+                let possbibleContainers = _.map(_.filter(this.myRoom.mySources, s => (s.hasKeeper == false || s.keeper.lair.ticksToSpawn > 100 || s.keeper.creep && s.keeper.creep.hits <= 100) && s.container), s => s.container);
+                let container = _.sortBy(possbibleContainers, x => x.pos.getRangeTo(this.creep.pos))[0];
+                if (container) {
+                    this.memory.fillupContainerId = container.id;
+                    this.memory.path = PathFinder.search(this.creep.pos, { pos: container.pos, range: 3 }, { roomCallback: Colony.getTravelMatrix, plainCost: 1, swampCost: 5 });
+                    this.memory.path.path.unshift(this.creep.pos);
+                }
+            }
+            if (this.memory.fillupContainerId) {
+                if (this.memory.path && this.memory.path.path.length > 2)
+                    this.moveByPath();
+                else {
+                    let container = Game.getObjectById<Container>(this.memory.fillupContainerId);
+                    if (this.creep.withdraw(container, RESOURCE_ENERGY) == ERR_NOT_IN_RANGE)
+                        this.moveTo({ pos: container.pos, range: 3 });
+                }
+
+            } else if (this.creep.room.name != this.mainRoom.name || this.isOnEdge) {
+                if (this.memory.path == null || this.memory.path.path.length <= 2) {
+                    this.memory.path = PathFinder.search(this.creep.pos, { pos: this.mainRoom.mainContainer.pos, range: 3 }, { roomCallback: Colony.getTravelMatrix, plainCost: 1, swampCost: 5 });
+                    this.memory.path.path.unshift(this.creep.pos);
+                }
+                this.moveByPath();
             }
             else {
-                if (this.memory.fillupContainerId == null) {
-                    let container = null;
-
-                    container = this.mainRoom.mainContainer;
-
-                    if (container != null) {
-                        this.memory.fillupContainerId = container.id;
-                    }
-                }
-
-                let container = Game.getObjectById<Container | Storage>(this.memory.fillupContainerId);
-
-                if (container == null)
-                    this.memory.fillupContainerId = null;
-                else if (container.store.energy > 0) {
-                    if (this.creep.withdraw(container, RESOURCE_ENERGY) == ERR_NOT_IN_RANGE)
-                        this.creep.moveTo(container);
-                }
-
+                this.memory.path = null;
+                if (this.creep.withdraw(this.mainRoom.mainContainer, RESOURCE_ENERGY) == ERR_NOT_IN_RANGE)
+                    this.moveTo({ pos: this.mainRoom.mainContainer.pos, range: 3 });
             }
-
         }
+
     }
 
 }

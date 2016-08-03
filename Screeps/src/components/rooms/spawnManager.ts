@@ -22,7 +22,7 @@ class SpawnManager implements SpawnManagerInterface {
 
     public get isBusy(): boolean {
         //return false;
-        return _.filter(this.spawns, x => x.spawning == null).length <= this.queue.length;
+        return /*(this.memory.sleepingUntil != null && this.memory.sleepingUntil>Game.time) ||*/ this.queue.length >= 3 || _.filter(this.spawns, x => x.spawning == null).length <= this.queue.length;
     }
 
     _spawns: { time: number, spawns: Array<Spawn> } = { time: 0, spawns: null };
@@ -37,8 +37,12 @@ class SpawnManager implements SpawnManagerInterface {
     queue: SpawnQueueItem[] = [];
     isIdle: boolean;
 
+   
+
     constructor(public mainRoom: MainRoomInterface, memory: SpawnManagerMemory) {
         this.mainRoom = mainRoom;
+        this.spawn = profiler.registerFN(this.spawn, 'SpawnManager.spawn');
+        
     }
 
     public addToQueue(body: string[], memory: any, count: number = 1, priority:boolean=false) {
@@ -65,6 +69,7 @@ class SpawnManager implements SpawnManagerInterface {
 
         if (this.queue.length == 0) {
             this.isIdle = true;
+            this.memory.sleepingUntil = Game.time + 10;
             return;
         }
         for (let idx in this.spawns) {
@@ -86,7 +91,9 @@ class SpawnManager implements SpawnManagerInterface {
                 let creepMemory = <CreepMemory>queueItem.memory;
                 if (!creepMemory.mainRoomName)
                     creepMemory.mainRoomName = this.mainRoom.name;
-                var result = spawn.createCreep(queueItem.body, null, creepMemory);
+                if (!Colony.memory.creepIdx)
+                    Colony.memory.creepIdx = 0;
+                var result = spawn.createCreep(queueItem.body, (++Colony.memory.creepIdx).toString(), creepMemory);
                 if (Memory['verbose'] || this.memory.verbose)
                     console.log('[' + this.mainRoom.name + '] ' +'SpawnManager.spawn(): Spawn result: ' + result);
                 if (Memory['verbose'] || this.memory.verbose)

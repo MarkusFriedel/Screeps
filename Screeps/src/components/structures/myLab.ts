@@ -31,15 +31,10 @@
         return this._lab.lab;
     }
 
-    public static staticTracer: Tracer;
-    public tracer: Tracer;
+    
 
     constructor(public labManager: LabManagerInterface, public id: string) {
-        if (MyLab.staticTracer == null) {
-            MyLab.staticTracer = new Tracer('MyLab');
-            Colony.tracers.push(MyLab.staticTracer);
-        }
-        this.tracer = MyLab.staticTracer;
+        this.tick = profiler.registerFN(this.tick, 'MyLab.tick');
     }
 
     public backup() {
@@ -85,7 +80,7 @@
         this.memory.resource = resource;
         this.memory.mode &= ~LabMode.import;
         this.memory.mode |= LabMode.reaction;
-        let affectedLabs:MyLab[] = [this];
+        let affectedLabs: MyLab[] = [this];
         _.forEach(ingredients, ing => {
             let lab = _.filter(this.connectedLabs, x => x.memory.resource == ing && x.memory.mode & LabMode.import)[0] || _.filter(this.connectedLabs, x => x.memory.mode == LabMode.available)[0];
             if (lab) {
@@ -96,7 +91,7 @@
                     affectedLabs.push(lab);
                 }
             }
-                
+
         });
         return affectedLabs;
     }
@@ -112,11 +107,11 @@
             return null;
 
         let ingredients = Colony.reactionManager.ingredients[resource];
-        let requiredLabs =  2;
+        let requiredLabs = 2;
         _.forEach(ingredients, ing => {
             if (_.any(this.connectedLabs, x => x.memory.resource == ing && x.memory.mode & LabMode.import))
                 requiredLabs--;
-            });
+        });
 
         let availableLabs = _.filter(this.connectedLabs, x => x.memory.mode == LabMode.available).length;
         if (availableLabs < requiredLabs)
@@ -125,14 +120,16 @@
     }
 
     public tick() {
-        let trace = this.tracer.start('tick()');
         //console.log('myLab.tick try room: ' + this.labManager.mainRoom.name);
-        if (this.memory.mode & LabMode.reaction && this.lab && this.lab.cooldown == 0 && this.memory.reactionLabIds.length == 2 && (this.lab.mineralType == this.memory.resource || this.lab.mineralAmount==0)) {
-            if (_.all(this.memory.reactionLabIds, x => this.labManager.myLabs[x].lab != null && this.labManager.myLabs[x].lab.mineralType == this.labManager.myLabs[x].memory.resource)) {
-                this.lab.runReaction(this.labManager.myLabs[this.memory.reactionLabIds[0]].lab, this.labManager.myLabs[this.memory.reactionLabIds[1]].lab);
+        try {
+            if (this.memory.mode & LabMode.reaction && this.lab && this.lab.cooldown == 0 && this.memory.reactionLabIds.length == 2 && (this.lab.mineralType == this.memory.resource || this.lab.mineralAmount == 0)) {
+                if (_.all(this.memory.reactionLabIds, x => this.labManager.myLabs[x].lab != null && this.labManager.myLabs[x].lab.mineralType == this.labManager.myLabs[x].memory.resource && this.labManager.myLabs[x].lab.mineralAmount >= LAB_COOLDOWN)) {
+                    this.lab.runReaction(this.labManager.myLabs[this.memory.reactionLabIds[0]].lab, this.labManager.myLabs[this.memory.reactionLabIds[1]].lab);
+                }
             }
+        } catch (e) {
+            console.log(e.stack);
         }
-        trace.stop();
     }
 
 }

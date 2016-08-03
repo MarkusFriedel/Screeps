@@ -1,5 +1,5 @@
 ﻿/// <reference path="./manager.ts" />
-class RoadConstructionManager extends Manager implements RoadConstructionManagerInterface {
+class RoadConstructionManager  implements RoadConstructionManagerInterface {
 
     public get memory(): RoadConstructionManagerMemory {
         return this.accessMemory();
@@ -13,17 +13,10 @@ class RoadConstructionManager extends Manager implements RoadConstructionManager
         return this.mainRoom.memory.roadConstructionManager;
     }
 
-    private static _staticTracer: Tracer;
-    public static get staticTracer(): Tracer {
-        if (RoadConstructionManager._staticTracer == null) {
-            RoadConstructionManager._staticTracer = new Tracer('RoadConstructionManager');
-            Colony.tracers.push(RoadConstructionManager._staticTracer);
-        }
-        return RoadConstructionManager._staticTracer;
-    }
+  
 
     constructor(public mainRoom: MainRoom) {
-        super(RoadConstructionManager.staticTracer);
+        this.tick = profiler.registerFN(this.tick, 'RoadConstructionManager.tick');
     }
 
     buildExtensionRoads() {
@@ -84,7 +77,7 @@ class RoadConstructionManager extends Manager implements RoadConstructionManager
                 return;
             if (this.mainRoom.terminal) {
                 _.forEach(this.mainRoom.allRooms, room => room.recreateTravelMatrix());
-                let path = PathFinder.search(myMineral.pos, { pos: this.mainRoom.terminal.pos, range: 1 }, { plainCost: 2, swampCost: 3, roomCallback: Colony.getTravelMatrix, maxOps: 10000 });
+                let path = PathFinder.search(this.mainRoom.terminal.pos, { pos: myMineral.pos, range: 1 }, { plainCost: 2, swampCost: 3, roomCallback: Colony.getTravelMatrix, maxOps: 10000 });
                 this.constructRoad(path.path, 0);
                 myMineral.roadBuiltToRoom = this.mainRoom.name;
             };
@@ -108,30 +101,30 @@ class RoadConstructionManager extends Manager implements RoadConstructionManager
     }
 
 
-    public _tick() {
-        try {
-            //if (Game.cpu.bucket < 2000)
-            //    return;
+    public tick() {
+        //try {
+        //    //if (Game.cpu.bucket < 2000)
+        //    //    return;
             
-            if (this.memory.remainingPath && this.memory.remainingPath.length > 0) {
+        //    if (this.memory.remainingPath && this.memory.remainingPath.length > 0) {
 
-                let remainingPath = this.memory.remainingPath;
-                this.memory.remainingPath = null;
-                this.constructRoad(remainingPath);
+        //        let remainingPath = this.memory.remainingPath;
+        //        this.memory.remainingPath = null;
+        //        this.constructRoad(remainingPath);
                 
-            }
-            else if (Game.time % 50 == 0 && !(Game.time % 100 == 0)) {
-                //this.buildExtensionRoads();
-            }
-            else if (Game.time % 100 == 0 && !(Game.time % 200 == 0)) {
-                this.buildHarvestPaths();
-            }
-            else if (Game.time % 200 == 0) {
-                this.buildControllerRoad();
-            }
-        }
-        catch (e) {
-            console.log(e.stack);
-        }
+        //    }
+        //    else if (Game.time % 50 == 0 && !(Game.time % 100 == 0)) {
+        //        //this.buildExtensionRoads();
+        //    }
+        //    else if (Game.time % 100 == 0 && !(Game.time % 200 == 0)) {
+        //        this.buildHarvestPaths();
+        //    }
+        //    else if (Game.time % 200 == 0) {
+        //        this.buildControllerRoad();
+        //    }
+        //}
+        //catch (e) {
+        //    console.log(e.stack);
+        //}
     }
 }

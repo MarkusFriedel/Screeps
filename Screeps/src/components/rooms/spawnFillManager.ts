@@ -2,7 +2,7 @@
 /// <reference path="../creeps/spawnFiller/spawnFiller.ts" />
 /// <reference path="./manager.ts" />
 
-class SpawnFillManager extends Manager implements SpawnFillManagerInterface {
+class SpawnFillManager implements SpawnFillManagerInterface {
 
     _creeps: { time: number, creeps: Array<Creep> } = { time: 0, creeps: null };
     public get creeps(): Array<Creep> {
@@ -13,28 +13,21 @@ class SpawnFillManager extends Manager implements SpawnFillManagerInterface {
         return this._creeps.creeps;
     }
 
-    private static _staticTracer: Tracer;
-    public static get staticTracer(): Tracer {
-        if (SpawnFillManager._staticTracer == null) {
-            SpawnFillManager._staticTracer = new Tracer('SpawnFillManager');
-            Colony.tracers.push(SpawnFillManager._staticTracer);
-        }
-        return SpawnFillManager._staticTracer;
-    }
+    
 
     constructor(public mainRoom: MainRoom) {
-        super(SpawnFillManager.staticTracer);
+        this.preTick = profiler.registerFN(this.preTick, 'SpawnFillManager.preTick');
     }
 
-    public _preTick() {
+    public preTick() {
         if (this.mainRoom.spawnManager.isBusy)
             return;
         if (this.mainRoom.mainContainer != null && _.size(_.filter(this.mainRoom.creeps, (c) => c.memory.role == 'spawnFiller' && (c.ticksToLive > 70 || c.ticksToLive === undefined))) < 2) {
-            this.mainRoom.spawnManager.addToQueue(SpawnFillerDefinition.getDefinition(this.mainRoom.maxSpawnEnergy).getBody(), { role: 'spawnFiller' }, 1,true);
+            this.mainRoom.spawnManager.addToQueue(SpawnFillerDefinition.getDefinition(this.creeps.length == 0 ? this.mainRoom.room.energyAvailable : this.mainRoom.maxSpawnEnergy).getBody(), { role: 'spawnFiller' }, 1, true);
         }
     }
 
-    public _tick() {
+    public tick() {
         this.creeps.forEach((c) => new SpawnFiller(c, this.mainRoom).tick());
     }
 

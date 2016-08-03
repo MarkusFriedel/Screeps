@@ -31,7 +31,7 @@
     function getMinerDefinition(maxEnergy: number, mySource: MySourceInterface,resources?: {[resource: string]: number}) {
         let baseBody = new Body();
 
-        if (mySource.link)
+        if (mySource.link || !mySource.hasKeeper)
             baseBody.carry = 2;
 
         if (mySource.hasKeeper) {

@@ -1,6 +1,6 @@
 ﻿namespace UpgraderDefinition {
 
-    export function getDefinition(maxEnergy: number,minCarry=false, maxWorkParts=50) {
+    export function getDefinition(maxEnergy: number, minCarry = false, maxWorkParts = 50, resources?: { [resource: string]: number }) {
         let body = new Body();
 
         let remainingEnergy = maxEnergy;// Math.min(maxEnergy, 1500);
@@ -38,7 +38,15 @@
         }
 
         if (minCarry)
-            body.carry = Math.min(Math.floor(body.getBody().length/5),body.carry);
+            body.carry = Math.min(Math.floor(body.getBody().length / 5), body.carry);
+
+        if (resources) {
+            let boostCompound = _.filter(_.sortByOrder(ReactionManager.BOOSTPOWERS['upgradeController'].resources, [r => r.resource], ['desc']), r => resources[r.resource] >=body.work * LAB_BOOST_MINERAL)[0];
+
+            if (boostCompound) {
+                body.boosts[boostCompound.resource] = { compound: boostCompound.resource, amount: body.work };
+            }
+        }
         
         return body;
     }

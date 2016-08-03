@@ -2,7 +2,7 @@
 /// <reference path="../creeps/defender/defender.ts" />
 /// <reference path="./manager.ts" />
 
-class DefenseManager extends Manager  implements DefenseManagerInterface {
+class DefenseManager  implements DefenseManagerInterface {
 
     _creeps: { time: number, creeps: Array<Creep> } = { time: 0, creeps: null };
     public get creeps(): Array<Creep> {
@@ -15,21 +15,14 @@ class DefenseManager extends Manager  implements DefenseManagerInterface {
 
     maxCreeps = 1;
 
-    private static _staticTracer: Tracer;
-    public static get staticTracer(): Tracer {
-        if (DefenseManager._staticTracer == null) {
-            DefenseManager._staticTracer = new Tracer('DefenseManager');
-            Colony.tracers.push(DefenseManager._staticTracer);
-        }
-        return DefenseManager._staticTracer;
-    }
+   
 
     constructor(public mainRoom: MainRoom) {
-        super(DefenseManager.staticTracer);
+        this.preTick = profiler.registerFN(this.preTick, 'DefenseManager.preTick');
 
     }
 
-    public _preTick() {
+    public preTick() {
         if (this.mainRoom.spawnManager.isBusy)
             return;
         if (_.filter(this.mainRoom.allRooms, (r) => !r.memory.foreignOwner && !r.memory.foreignReserver && r.requiresDefense && r.canHarvest).length > 0 && this.creeps.length < this.maxCreeps) {
@@ -37,7 +30,7 @@ class DefenseManager extends Manager  implements DefenseManagerInterface {
         }
     }
 
-    public _tick() {
+    public tick() {
         this.creeps.forEach((c) => new Defender(c, this.mainRoom).tick());
     }
 

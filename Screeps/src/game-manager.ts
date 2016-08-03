@@ -30,9 +30,9 @@ namespace GameManager {
 
         console.log();
         console.log('Boot tracers :');
-        for (let idx in Colony.tracers) {
-            Colony.tracers[idx].print();
-        }
+        //for (let idx in Colony.tracers) {
+        //    Colony.tracers[idx].print();
+        //}
     }
 
 
@@ -47,25 +47,26 @@ namespace GameManager {
 
 
         let startCpu = Game.cpu.getUsed();
-        for (var name in Memory.creeps) {
-            if (!Game.creeps[name]) {
-                delete Memory.creeps[name];
+        if (Game.time % 100 == 0)
+            for (var name in Memory.creeps) {
+                if (!Game.creeps[name]) {
+                    delete Memory.creeps[name];
+                }
             }
-        }
 
         if (Memory['verbose'])
             console.log('MainLoop');
 
         Colony.tick();
-        
+
 
         console.log();
         console.log('Loop tracers :');
-        for (let idx in Colony.tracers) {
-            Colony.tracers[idx].print();
-            Colony.tracers[idx].reset();
+        //for (let idx in Colony.tracers) {
+        //    Colony.tracers[idx].print();
+        //    Colony.tracers[idx].reset();
 
-        }
+        //}
 
         let endCpu = Game.cpu.getUsed();
         console.log('Time: ' + Game.time + ' Measured CPU: ' + (endCpu - startCpu).toFixed(2) + ', CPU: ' + endCpu.toFixed(2) + ' Bucket: ' + Game.cpu.bucket);

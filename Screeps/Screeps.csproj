@@ -32,6 +32,7 @@
     <TypeScriptCompile Include="src\colony\colony.ts" />
     <TypeScriptCompile Include="src\colony\military\armyManager.ts" />
     <TypeScriptCompile Include="src\colony\military\army.ts" />
+    <TypeScriptCompile Include="src\components\creeps\carrier\carrier.ts" />
     <TypeScriptCompile Include="src\components\creeps\keeperBuster\keeperBuster.ts" />
     <TypeScriptCompile Include="src\components\creeps\keeperBuster\keeperBusterDefinition.ts" />
     <TypeScriptCompile Include="src\components\creeps\military\armyCreep.ts" />
@@ -40,6 +41,7 @@
     <TypeScriptCompile Include="src\components\creeps\spawnConstructor\spawnConstructor.ts" />
     <TypeScriptCompile Include="src\components\creeps\terminalFiller\terminalFiller.ts" />
     <TypeScriptCompile Include="src\components\path.ts" />
+    <TypeScriptCompile Include="src\components\rooms\carrierManager.ts" />
     <TypeScriptCompile Include="src\components\rooms\hostileScan.ts" />
     <TypeScriptCompile Include="src\colony\reactionManager.ts" />
     <TypeScriptCompile Include="src\colony\roomAssignment.ts" />
@@ -111,7 +113,6 @@
     <TypeScriptCompile Include="src\memoryObject.ts" />
     <TypeScriptCompile Include="src\myScreeps.d.ts" />
     <TypeScriptCompile Include="src\helpers.ts" />
-    <TypeScriptCompile Include="src\tracer.ts" />
     <TypeScriptCompile Include="typings\lodash\lodash.d.ts" />
     <TypeScriptCompile Include="typings\tsd.d.ts" />
     <TypeScriptCompile Include="_references.ts" />

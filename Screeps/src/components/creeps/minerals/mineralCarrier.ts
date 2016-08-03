@@ -20,18 +20,11 @@ class MineralCarrier extends MyCreep {
         return this._myMineral.myMineral;
     }
 
-    public static staticTracer: Tracer;
-    public tracer: Tracer;
-
     constructor(public creep: Creep, public mainRoom: MainRoomInterface) {
         super(creep);
         this.memory.autoFlee = true;
+        this.myTick = profiler.registerFN(this.myTick, 'MineralCarrier.tick');
 
-        if (MineralCarrier.staticTracer == null) {
-            MineralCarrier.staticTracer = new Tracer('MineralCarrier');
-            Colony.tracers.push(MineralCarrier.staticTracer);
-        }
-        this.tracer = MineralCarrier.staticTracer;
     }
 
     pickUpMineral(): boolean {
@@ -42,19 +35,18 @@ class MineralCarrier extends MyCreep {
                 this.creep.moveTo(resource);
             return true;
         }
+        else if (resource == null && this.myMineral.amount == 0 && this.myMineral.refreshTime > Game.time + this.creep.ticksToLive)
+            this.recycle(); 
         return false;
     }
 
     public myTick() {
-        let trace = this.tracer.start('tick()');
         if (this.creep.spawning) {
-            trace.stop();
             return;
         }
 
         if (!this.myMineral) {
             this.creep.say('NoMineral');
-            trace.stop();
             return;
         }
 
@@ -65,10 +57,9 @@ class MineralCarrier extends MyCreep {
             this.memory.state = MineralCarrierState.Pickup;
 
         }
-        else if (this.memory.state == MineralCarrierState.Pickup && _.sum(this.creep.carry) == this.creep.carryCapacity) {
+        else if (this.memory.state == MineralCarrierState.Pickup && _.sum(this.creep.carry) >= 0.5 * this.creep.carryCapacity) {
             if (this.mainRoom.terminal == null) {
                 this.creep.say('NoTerm');
-                trace.stop();
                 return;
             }
 
@@ -95,7 +86,6 @@ class MineralCarrier extends MyCreep {
         }
         else if (this.memory.state == MineralCarrierState.Deliver) {
             if (!this.mainRoom || !this.mainRoom.terminal) {
-                trace.stop();
                 return;
             }
             if (this.memory.path.path.length > 2) {
@@ -106,6 +96,5 @@ class MineralCarrier extends MyCreep {
                     this.creep.moveTo(this.mainRoom.terminal);
             }
         }
-        trace.stop();
     }
 }

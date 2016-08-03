@@ -7,12 +7,8 @@ namespace KeeperBusterDefinition {
 
         body.tough = 1;
 
-        let requiredHealAmount = 10 * RANGED_ATTACK_POWER;
+        let requiredHealAmount = 8 * RANGED_ATTACK_POWER;
         let requiredHealModules = requiredHealAmount / HEAL_POWER;
-
-        for (let resource in resources) {
-            console.log('Creating KeeperBuster: Resource ' + resource + ': ' + resources[resource]);
-        }
 
         let boostCompound = _.filter(_.sortByOrder(ReactionManager.BOOSTPOWERS['heal'].resources, [r => r.resource], ['desc']), r => resources[r.resource] >= Math.ceil(requiredHealModules / r.factor) * LAB_BOOST_MINERAL)[0];
 
@@ -23,12 +19,14 @@ namespace KeeperBusterDefinition {
 
         body.heal = requiredHealModules;
 
-        let rangedAttackModules = 3;
+        let rangedAttackModules = 12;
 
-        boostCompound = _.filter(_.sortByOrder(ReactionManager.BOOSTPOWERS['rangedAttack'].resources, [r => r.resource], ['desc']), r => resources[r.resource] >= Math.ceil(requiredHealModules / r.factor) * LAB_BOOST_MINERAL)[0];
+        boostCompound = _.filter(_.sortByOrder(ReactionManager.BOOSTPOWERS['rangedAttack'].resources, [r => r.resource], ['desc']), r => resources[r.resource] >= Math.ceil(rangedAttackModules / r.factor) * LAB_BOOST_MINERAL)[0];
 
         if (boostCompound) {
-            body.boosts[boostCompound.resource] = { compound: boostCompound.resource, amount: requiredHealModules };
+            rangedAttackModules = Math.floor(rangedAttackModules / boostCompound.factor);
+            body.boosts[boostCompound.resource] = { compound: boostCompound.resource, amount: rangedAttackModules };
+            
         }
 
         body.ranged_attack = rangedAttackModules;
@@ -42,3 +40,4 @@ namespace KeeperBusterDefinition {
     }
 
 }
+

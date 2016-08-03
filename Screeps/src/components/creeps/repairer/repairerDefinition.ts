@@ -3,43 +3,36 @@
     export function getDefinition(maxEnergy: number) {
         let body = new Body();
 
-        let remainingEnergy = Math.min(maxEnergy, 800);
+        let remainingEnergy = Math.min(maxEnergy, 2250);
 
-        if (remainingEnergy < 400) {
+        if (remainingEnergy < 350) {
             body.work = 1;
             body.carry = 2;
             body.move = 2;
         }
         else {
 
-            var basicModulesCount = ~~(remainingEnergy / 400); //work,carry,carry,move,move
+            var basicModulesCount = ~~(remainingEnergy / 350); //work,carry,carry,move,move
             if (basicModulesCount > 5)
                 basicModulesCount = 5;
 
-            body.work = 2 * basicModulesCount;
-            body.carry = 2 * basicModulesCount;
+            body.work = 1 * basicModulesCount;
+            body.carry = 3 * basicModulesCount;
             body.move = 2 * basicModulesCount;
 
-            var remaining = remainingEnergy - 400 * basicModulesCount;
+            var remaining = remainingEnergy - 350 * basicModulesCount;
 
-            while (remaining >= 100) {
-                if (remaining >= 200) {
-                    body.work++;
-                    body.carry++;;
-                    body.move++;;
-                    remaining -= 200;
-                }
-                else if (remaining >= 100) {
-                    body.carry++;
-                    body.move++;
-                    remaining -= 100;
-                }
-                else
-                    break;
-            }
+            remaining = Math.min(remaining, 300);
+
+            //while (remaining >= 150) {
+            //    body.carry++;
+            //    body.carry++;
+            //    body.move++;
+            //    remaining -= 150;
+            //}
 
 
-            
+
         }
         return body;
     }

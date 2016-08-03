@@ -3,6 +3,9 @@
         return this.accessMemory();
     }
 
+   
+
+
     accessMemory() {
         if (this.mainRoom.memory.myObserver == null)
             this.mainRoom.memory.myObserver = {
@@ -14,7 +17,7 @@
     }
 
     constructor(public mainRoom: MainRoom) {
-
+        this.tick = profiler.registerFN(this.tick, 'MyObserver.tick');
     }
 
     private _observer: { time: number, observer: Observer };
@@ -53,6 +56,30 @@
         return (x < 0 ? 'W' + (-x - 1) : 'E' + x) + (y < 0 ? 'N' + (-y - 1) : 'S' + y);
     }
 
+    private shouldScanRoom(roomName: string) {
+        if (Colony.memory.rooms[roomName] && Colony.memory.rooms[roomName].mainRoomName || _.any(Game.flags, f => f.pos.roomName == roomName)) {
+            return true;
+        }
+        if (Colony.memory.exits == null)
+            Colony.memory.exits = {};
+
+        if (!Colony.memory.exits[roomName]) {
+            Colony.memory.exits[roomName] = {};
+
+            for (let direction in Game.map.describeExits(roomName))
+                Colony.memory.exits[roomName][direction] = Game.map.describeExits(roomName)[direction];
+        }
+
+        for (let direction in Colony.memory.exits[roomName]) {
+            let exit = Colony.memory.exits[roomName][direction];
+            if (Colony.memory.rooms[exit] && Colony.memory.rooms[exit].mainRoomName) {
+                return true;
+            }
+
+        }
+        return false;
+    }
+
     public tick() {
         if (!this.observer)
             return;
@@ -87,11 +114,16 @@
                 }
             }
 
-            this.memory.scanTime = Game.time;
 
-            console.log('Scanning ' + this.getRoomName(this.roomIndex.x + this.memory.scannedX, this.roomIndex.y + this.memory.scannedY));
+            let roomName = this.getRoomName(this.roomIndex.x + this.memory.scannedX, this.roomIndex.y + this.memory.scannedY);
+            if (this.shouldScanRoom(roomName)) {
+                this.memory.scanTime = Game.time;
+                console.log('Scanning ' + roomName);
 
-            this.observer.observeRoom(this.getRoomName(this.roomIndex.x + this.memory.scannedX, this.roomIndex.y + this.memory.scannedY));
+                this.observer.observeRoom(roomName);
+            }
+            else if (Colony.memory.rooms[roomName])
+                delete Colony.memory.rooms[roomName];
         }
     }
 }

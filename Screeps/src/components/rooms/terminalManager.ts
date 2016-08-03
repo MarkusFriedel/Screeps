@@ -1,7 +1,7 @@
 ﻿/// <reference path="../creeps/terminalFiller/terminalFillerDefinition.ts" />
 /// <reference path="../creeps/terminalFiller/terminalFiller.ts" />
 
-class TerminalManager extends Manager implements TerminalManagerInterface {
+class TerminalManager implements TerminalManagerInterface {
 
     public get memory(): TerminalManagerMemory {
         return this.accessMemory();
@@ -27,20 +27,14 @@ class TerminalManager extends Manager implements TerminalManagerInterface {
 
     maxCreeps = 1;
 
-    private static _staticTracer: Tracer;
-    public static get staticTracer(): Tracer {
-        if (TerminalManager._staticTracer == null) {
-            TerminalManager._staticTracer = new Tracer('TerminalManager');
-            Colony.tracers.push(TerminalManager._staticTracer);
-        }
-        return TerminalManager._staticTracer;
-    }
+  
 
     constructor(public mainRoom: MainRoom) {
-        super(TerminalManager.staticTracer);
+        this.preTick = profiler.registerFN(this.preTick, 'TerminalManager.preTick');
+        this.tick = profiler.registerFN(this.tick, 'TerminalManager.tick');
     }
 
-    public _preTick() {
+    public preTick() {
         if (!this.mainRoom.room || !this.mainRoom.mainContainer || !this.mainRoom.room.terminal || !this.mainRoom.room.terminal.isActive() || this.mainRoom.spawnManager.isBusy)
             return;
         if (this.creeps.length == 0) {
@@ -48,7 +42,7 @@ class TerminalManager extends Manager implements TerminalManagerInterface {
         }
     }
 
-    public _tick() {
+    public tick() {
         if (!this.mainRoom.room || !this.mainRoom.mainContainer || !this.mainRoom.room.terminal || !this.mainRoom.room.terminal.isActive()) {
             return;
         }
@@ -57,7 +51,6 @@ class TerminalManager extends Manager implements TerminalManagerInterface {
     }
 
     handleTradeAgreements(terminal: Terminal) {
-        let trace = this.tracer.start('handleTradeAgreements()');
 
         let incomingTransactions = _.filter(Game.market.incomingTransactions, transaction => transaction.time >= this.memory.transactionCheckTime && transaction.to == this.mainRoom.name);
 
@@ -104,11 +97,9 @@ class TerminalManager extends Manager implements TerminalManagerInterface {
                 }
             }
         }
-        trace.stop();
     }
 
     handleEnergyBalance(terminal: Terminal) {
-        let trace = this.tracer.start('handleEnergyBalance()');
         //if ((this.resourceSentOn == null || this.resourceSentOn < Game.time) && this.mainRoom.mainContainer.store.energy > 450000 && terminal.store.energy > 1000) {
         //    let targetMainRoom = _.sortByAll(_.filter(Colony.mainRooms, x => x.mainContainer && x.room && x.room.terminal && x.room.terminal.isActive() && x.mainContainer.store.energy < 350000 && Game.map.getRoomLinearDistance(this.mainRoom.name, x.name) <= 3), [x => Game.map.getRoomLinearDistance(this.mainRoom.name, x.name), x => x.mainContainer.store.energy])[0];
         //    if (targetMainRoom) {
@@ -137,11 +128,9 @@ class TerminalManager extends Manager implements TerminalManagerInterface {
                 supplierRoom.managers.terminalManager.send(RESOURCE_ENERGY, amount, this.mainRoom.name);
             }
         }
-        trace.stop();
     }
 
     handleMineralBalance(terminal: Terminal) {
-        let trace = this.tracer.start('handleMineralBalance()');
         _.forEach(_.filter(_.uniq(Colony.reactionManager.highestPowerCompounds.concat(this.mainRoom.managers.labManager.imports)), x => x != RESOURCE_ENERGY && this.mainRoom.getResourceAmount(x) <= 5000), resource => {
             if (this.mainRoom.mainContainer && this.mainRoom.mainContainer.structureType == STRUCTURE_STORAGE && _.size(this.mainRoom.managers.labManager.myLabs) > 0) {
   
@@ -164,7 +153,6 @@ class TerminalManager extends Manager implements TerminalManagerInterface {
                 }
             }
         });
-        trace.stop();
     }
 
     send(resource: string, amount: number, destination: string, description?: string) {

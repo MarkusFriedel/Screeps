@@ -1,14 +1,18 @@
-﻿class LinkFiller {
+﻿/// <reference path="../MyCreep.ts" />
+
+class LinkFiller extends MyCreep {
 
     creep: Creep;
     mainRoom: MainRoom;
 
     constructor(creep: Creep, mainRoom: MainRoom) {
+        super(creep);
         this.creep = creep;
         this.mainRoom = mainRoom;
+        this.myTick = profiler.registerFN(this.myTick, 'Builder.tick');
     }
 
-    public tick() {
+    public myTick() {
         let storage = this.mainRoom.room.storage;
 
         if (this.creep.ticksToLive <= 10) {
@@ -17,6 +21,16 @@
             else {
                 if (this.creep.transfer(storage, RESOURCE_ENERGY) == ERR_NOT_IN_RANGE)
                     this.creep.moveTo(storage);
+            }
+            return;
+        }
+
+        if (this.creep.carry.energy < this.creep.carryCapacity && _.filter(this.mainRoom.myRoom.resourceDrops, x => x.resourceType == RESOURCE_ENERGY).length>0) {
+            let energy = _.filter(this.mainRoom.myRoom.resourceDrops, x => x.resourceType == RESOURCE_ENERGY && x.pos.inRangeTo(this.mainRoom.mainContainer.pos, 2))[0];
+            if (energy) {
+                if (this.creep.pickup(energy) == ERR_NOT_IN_RANGE)
+                    this.creep.moveTo(energy);
+                return;
             }
         }
 

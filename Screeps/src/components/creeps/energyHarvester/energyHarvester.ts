@@ -32,19 +32,18 @@ class EnergyHarvester extends MyCreep {
         }
     }
 
-    public static staticTracer: Tracer;
-    public tracer: Tracer;
 
     constructor(public creep: Creep, public mainRoom: MainRoomInterface) {
         super(creep);
 
         this.memory.autoFlee = true;
 
-        if (EnergyHarvester.staticTracer == null) {
-            EnergyHarvester.staticTracer = new Tracer('Harvester');
-            //Colony.tracers.push(EnergyHarvester.staticTracer);
-        }
-        this.tracer = EnergyHarvester.staticTracer;
+        this.myTick = profiler.registerFN(this.myTick, 'EnergyHarvester.tick');
+        this.construct = profiler.registerFN(this.construct, 'EnergyHarvester.construct');
+        this.repair = profiler.registerFN(this.repair, 'EnergyHarvester.repair');
+        this.harvest = profiler.registerFN(this.harvest, 'EnergyHarvester.harvest');
+        this.deliver = profiler.registerFN(this.deliver, 'EnergyHarvester.deliver');
+
     }
 
 
@@ -72,25 +71,126 @@ class EnergyHarvester extends MyCreep {
     healed: boolean = false;
 
     createHarvestPath() {
-        this.memory.path = PathFinder.search(this.creep.pos, { pos: this.mySource.pos, range: 5 }, { roomCallback: Colony.getTravelMatrix, plainCost: 2, swampCost: 10 });
+        this.memory.path = PathFinder.search(this.creep.pos, { pos: this.mySource.pos, range: 1 }, { roomCallback: Colony.getTravelMatrix, plainCost: 2, swampCost: 10, maxOps: 10000 });
         this.memory.path.path.unshift(this.creep.pos);
     }
 
-    public myTick() {
-        let trace = this.tracer.start('tick()');
+    repair(): boolean {
+        if (Game.time % 5 != 0)
+            return;
+        let repairPower = _.filter(this.creep.body, b => b.type == WORK).length * REPAIR_POWER;
+        let repairCost = REPAIR_POWER * REPAIR_COST;
+        if (this.mySource.container && RepairManager.emergencyTargetDelegate(this.mySource.container) && this.creep.carry.energy >= repairCost && this.mySource.container.hits < this.mySource.container.hitsMax - repairPower) {
+            if (this.creep.repair(this.mySource.container) == OK) {
+                let container = Game.getObjectById<Container>(this.mySource.container.id);
+                if (container && this.myRoom.repairStructures[container.id]) {
+                    if (container.hits == container.hitsMax)
+                        delete this.myRoom.repairStructures[container.id];
+                    else
+                        this.myRoom.repairStructures[container.id].hits = container.hits;
 
+                }
+            }
+            //this.creep.say('Repair');
+            return true;
+        }
+        return false;
+    }
+
+    construct(): boolean {
+        if (this.mySource.container || this.mySource.link || this.mySource.hasKeeper)
+            return false;
+        else if (this.creep.carry.energy >= _.filter(this.creep.body, b => b.type == WORK).length * BUILD_POWER) {
+            let construction = this.mySource.pos.findInRange<ConstructionSite>(FIND_CONSTRUCTION_SITES, 1)[0];
+            if (construction) {
+                this.creep.build(construction);
+                //this.creep.say('Build');
+                return true;
+            }
+            else {
+                this.creep.pos.createConstructionSite(STRUCTURE_CONTAINER);
+            }
+        }
+        return false;
+    }
+
+    private harvest() {
+        if (this.memory.path && this.memory.path.path.length > 2) {
+            //this.creep.say('Path');
+            this.moveByPath();
+        }
+        else if (this.creep.room.name != this.mySource.myRoom.name) {
+            this.createHarvestPath();
+            if (this.memory.path.path.length <= 2)
+                this.creep.moveTo(this.mySource.pos);
+            else
+                this.moveByPath();
+            //this.creep.say('Travel');
+        }
+        else if (!this.creep.pos.isNearTo(this.mySource.pos)) {
+            if (this.mySource.container && !this.creep.pos.isEqualTo(this.mySource.container.pos) && !this.mySource.container.pos.isEqualTo(this.creep.pos) && this.mySource.container.pos.lookFor(LOOK_CREEPS).length == 0) {
+                this.creep.moveTo(this.mySource.container);
+            }
+            else this.creep.moveTo(this.mySource.pos);
+            //this.creep.say('MoveIn');
+        }
+        else if (!this.healed && !this.repair() && !this.construct()) {
+            if (this.mySource.container && !this.creep.pos.isEqualTo(this.mySource.container.pos) && this.mySource.container.pos.lookFor(LOOK_CREEPS).length == 0)
+                this.creep.moveTo(this.mySource.container);
+
+            if (this.creep.harvest(this.mySource.source) == ERR_NOT_IN_RANGE)
+                this.creep.moveTo(this.mySource.source);
+            //this.creep.say('Harvest');
+
+            if (this.creep.carry.energy > this.creep.carryCapacity - _.filter(this.creep.body, b => b.type == WORK).length * 2) {
+                if (this.mySource.link) {
+                    //this.creep.say('Link');
+                    if (this.creep.transfer(this.mySource.link, RESOURCE_ENERGY) == ERR_NOT_IN_RANGE)
+                        this.creep.moveTo(this.mySource.link);
+
+                }
+                else if (this.mainRoom.harvestersShouldDeliver) {
+                    //this.creep.say('Deliver');
+                    if (this.memory.path == null) {
+                        this.memory.path = PathFinder.search(this.creep.pos, { pos: this.mainRoom.mainContainer.pos, range: 5 }, { roomCallback: Colony.getTravelMatrix, plainCost: 2, swampCost: 10 });
+                        this.memory.path.path.unshift(this.creep.pos);
+                    }
+                    if (this.memory.path && this.memory.path.path.length > 2)
+                        this.moveByPath();
+                    else if (this.creep.transfer(this.mainRoom.energyDropOffStructure, RESOURCE_ENERGY) == ERR_NOT_IN_RANGE)
+                        this.creep.moveTo(this.mainRoom.energyDropOffStructure);
+                }
+
+            }
+        }
+    }
+
+    private deliver() {
+        if (this.memory.path && this.memory.path.path.length > 2)
+            this.moveByPath();
+        else {
+            if (this.creep.transfer(this.mainRoom.energyDropOffStructure, RESOURCE_ENERGY) == ERR_NOT_IN_RANGE)
+                this.creep.moveTo(this.mainRoom.energyDropOffStructure);
+        }
+    }
+
+    public myTick() {
+        //this.creep.say('Tick');
         this.healed = false;
 
-        if (this.mySource == null)
+        if (this.mySource == null) {
+            //this.creep.say('Reassign');
             this.reassignMainRoom();
+        }
 
         if (!this.mySource) {
-            trace.stop();
+            //this.creep.say('No Source');
             return;
         }
 
-        if (this.creep.getActiveBodyparts(HEAL) > 0 && this.creep.hits + this.creep.getActiveBodyparts(HEAL) * HEAL_POWER <= this.creep.hitsMax) {
+        if (_.filter(this.creep.body, b => b.type == HEAL).length > 0 && this.creep.hits + _.filter(this.creep.body, b => b.type == HEAL).length * HEAL_POWER <= this.creep.hitsMax) {
             this.creep.heal(this.creep);
+            //this.creep.say('Heal');
             this.healed = true;
         }
         //else if (this.creep.getActiveBodyparts(HEAL) > 0) {
@@ -107,7 +207,6 @@ class EnergyHarvester extends MyCreep {
         }
         else if (this.memory.state == EnergyHarvesterState.Harvesting && _.sum(this.creep.carry) == this.creep.carryCapacity && !this.mySource.link && this.mainRoom.harvestersShouldDeliver) {
             if (!this.mainRoom.energyDropOffStructure) {
-                trace.stop();
                 return;
             }
 
@@ -118,112 +217,16 @@ class EnergyHarvester extends MyCreep {
         }
 
         if (this.memory.state == EnergyHarvesterState.Harvesting) {
-
-            if (this.memory.path && this.memory.path.path.length > 2)
-                this.moveByPath();
-            else if (this.creep.room.name != this.mySource.myRoom.name) {
-                this.createHarvestPath();
-                this.moveByPath();
-            }
-            else if (!this.healed) {
-                if (this.creep.harvest(this.mySource.source) == ERR_NOT_IN_RANGE)
-                    this.creep.moveTo(this.mySource.source);
-
-                if (this.creep.carry.energy > this.creep.carryCapacity - _.filter(this.creep.body, b => b.type == WORK).length * 2) {
-                    if (this.mySource.link) {
-                        if (this.creep.transfer(this.mySource.link, RESOURCE_ENERGY) == ERR_NOT_IN_RANGE)
-                            this.creep.moveTo(this.mySource.link);
-                    }
-                    else if (this.mainRoom.harvestersShouldDeliver) {
-                        if (this.memory.path == null) {
-                            this.memory.path = PathFinder.search(this.creep.pos, { pos: this.mainRoom.mainContainer.pos, range: 5 }, { roomCallback: Colony.getTravelMatrix, plainCost: 2, swampCost: 10 });
-                            this.memory.path.path.unshift(this.creep.pos);
-                        }
-                        if (this.memory.path && this.memory.path.path.length > 2)
-                            this.moveByPath();
-                        else if (this.creep.transfer(this.mainRoom.energyDropOffStructure, RESOURCE_ENERGY) == ERR_NOT_IN_RANGE)
-                            this.creep.moveTo(this.mainRoom.energyDropOffStructure);
-                    }
-                    //else {
-                    //    //let carrier = _.filter(this.mainRoom.managers.energyHarvestingManager.sourceCarrierCreeps, c => c.memory.sourceId == this.mySource.id && c.memory.state == SourceCarrierState.Pickup && c.pos.isNearTo(this.creep.pos))[0];
-                    //    //if (carrier)
-                    //    //    this.creep.transfer(carrier, RESOURCE_ENERGY);
-                    //    //else
-                    //        //this.creep.drop(RESOURCE_ENERGY);
-                    //}
-
-                }
-            }
-            else if (this.healed && !this.mySource.pos.isNearTo(this.creep.pos))
-                this.creep.moveTo(this.mySource.pos);
+            //this.creep.say('State 1');
+            this.harvest();
         }
         else if (this.memory.state == EnergyHarvesterState.Delivering) {
-            if (this.memory.path && this.memory.path.path.length > 2)
-                this.moveByPath();
-            else {
-                if (this.creep.transfer(this.mainRoom.energyDropOffStructure, RESOURCE_ENERGY) == ERR_NOT_IN_RANGE)
-                    this.creep.moveTo(this.mainRoom.energyDropOffStructure);
-            }
+            //this.creep.say('State 2');
+            this.deliver();
         }
-        trace.stop();
+        else {
+            //console.log('Nothing');
+        }
     }
 
-    //public myTick() {
-    //    if (this.mySource == null)
-    //        this.reassignMainRoom();
-
-    //    if (!this.mySource)
-    //        return;
-
-    //    if (this.memory.state == null || this.memory.path==null || this.memory.state == HarvesterState.Delivering && this.creep.carry.energy == 0) {
-    //        if (!this.mySource)
-    //            return;
-    //        this.memory.path = PathFinder.search(this.creep.pos, { pos: this.mySource.pos, range: 3 }, { roomCallback: Colony.getTravelMatrix, plainCost: 2, swampCost: 10 });
-    //        this.memory.path.path.unshift(this.creep.pos);
-
-    //        this.memory.state = HarvesterState.Harvesting;
-
-    //    }
-    //    else if (this.memory.state == HarvesterState.Harvesting && _.sum(this.creep.carry) == this.creep.carryCapacity) {
-    //        if (!this.mySource.dropOffStructure)
-    //            return;
-
-    //        if (!this.creep.pos.isNearTo(this.mySource.dropOffStructure.pos)) {
-    //            this.memory.path = PathFinder.search(this.creep.pos, { pos: this.mySource.dropOffStructure.pos, range: 5 }, { roomCallback: Colony.getTravelMatrix, plainCost: 2, swampCost: 10 });
-    //            this.memory.path.path.unshift(this.creep.pos);
-    //        }
-
-    //        this.memory.state = HarvesterState.Delivering;
-    //    }
-
-    //    if (this.memory.state == HarvesterState.Harvesting) {
-    //        if (this.mySource == null)
-    //            return;
-    //        if (this.creep.carry.energy < _.sum(this.creep.body, x => x.type == WORK ? 1 : 0) * REPAIR_COST * REPAIR_POWER || !this.tryRepair()) {
-    //            if (this.creep.carry.energy < _.sum(this.creep.body, x => x.type == WORK ? 1 : 0) * BUILD_POWER || !this.tryBuild()) {
-    //                if (this.memory.path.path.length > 2)
-    //                    this.moveByPath();
-    //                else {
-    //                    if (this.creep.harvest(this.mySource.source) == ERR_NOT_IN_RANGE)
-    //                        this.creep.moveTo(this.mySource.source);
-
-    //                    if (this.creep.carry.energy >= this.creep.carryCapacity - _.filter(this.creep.body, b => b.type == WORK).length * 2 && this.mySource.dropOffStructure) {
-    //                        this.creep.transfer(<Container>this.mySource.sourceDropOffContainer, RESOURCE_ENERGY);
-    //                    }
-
-    //                }
-    //            }
-    //        }
-    //    }
-    //    else if (this.memory.state == HarvesterState.Delivering) {
-    //        if (this.mySource == null)
-    //            return;
-    //        if (this.memory.path.path.length > 2)
-    //            this.moveByPath();
-    //        else {
-    //            if (this.creep.transfer(<Structure>this.mySource.dropOffStructure, RESOURCE_ENERGY) == ERR_NOT_IN_RANGE)
-    //                this.creep.moveTo(this.mySource.dropOffStructure);
-    //        }
-    //    }
-    //}
 }

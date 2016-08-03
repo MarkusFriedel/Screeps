@@ -2,7 +2,7 @@
 /// <reference path="../creeps/upgrader/upgrader.ts" />
 /// <reference path="./manager.ts" />
 
-class UpgradeManager extends Manager implements UpgradeManagerInterface {
+class UpgradeManager implements UpgradeManagerInterface {
 
     _creeps: { time: number, creeps: Array<Creep> } = { time: 0, creeps: null };
     public get creeps(): Array<Creep> {
@@ -13,29 +13,23 @@ class UpgradeManager extends Manager implements UpgradeManagerInterface {
         return this._creeps.creeps;
     }
 
-    private static _staticTracer: Tracer;
-    public static get staticTracer(): Tracer {
-        if (UpgradeManager._staticTracer == null) {
-            UpgradeManager._staticTracer = new Tracer('UpgradeManager');
-            Colony.tracers.push(UpgradeManager._staticTracer);
-        }
-        return UpgradeManager._staticTracer;
-    }
+    
 
     constructor(public mainRoom: MainRoom) {
-        super(UpgradeManager.staticTracer);
+        this.preTick = profiler.registerFN(this.preTick, 'UpgradeManager.preTick');
     }
 
 
-    public _preTick() {
+    public preTick() {
         if (this.mainRoom.spawnManager.isBusy)
             return;
-        if (this.mainRoom.mainContainer != null && this.mainRoom.room.energyAvailable == this.mainRoom.room.energyCapacityAvailable && this.mainRoom.spawnManager.queue.length < 1 && (this.creeps.length < 1 || (this.mainRoom.mainContainer.store.energy == this.mainRoom.mainContainer.storeCapacity || this.mainRoom.mainContainer.store.energy > 300000 || this.mainRoom.mainContainer.store.energy > 50000 && this.mainRoom.room.controller.level<6) && this.creeps.length < 5 && this.mainRoom.room.controller.level < 8)) {
-            this.mainRoom.spawnManager.addToQueue(UpgraderDefinition.getDefinition(this.mainRoom.maxSpawnEnergy, _.any(this.mainRoom.links, x => x.nearController), this.mainRoom.room.controller.level==8 ? 15 : 50).getBody(), { role: 'upgrader' }, 1);
+        if (this.mainRoom.mainContainer != null && this.mainRoom.room.energyAvailable == this.mainRoom.room.energyCapacityAvailable && /*this.mainRoom.spawnManager.queue.length < 1 &&*/ (this.creeps.length < 1 || (this.mainRoom.mainContainer.store.energy == this.mainRoom.mainContainer.storeCapacity || this.mainRoom.mainContainer.store.energy > 300000 || this.mainRoom.mainContainer.store.energy > 50000 && this.mainRoom.room.controller.level < 6) && this.creeps.length < 5 && this.mainRoom.room.controller.level < 8)) {
+            let definition = UpgraderDefinition.getDefinition(this.mainRoom.maxSpawnEnergy, _.any(this.mainRoom.links, x => x.nearController), this.mainRoom.room.controller.level == 8 ? 15 : 50, this.mainRoom.managers.labManager.availablePublishResources);
+            this.mainRoom.spawnManager.addToQueue(definition.getBody(), { role: 'upgrader', requiredBoosts: definition.boosts }, 1);
         }
     }
 
-    public _tick() {
+    public tick() {
         this.creeps.forEach((c) => new Upgrader(c, this.mainRoom).tick());
     }
 

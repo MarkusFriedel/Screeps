@@ -21,26 +21,24 @@ class MineralHarvester extends MyCreep {
         return this._myMineral.myMineral;
     }
 
-    public static staticTracer: Tracer;
-    public tracer: Tracer;
 
     constructor(public creep: Creep, public mainRoom: MainRoomInterface) {
         super(creep);
         this.memory.autoFlee = true;
 
-        if (MineralHarvester.staticTracer == null) {
-            MineralHarvester.staticTracer = new Tracer('MineralHarvester');
-            Colony.tracers.push(MineralHarvester.staticTracer);
-        }
-        this.tracer = MineralHarvester.staticTracer;
+        this.myTick = profiler.registerFN(this.myTick, 'MineralHarvester.tick');
+
     }
 
     private healed: boolean = false;
 
     public myTick() {
-        let trace = this.tracer.start('tick()');
         if (this.creep.spawning) {
-            trace.stop();
+            return;
+        }
+
+        if (this.myMineral.amount == 0 && this.myMineral.refreshTime > Game.time + this.creep.ticksToLive) {
+            this.recycle();
             return;
         }
 
@@ -53,7 +51,6 @@ class MineralHarvester extends MyCreep {
 
         if (this.myMineral == null) {
             this.creep.say('NoMineral');
-            trace.stop();
             return;
         }
 
@@ -82,6 +79,5 @@ class MineralHarvester extends MyCreep {
             }
 
         }
-        trace.stop();
     }
 }

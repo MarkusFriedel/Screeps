@@ -20,14 +20,18 @@ class HostileScan implements HostileScanInterface {
         return this.memory.scanTime;
     }
 
+
     private _creeps: { time: number, creeps: { [id: string]: CreepInfoInterface } }
-    public get creeps() {
+    private creeps_get() {
         if (this.allCreeps == null)
             return null;
         if (this._creeps == null || this._creeps.time < Game.time)
             this._creeps = { time: Game.time, creeps: _.indexBy(_.filter(this.allCreeps, c => c.owner != 'Source Keeper'), c => c.id) };
 
         return this._creeps.creeps;
+    }
+    public get creeps() {
+        return this.creeps_get();
     }
 
     private _keepers: { time: number, creeps: { [id: string]: CreepInfoInterface } }
@@ -68,8 +72,7 @@ class HostileScan implements HostileScanInterface {
     }
 
     constructor(public myRoom: MyRoomInterface) {
-        //if (this.myRoom.room)
-        //this.refreshCreeps();
+        this.creeps_get = profiler.registerFN(this.creeps_get, 'HostileScan.creeps');
         if (this._allCreeps && this._allCreeps.time + 500 < Game.time)
             this._allCreeps = null;
     }

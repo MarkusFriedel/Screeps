@@ -2,7 +2,7 @@
 /// <reference path="../creeps/constructor/builder.ts" />
 /// <reference path="./manager.ts" />
 
-class ConstructionManager extends Manager implements ConstructionManagerInterface {
+class ConstructionManager implements ConstructionManagerInterface {
 
     private _creeps: { time: number, creeps: Array<Creep> };
     public get creeps(): Array<Creep> {
@@ -36,17 +36,10 @@ class ConstructionManager extends Manager implements ConstructionManagerInterfac
     maxCreeps: number;
 
 
-    private static _staticTracer: Tracer;
-    public static get staticTracer(): Tracer {
-        if (ConstructionManager._staticTracer == null) {
-            ConstructionManager._staticTracer = new Tracer('ConstructionManager');
-            Colony.tracers.push(ConstructionManager._staticTracer);
-        }
-        return ConstructionManager._staticTracer;
-    }
+    
 
     constructor(public mainRoom: MainRoom) {
-        super(ConstructionManager.staticTracer);
+        this.preTick = profiler.registerFN(this.preTick, 'ConstructionManager.preTick');
         this.maxCreeps = 2;
     }
 
@@ -71,7 +64,7 @@ class ConstructionManager extends Manager implements ConstructionManagerInterfac
         return this._constructions.constructions;
     }
 
-    public _preTick() {
+    public preTick() {
         //if (this.mainRoom.spawnManager.isBusy)
         //    return;
 
@@ -79,6 +72,8 @@ class ConstructionManager extends Manager implements ConstructionManagerInterfac
 
         if (this.idleCreeps.length == 0 && this.mainRoom.spawnManager.isBusy)
             return;
+
+       
 
         if (this.constructions.length > 0 && (this.creeps.length < this.maxCreeps || this.idleCreeps.length > 0)) {
             for (var idx in this.idleCreeps) {
@@ -98,7 +93,7 @@ class ConstructionManager extends Manager implements ConstructionManagerInterfac
         }
     }
 
-    public _tick() {
+    public tick() {
         try { this.creeps.forEach((c) => new Builder(c, this.mainRoom).tick()) } catch (e) { console.log(e.stack); };
     }
 }

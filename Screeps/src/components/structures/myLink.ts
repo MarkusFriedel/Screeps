@@ -50,17 +50,12 @@
 
     id: string;
 
-    public static staticTracer: Tracer;
-    public tracer: Tracer;
+   
 
     constructor(link: Link, public mainRoom: MainRoom) {
         this.id = link.id;
-        if (MyLink.staticTracer == null) {
-            MyLink.staticTracer = new Tracer('MyLink');
-            Colony.tracers.push(MyLink.staticTracer);
-        }
-        //this.tracer = new Tracer('MySource ' + id);
-        this.tracer = MyLink.staticTracer;
+        this.tick = profiler.registerFN(this.tick, 'MyLink.tick');
+        
 
         let surroundingStructures = <Array<LookAtResultWithPos>>mainRoom.room.lookForAtArea(LOOK_STRUCTURES, link.pos.y - 2, link.pos.x - 2, link.pos.y +2, link.pos.x + 2, true);
         this.nextToStorage = _.any(surroundingStructures, x => x.structure.structureType == STRUCTURE_STORAGE);
@@ -76,7 +71,6 @@
     }
 
     public tick() {
-        let trace = this.tracer.start('tick()');
         if (this.nextToStorage) {
             let myLinkToFill = _.sortBy(_.filter(this.mainRoom.links, x => x.minLevel > x.link.energy), x => 800-(x.minLevel - x.link.energy))[0];
             if (myLinkToFill) {
@@ -98,7 +92,6 @@
 
             }
         }
-        trace.stop();
     }
 
 }

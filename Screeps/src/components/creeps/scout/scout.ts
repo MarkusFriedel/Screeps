@@ -9,6 +9,7 @@ class Scout extends MyCreep {
         this.memory = <ScoutMemory>creep.memory;
 
         this.memory.autoFlee = true;
+        this.myTick = profiler.registerFN(this.myTick, 'Scout.tick');
     }
 
     public myTick() {

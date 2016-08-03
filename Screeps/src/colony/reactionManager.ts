@@ -1,11 +1,15 @@
-﻿class ReactionManager implements ReactionManagerInterface {
+﻿enum SetupProcessResult {
+    Failed = 1,
+    FromStorage = 2,
+    Reaction = 4
+}
+
+class ReactionManager implements ReactionManagerInterface {
 
     public get memory(): ReactionManagerMemory {
         return this.accessMemory();
     }
 
-    public static staticTracer: Tracer;
-    public tracer: Tracer;
 
     accessMemory() {
         if (Colony.memory.reactionManager == null)
@@ -18,12 +22,13 @@
     }
 
     constructor() {
-        if (ReactionManager.staticTracer == null) {
-            ReactionManager.staticTracer = new Tracer('ReactionManager');
-            Colony.tracers.push(ReactionManager.staticTracer);
-        }
-        //this.tracer = new Tracer('MySource ' + id);
-        this.tracer = ReactionManager.staticTracer;
+        this.totalStorage = Colony.profiler.registerFN(this.totalStorage, 'ReactionManager.totalStorage');
+        this.canProvide = Colony.profiler.registerFN(this.canProvide, 'ReactionManager.canProvide');
+        this.getAvailableResourceAmount = Colony.profiler.registerFN(this.getAvailableResourceAmount, 'ReactionManager.getAvailableResourceAmount');
+        this.setupProcess = Colony.profiler.registerFN(this.setupProcess, 'ReactionManager.setupProcess');
+        this.setupProcessChain = Colony.profiler.registerFN(this.setupProcessChain, 'ReactionManager.setupProcessChain');
+        this.setup = Colony.profiler.registerFN(this.setup, 'ReactionManager.setup');
+        this.tick = Colony.profiler.registerFN(this.tick, 'ReactionManager.tick');
     }
 
     private get labRooms() {
@@ -46,18 +51,15 @@
     private forbiddenCompounds = [RESOURCE_CATALYZED_KEANIUM_ACID, RESOURCE_CATALYZED_LEMERGIUM_ACID, RESOURCE_CATALYZED_UTRIUM_ALKALIDE, RESOURCE_CATALYZED_ZYNTHIUM_ALKALIDE];
 
     public get publishableCompounds() {
-        let trace = this.tracer.start('Property publishableCompounds');
         if (this.memory.publishableCompounds == null || this.highestPowerCompounds == null || this.memory.publishableCompounds.time + 500 < this.memory.highestPowerCompounds.time) {
             let compounds = _.uniq(this.highestPowerCompounds.concat(_.filter(RESOURCES_ALL, r => this.ingredients[r] && this.ingredients[r].indexOf(RESOURCE_CATALYST) >= 0)));
             this.memory.publishableCompounds = { time: this.memory.highestPowerCompounds.time, compounds: compounds };
         }
 
-        trace.stop();
         return this.memory.publishableCompounds.compounds;
     }
 
     public get highestPowerCompounds() {
-        let trace = this.tracer.start('Property highestPowerCompounds');
         if (this.memory.highestPowerCompounds == null || this.memory.highestPowerCompounds.time + 500 < Game.time) {
             this.memory.highestPowerCompounds = { time: Game.time, compounds: [] };
             _.forEach(ReactionManager.powerPriority, power => {
@@ -70,7 +72,6 @@
                 }
             });
         }
-        trace.stop();
         return this.memory.highestPowerCompounds.compounds;
     }
 
@@ -186,32 +187,35 @@
         return _.uniq(_.flatten(_.map(this.labManagers, l => l.reactions)));
     }
 
-    private setupProcess(resource: string): boolean {
-        if (this.ingredients[resource] == null || this.totalStorage(resource) >= this.requiredAmount)
-            return true;
+
+    private setupProcess(resource: string): SetupProcessResult {
+        if (this.totalStorage(resource) >= this.requiredAmount)
+            return SetupProcessResult.FromStorage;
+        else if (this.ingredients[resource] == null)
+            return SetupProcessResult.Failed;
         let bestManager = _.sortByAll(_.filter(_.map(this.labManagers, x => {
             return { manager: x, requiredLabs: x.requiredLabsForReaction(resource) }
         }), x => x.requiredLabs != null), [x => x.requiredLabs, x => CONTROLLER_STRUCTURES.lab[8] - x.manager.freeLabs.length])[0];
         if (bestManager) {
             bestManager.manager.addReaction(resource);
-            _.forEach(this.ingredients[resource], r => {
-                if (!this.setupProcess(r))
-                    return false;
-            });
-            return true;
+            let result = _.map(this.ingredients[resource], r => this.setupProcess(r));
+            if (_.any(result, r => r == SetupProcessResult.Failed))
+                return SetupProcessResult.Failed;
+            else return SetupProcessResult.Reaction;
         }
-        return false;
+        return SetupProcessResult.Failed;
     }
 
-    private setupProcessChain(resource: string) {
+    private setupProcessChain(resource: string): SetupProcessResult {
         console.log('Reaction Manager: Setup process chain ' + resource);
         this.backup();
-        if (!this.setupProcess(resource)) {
+        let result = this.setupProcess(resource);
+        if (result & SetupProcessResult.Failed) {
             this.restore();
-            _.forEach(this.ingredients[resource], r => {
-                this.setupProcessChain(r);
-            });
+            let cascadeResult = _.map(this.ingredients[resource], r => this.setupProcessChain(r));
+            return (cascadeResult[0] | cascadeResult[1]);
         }
+        return result;
     }
 
     private backup() {
@@ -235,13 +239,24 @@
 
             _.forEach(this.highestPowerCompounds, c => compoundsToProduce.push(c));
 
-            console.log('Reaction Manager: Compounds to produce: ' + compoundsToProduce.join(','));
+            
 
-            _.forEach(compoundsToProduce, c => {
-                let result = this.setupProcessChain(c);
-                if (result)
-                    console.log('Reaction Manager: Succcessfully setup ' + c);
-            });
+
+            while (compoundsToProduce.length > 0) {
+                console.log();
+                console.log('Reaction Manager: Compounds to produce: ' + compoundsToProduce.join(','));
+                let loopCompounds = _.clone(compoundsToProduce);
+                compoundsToProduce = [];
+                _.forEach(loopCompounds, c => {
+                    let result = this.setupProcessChain(c);
+                    if (!(result & SetupProcessResult.Failed))
+                        console.log('Reaction Manager: Succcessfully setup ' + c);
+                    console.log('Reaction Manager ' + c+' result: '+result);
+                    if (result & SetupProcessResult.Reaction) {
+                        compoundsToProduce.push(c);
+                    }
+                });
+            }
         }
     }
 

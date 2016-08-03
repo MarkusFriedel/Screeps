@@ -86,9 +86,14 @@ var Body = (function () {
             body.push(WORK);
         for (var i = 0; i < this.heal; i++)
             body.push(HEAL);
-        for (var i = 0; i < this.carry; i++)
+        var combinedCarryMoveCount = Math.min(this.carry, this.move);
+        for (var i = 0; i < combinedCarryMoveCount; i++) {
             body.push(CARRY);
-        for (var i = 0; i < this.move; i++)
+            body.push(MOVE);
+        }
+        for (var i = 0; i < this.carry - combinedCarryMoveCount; i++)
+            body.push(CARRY);
+        for (var i = 0; i < this.move - combinedCarryMoveCount; i++)
             body.push(MOVE);
         return body;
     };
@@ -97,6 +102,8 @@ var Body = (function () {
 var MyCreep = (function () {
     function MyCreep(creep) {
         this.creep = creep;
+        this.createPath = profiler.registerFN(this.createPath, 'MyCreep.createPath');
+        this.tick = profiler.registerFN(this.tick, 'MyCreep.tick');
     }
     Object.defineProperty(MyCreep.prototype, "memory", {
         get: function () { return this.creep.memory; },
@@ -113,6 +120,65 @@ var MyCreep = (function () {
         enumerable: true,
         configurable: true
     });
+    MyCreep.prototype.createPath = function (target) {
+        var path = PathFinder.search(this.creep.pos, { pos: target.pos, range: target.range ? target.range : 1 }, { roomCallback: Colony.getTravelMatrix, plainCost: 2, swampCost: 10, maxOps: 5000 });
+        path.path.unshift(this.creep.pos);
+        var pathMovement = {
+            target: {
+                pos: target.pos,
+                range: target.range ? target.range : 0
+            },
+            path: path.path,
+            ops: path.ops
+        };
+        return pathMovement;
+    };
+    MyCreep.prototype.moveTo = function (target) {
+        if (target == null || target.pos == null)
+            return ERR_INVALID_ARGS;
+        if (this.memory.pathMovement == null || !RoomPos.fromObj(this.memory.pathMovement.target.pos).isEqualTo(target.pos) || this.memory.pathMovement.target.range != target.range ? target.range : 1) {
+            this.memory.pathMovement = this.createPath(target);
+        }
+        if (this.memory.pathMovement.path.length <= 2 && (this.creep.room.name != target.pos.roomName || this.creep.pos.inRangeTo(target.pos, target.range)))
+            this.memory.pathMovement = this.createPath(target);
+        if (this.memory.pathMovement.path.length > 2) {
+            this.moveByPath(this.memory.pathMovement.path);
+        }
+        else {
+            this.creep.moveTo(target.pos);
+        }
+    };
+    MyCreep.prototype.transferAny = function (target) {
+        var _this = this;
+        var resource = _.filter(_.keys(this.creep.carry), function (c) { return _this.creep.carry[c] > 0; })[0];
+        if (resource) {
+            var result = this.creep.transfer(target, resource);
+            if (result == ERR_NOT_IN_RANGE)
+                this.moveTo({ pos: target.pos, range: 3 });
+            else if (result == ERR_FULL)
+                this.creep.drop(resource);
+        }
+    };
+    MyCreep.prototype.recycle = function () {
+        //this.creep.say('Recycle');
+        var mainRoom = this.myRoom.closestMainRoom;
+        if (!mainRoom)
+            this.creep.suicide();
+        else if (_.sum(this.creep.carry) > 0 && mainRoom.mainContainer) {
+            this.transferAny(mainRoom.mainContainer);
+        }
+        else if (this.memory.recycle && this.memory.recycle.spawnId) {
+            var spawn = Game.getObjectById(this.memory.recycle.spawnId);
+        }
+        if (!spawn && this.myRoom.closestMainRoom) {
+            spawn = this.myRoom.closestMainRoom.spawns[0];
+        }
+        if (spawn) {
+            this.memory.recycle = { spawnId: spawn.id };
+            if (spawn.recycleCreep(this.creep) == ERR_NOT_IN_RANGE)
+                this.moveTo({ pos: spawn.pos, range: 3 });
+        }
+    };
     Object.defineProperty(MyCreep.prototype, "haveToFlee", {
         get: function () {
             var _this = this;
@@ -123,6 +189,29 @@ var MyCreep = (function () {
         enumerable: true,
         configurable: true
     });
+    MyCreep.prototype.pickUpEnergy = function (range) {
+        var _this = this;
+        if (range === void 0) { range = 1; }
+        var resources = _.filter(Colony.getRoom(this.creep.room.name).resourceDrops, function (r) { return r.resourceType == RESOURCE_ENERGY; });
+        var energy = _.filter(resources, function (r) { return r.pos.inRangeTo(_this.creep.pos, range); })[0];
+        if (energy && this.myRoom && this.myRoom.mainRoom && this.myRoom.mainRoom.mainContainer && this.creep.pos.roomName == this.myRoom.mainRoom.name && this.myRoom.mainRoom.mainContainer.pos.isNearTo(energy.pos))
+            return false;
+        if (energy != null) {
+            if (this.creep.pickup(energy) == ERR_NOT_IN_RANGE)
+                this.creep.moveTo(energy);
+            return true;
+        }
+        return false;
+    };
+    Object.defineProperty(MyCreep.prototype, "isOnEdge", {
+        get: function () {
+            return RoomPos.isOnEdge(this.creep.pos);
+        },
+        enumerable: true,
+        configurable: true
+    });
+    MyCreep.prototype.moveFromEdge = function () {
+    };
     MyCreep.prototype.moveByPath = function (customPath) {
         if (customPath === void 0) { customPath = null; }
         if (this.creep.memory.myPathMovement == null)
@@ -136,9 +225,9 @@ var MyCreep = (function () {
         if (RoomPos.equals(this.creep.pos, path[1]))
             path.shift();
         if (RoomPos.equals(this.creep.pos, path[0]) && this.creep.fatigue == 0) {
-            if (RoomPos.equals(this.creep.memory.myPathMovement.lastPos, this.creep.pos))
+            if (RoomPos.equals(this.creep.memory.myPathMovement.lastPos, this.creep.pos) && this.creep.memory.myPathMovement.lastTick == Game.time - 1)
                 this.creep.memory.myPathMovement.movementBlockedCount++;
-            else
+            else if (this.creep.memory.myPathMovement.lastTick == Game.time - 1)
                 this.creep.memory.myPathMovement.movementBlockedCount = 0;
             if (this.creep.memory.myPathMovement.movementBlockedCount >= 5) {
                 this.creep.memory.myPathMovement.movementBlockedCount = 0;
@@ -149,6 +238,7 @@ var MyCreep = (function () {
                 var direction = this.creep.pos.getDirectionTo(path[1].x, path[1].y);
                 this.creep.move(direction);
                 this.creep.memory.myPathMovement.lastPos = this.creep.pos;
+                this.creep.memory.myPathMovement.lastTick = Game.time;
                 return OK;
             }
         }
@@ -157,6 +247,7 @@ var MyCreep = (function () {
             if (RoomPos.equals(this.creep.memory.myPathMovement.lastPos, this.creep.pos) && !RoomPos.isOnEdge(this.creep.pos))
                 path.shift();
             this.creep.memory.myPathMovement.lastPos = this.creep.pos;
+            this.creep.memory.myPathMovement.lastTick = Game.time;
         }
     };
     MyCreep.prototype.flee = function () {
@@ -174,20 +265,23 @@ var MyCreep = (function () {
         if (_.sum(this.creep.carry) > 0) {
             this.creep.drop(_.first(_.filter(_.keys(this.creep.carry), function (x) { return _this.creep.carry[x] > 0; })));
         }
-        if (this.creep.getActiveBodyparts(HEAL) > 0)
+        if (_.filter(this.creep.body, function (b) { return b.type == HEAL; }).length > 0)
             this.creep.heal(this.creep);
     };
     MyCreep.prototype.tick = function () {
         if (this.creep.spawning)
             return;
-        if (this.myRoom.mainRoom && this.memory.requiredBoosts != null && _.size(this.memory.requiredBoosts) > 0) {
+        if (this.memory.recycle) {
+            this.recycle();
+        }
+        else if (this.myRoom.mainRoom && this.memory.requiredBoosts != null && _.size(this.memory.requiredBoosts) > 0) {
             var _loop_2 = function(resource) {
-                this_1.creep.say(resource);
+                //this.creep.say(resource);
                 var boost = this_1.memory.requiredBoosts[resource];
                 var lab = _.filter(this_1.myRoom.mainRoom.managers.labManager.myLabs, function (l) { return l.memory.resource == boost.compound && l.memory.mode & 4 /* publish */ && l.lab.mineralType == boost.compound && l.lab.mineralAmount >= boost.amount * LAB_BOOST_MINERAL && l.lab.energy >= boost.amount * LAB_BOOST_ENERGY; })[0];
                 if (lab) {
                     var result = lab.lab.boostCreep(this_1.creep, boost.amount);
-                    this_1.creep.say(result.toString());
+                    //this.creep.say(result.toString());
                     if (result == ERR_NOT_IN_RANGE)
                         this_1.creep.moveTo(lab.lab);
                     else if (result == OK) {
@@ -203,7 +297,7 @@ var MyCreep = (function () {
             }
         }
         else if (this.memory.autoFlee && this.haveToFlee) {
-            this.creep.say('OH NO!', true);
+            //this.creep.say('OH NO!', true);
             this.flee();
         }
         else
@@ -221,6 +315,7 @@ var SpawnConstructor = (function (_super) {
     __extends(SpawnConstructor, _super);
     function SpawnConstructor(creep) {
         _super.call(this, creep);
+        this.myTick = profiler.registerFN(this.myTick, 'SpawnConstructor.tick');
     }
     Object.defineProperty(SpawnConstructor.prototype, "memory", {
         get: function () { return this.creep.memory; },
@@ -281,12 +376,7 @@ var MyLink = (function () {
         this.mainRoom = mainRoom;
         this._link = { time: 0, link: null };
         this.id = link.id;
-        if (MyLink.staticTracer == null) {
-            MyLink.staticTracer = new Tracer('MyLink');
-            Colony.tracers.push(MyLink.staticTracer);
-        }
-        //this.tracer = new Tracer('MySource ' + id);
-        this.tracer = MyLink.staticTracer;
+        this.tick = profiler.registerFN(this.tick, 'MyLink.tick');
         var surroundingStructures = mainRoom.room.lookForAtArea(LOOK_STRUCTURES, link.pos.y - 2, link.pos.x - 2, link.pos.y + 2, link.pos.x + 2, true);
         this.nextToStorage = _.any(surroundingStructures, function (x) { return x.structure.structureType == STRUCTURE_STORAGE; });
         this.nextToTower = _.any(surroundingStructures, function (x) { return x.structure.structureType == STRUCTURE_TOWER; });
@@ -347,7 +437,6 @@ var MyLink = (function () {
         configurable: true
     });
     MyLink.prototype.tick = function () {
-        var trace = this.tracer.start('tick()');
         if (this.nextToStorage) {
             var myLinkToFill = _.sortBy(_.filter(this.mainRoom.links, function (x) { return x.minLevel > x.link.energy; }), function (x) { return 800 - (x.minLevel - x.link.energy); })[0];
             if (myLinkToFill) {
@@ -368,7 +457,6 @@ var MyLink = (function () {
                 }
             }
         }
-        trace.stop();
     };
     return MyLink;
 }());
@@ -378,6 +466,7 @@ var SpawnManager = (function () {
         this._spawns = { time: 0, spawns: null };
         this.queue = [];
         this.mainRoom = mainRoom;
+        this.spawn = profiler.registerFN(this.spawn, 'SpawnManager.spawn');
     }
     Object.defineProperty(SpawnManager.prototype, "memory", {
         get: function () {
@@ -405,7 +494,7 @@ var SpawnManager = (function () {
     Object.defineProperty(SpawnManager.prototype, "isBusy", {
         get: function () {
             //return false;
-            return _.filter(this.spawns, function (x) { return x.spawning == null; }).length <= this.queue.length;
+            return this.queue.length >= 3 || _.filter(this.spawns, function (x) { return x.spawning == null; }).length <= this.queue.length;
         },
         enumerable: true,
         configurable: true
@@ -445,6 +534,7 @@ var SpawnManager = (function () {
             this.memory.queue = JSON.parse(JSON.stringify(this.queue));
         if (this.queue.length == 0) {
             this.isIdle = true;
+            this.memory.sleepingUntil = Game.time + 10;
             return;
         }
         for (var idx in this.spawns) {
@@ -466,7 +556,9 @@ var SpawnManager = (function () {
                 var creepMemory = queueItem.memory;
                 if (!creepMemory.mainRoomName)
                     creepMemory.mainRoomName = this.mainRoom.name;
-                var result = spawn.createCreep(queueItem.body, null, creepMemory);
+                if (!Colony.memory.creepIdx)
+                    Colony.memory.creepIdx = 0;
+                var result = spawn.createCreep(queueItem.body, (++Colony.memory.creepIdx).toString(), creepMemory);
                 if (Memory['verbose'] || this.memory.verbose)
                     console.log('[' + this.mainRoom.name + '] ' + 'SpawnManager.spawn(): Spawn result: ' + result);
                 if (Memory['verbose'] || this.memory.verbose)
@@ -528,6 +620,10 @@ var Builder = (function (_super) {
         this.creep = creep;
         this.mainRoom = mainRoom;
         this.memory.autoFlee = true;
+        this.myTick = profiler.registerFN(this.myTick, 'Builder.tick');
+        this.construct = profiler.registerFN(this.construct, 'Builder.construct');
+        this.upgrade = profiler.registerFN(this.upgrade, 'Builder.upgrade');
+        this.fillUp = profiler.registerFN(this.fillUp, 'Builder.fillUp');
         this.target = Game.getObjectById(this.memory.targetId);
         if (this.target != null) {
             this.targetPosition = this.target.pos;
@@ -536,10 +632,14 @@ var Builder = (function (_super) {
         else if (this.creep.memory.targetPosition != null) {
             this.targetPosition = new RoomPosition(this.memory.targetPosition.x, this.memory.targetPosition.y, this.memory.targetPosition.roomName);
             if (Game.rooms[this.targetPosition.roomName] != null) {
+                var rampart = _.filter(this.targetPosition.lookFor(LOOK_STRUCTURES), function (s) { return s.structureType == STRUCTURE_RAMPART && s.hits == 1; })[0];
+                if (rampart)
+                    Colony.getRoom(this.targetPosition.roomName).repairStructures[rampart.id] = { id: rampart.id, pos: this.targetPosition, hits: rampart.hits, hitsMax: rampart.hitsMax, structureType: rampart.structureType };
                 this.targetPosition = null;
                 this.target = null;
                 this.memory.targetId = null;
                 this.memory.targetPosition = null;
+                this.memory.path = null;
             }
         }
     }
@@ -549,15 +649,23 @@ var Builder = (function (_super) {
         configurable: true
     });
     Builder.prototype.construct = function () {
-        if (this.target != null) {
-            if (this.creep.pos.x == 0 || this.creep.pos.x == 49 || this.creep.pos.y == 0 || this.creep.pos.y == 49)
+        if ((this.creep.room.name != this.targetPosition.roomName || !this.creep.pos.inRangeTo(this.target.pos, 3)) && (this.memory.path == null || this.memory.path.path.length <= 2)) {
+            var path = PathFinder.search(this.creep.pos, { pos: this.targetPosition, range: 3 }, {
+                plainCost: 2,
+                swampCost: 10,
+                roomCallback: Colony.getTravelMatrix
+            });
+        }
+        if (this.memory.path && this.memory.path.path.length > 2) {
+            this.moveByPath();
+        }
+        else if (this.target != null) {
+            var result = this.creep.build(this.target);
+            if (result == ERR_RCL_NOT_ENOUGH)
+                this.target.remove();
+            else if (result == ERR_NOT_IN_RANGE)
                 this.creep.moveTo(this.target);
-            else {
-                var result = this.creep.build(this.target);
-                if (result == ERR_RCL_NOT_ENOUGH)
-                    this.target.remove();
-                else if (result == ERR_NOT_IN_RANGE)
-                    this.creep.moveTo(this.target);
+            else if (result == OK) {
             }
         }
         else {
@@ -565,73 +673,93 @@ var Builder = (function (_super) {
         }
     };
     Builder.prototype.upgrade = function () {
-        if (this.mainRoom.room.controller.level == 8) {
-            if (this.mainRoom.spawns[0].recycleCreep(this.creep) == ERR_NOT_IN_RANGE)
-                this.creep.moveTo(this.mainRoom.spawns[0]);
+        //if ((this.creep.room.name != this.mainRoom.name || !this.creep.pos.inRangeTo(this.mainRoom.room.controller.pos, 3)) && (this.memory.path == null || this.memory.path.path.length <= 2)) {
+        //    let path = PathFinder.search(this.creep.pos, { pos: this.mainRoom.room.controller.pos, range: 3 },
+        //        {
+        //            plainCost: 2,
+        //            swampCost: 10,
+        //            roomCallback: Colony.getTravelMatrix
+        //        });
+        //}
+        //if (this.memory.path && this.memory.path.path.length > 2) {
+        //    this.moveByPath();
+        //}
+        //else if (this.mainRoom.room.controller.level == 8) {
+        //    if (this.mainRoom.spawns[0].recycleCreep(this.creep) == ERR_NOT_IN_RANGE)
+        //        this.creep.moveTo(this.mainRoom.spawns[0]);
+        //}
+        //else {
+        //    if (this.creep.upgradeController(this.mainRoom.room.controller) == ERR_NOT_IN_RANGE)
+        //        this.creep.moveTo(this.mainRoom.room.controller);
+        //}
+        //else if 
+        if (_.size(Game.constructionSites) == 0)
+            this.recycle();
+    };
+    Builder.prototype.fillUp = function () {
+        var _this = this;
+        if (!this.memory.fillupContainerId) {
+            var possbibleContainers = _.map(_.filter(this.myRoom.mySources, function (s) { return (s.hasKeeper == false || s.keeper.lair.ticksToSpawn > 100 || s.keeper.creep && s.keeper.creep.hits <= 100) && s.container; }), function (s) { return s.container; });
+            var container = _.sortBy(possbibleContainers, function (x) { return x.pos.getRangeTo(_this.creep.pos); })[0];
+            if (container) {
+                this.memory.fillupContainerId = container.id;
+                this.memory.path = PathFinder.search(this.creep.pos, { pos: container.pos, range: 3 }, { roomCallback: Colony.getTravelMatrix, plainCost: 1, swampCost: 5 });
+                this.memory.path.path.unshift(this.creep.pos);
+            }
         }
-        else {
-            if (this.creep.upgradeController(this.mainRoom.room.controller) == ERR_NOT_IN_RANGE)
-                this.creep.moveTo(this.mainRoom.room.controller);
+        if (this.memory.fillupContainerId) {
+            if (this.memory.path && this.memory.path.path.length > 2)
+                this.moveByPath();
+            else {
+                var container = Game.getObjectById(this.memory.fillupContainerId);
+                if (this.creep.withdraw(container, RESOURCE_ENERGY) == ERR_NOT_IN_RANGE)
+                    this.creep.moveTo(container);
+            }
+        }
+        else if (this.creep.room.name != this.mainRoom.name || this.isOnEdge) {
+            if (this.memory.path == null || this.memory.path.path.length <= 2) {
+                this.memory.path = PathFinder.search(this.creep.pos, { pos: this.mainRoom.mainContainer.pos, range: 3 }, { roomCallback: Colony.getTravelMatrix, plainCost: 1, swampCost: 5 });
+                this.memory.path.path.unshift(this.creep.pos);
+            }
+            this.moveByPath();
+        }
+        else if (this.mainRoom.mainContainer.store.energy > this.mainRoom.maxSpawnEnergy) {
+            this.memory.path = null;
+            if (this.creep.withdraw(this.mainRoom.mainContainer, RESOURCE_ENERGY) == ERR_NOT_IN_RANGE)
+                this.creep.moveTo(this.mainRoom.mainContainer);
         }
     };
     Builder.prototype.myTick = function () {
-        var _this = this;
-        if (this.creep.carry.energy > 0) {
-            if (this.targetPosition != null && this.mainRoom.room.controller.ticksToDowngrade >= 1000)
-                this.construct();
-            else
-                this.upgrade();
-        }
-        else {
-            this.memory.targetId = null;
-            this.memory.targetPosition = null;
-            if (this.mainRoom == null)
-                return;
-            var mainContainer;
-            if (Game.cpu.bucket > 5000)
-                mainContainer = this.creep.pos.findClosestByRange(FIND_STRUCTURES, { filter: function (x) { return (x.structureType == STRUCTURE_CONTAINER || x.structureType == STRUCTURE_STORAGE) && x.store.energy >= _this.creep.carryCapacity; } });
-            if (mainContainer == null)
-                mainContainer = this.mainRoom.mainContainer;
-            if (mainContainer != null) {
-                //this.creep.say('Main');
-                if (!this.mainRoom.mainContainer || mainContainer.store.energy > this.mainRoom.maxSpawnEnergy || this.mainRoom.mainContainer && mainContainer.id != this.mainRoom.mainContainer.id)
-                    if (mainContainer.transfer(this.creep, RESOURCE_ENERGY) == ERR_NOT_IN_RANGE)
-                        this.creep.moveTo(mainContainer);
+        if (this.creep.carry.energy == this.creep.carryCapacity || !this.pickUpEnergy()) {
+            if (this.creep.carry.energy > 0) {
+                this.memory.fillupContainerId = null;
+                if (this.targetPosition != null && this.mainRoom.room.controller.ticksToDowngrade >= 1000)
+                    this.construct();
+                else
+                    this.upgrade();
             }
             else {
-                //this.creep.say('NoMain');
-                if (this.mainRoom.spawnManager.isIdle) {
-                    var spawn = this.mainRoom.room.find(FIND_MY_SPAWNS)[0];
-                    if (spawn.transferEnergy(this.creep) == ERR_NOT_IN_RANGE)
-                        this.creep.moveTo(spawn);
-                }
+                this.fillUp();
             }
         }
     };
     return Builder;
 }(MyCreep));
 var Manager = (function () {
-    function Manager(tracer) {
-        this.tracer = tracer;
+    function Manager() {
     }
     Manager.prototype.preTick = function () {
-        var trace = this.tracer.start('preTick()');
         this._preTick();
-        trace.stop();
     };
     Manager.prototype._preTick = function () {
     };
     Manager.prototype.tick = function () {
-        var trace = this.tracer.start('tick()');
         this._tick();
-        trace.stop();
     };
     Manager.prototype._tick = function () {
     };
     Manager.prototype.postTick = function () {
-        var trace = this.tracer.start('postTick()');
         this._postTick();
-        trace.stop();
     };
     Manager.prototype._postTick = function () {
     };
@@ -640,12 +768,11 @@ var Manager = (function () {
 /// <reference path="../creeps/constructor/constructorDefinition.ts" />
 /// <reference path="../creeps/constructor/builder.ts" />
 /// <reference path="./manager.ts" />
-var ConstructionManager = (function (_super) {
-    __extends(ConstructionManager, _super);
+var ConstructionManager = (function () {
     function ConstructionManager(mainRoom) {
-        _super.call(this, ConstructionManager.staticTracer);
         this.mainRoom = mainRoom;
         this._constructions = { time: -11, constructions: [] };
+        this.preTick = profiler.registerFN(this.preTick, 'ConstructionManager.preTick');
         this.maxCreeps = 2;
     }
     Object.defineProperty(ConstructionManager.prototype, "creeps", {
@@ -680,17 +807,6 @@ var ConstructionManager = (function (_super) {
         enumerable: true,
         configurable: true
     });
-    Object.defineProperty(ConstructionManager, "staticTracer", {
-        get: function () {
-            if (ConstructionManager._staticTracer == null) {
-                ConstructionManager._staticTracer = new Tracer('ConstructionManager');
-                Colony.tracers.push(ConstructionManager._staticTracer);
-            }
-            return ConstructionManager._staticTracer;
-        },
-        enumerable: true,
-        configurable: true
-    });
     Object.defineProperty(ConstructionManager.prototype, "constructions", {
         get: function () {
             if (this._constructions.time < Game.time) {
@@ -714,7 +830,7 @@ var ConstructionManager = (function (_super) {
         enumerable: true,
         configurable: true
     });
-    ConstructionManager.prototype._preTick = function () {
+    ConstructionManager.prototype.preTick = function () {
         //if (this.mainRoom.spawnManager.isBusy)
         //    return;
         //console.log('Construction Manager ' + this.mainRoom.name + ' IdleCreeps: ' + this.idleCreeps.length);
@@ -735,7 +851,7 @@ var ConstructionManager = (function (_super) {
             this.mainRoom.spawnManager.addToQueue(ConstructorDefinition.getDefinition(this.mainRoom.maxSpawnEnergy).getBody(), { role: 'builder', targetId: null, targetPosition: null }, Math.max(maxCreeps, _.size(_.filter(this.mainRoom.sources, function (x) { return !x.hasKeeper; }))) - this.creeps.length);
         }
     };
-    ConstructionManager.prototype._tick = function () {
+    ConstructionManager.prototype.tick = function () {
         var _this = this;
         try {
             this.creeps.forEach(function (c) { return new Builder(c, _this.mainRoom).tick(); });
@@ -746,42 +862,26 @@ var ConstructionManager = (function (_super) {
         ;
     };
     return ConstructionManager;
-}(Manager));
+}());
 var RepairerDefinition;
 (function (RepairerDefinition) {
     function getDefinition(maxEnergy) {
         var body = new Body();
-        var remainingEnergy = Math.min(maxEnergy, 800);
-        if (remainingEnergy < 400) {
+        var remainingEnergy = Math.min(maxEnergy, 2250);
+        if (remainingEnergy < 350) {
             body.work = 1;
             body.carry = 2;
             body.move = 2;
         }
         else {
-            var basicModulesCount = ~~(remainingEnergy / 400); //work,carry,carry,move,move
+            var basicModulesCount = ~~(remainingEnergy / 350); //work,carry,carry,move,move
             if (basicModulesCount > 5)
                 basicModulesCount = 5;
-            body.work = 2 * basicModulesCount;
-            body.carry = 2 * basicModulesCount;
+            body.work = 1 * basicModulesCount;
+            body.carry = 3 * basicModulesCount;
             body.move = 2 * basicModulesCount;
-            var remaining = remainingEnergy - 400 * basicModulesCount;
-            while (remaining >= 100) {
-                if (remaining >= 200) {
-                    body.work++;
-                    body.carry++;
-                    ;
-                    body.move++;
-                    ;
-                    remaining -= 200;
-                }
-                else if (remaining >= 100) {
-                    body.carry++;
-                    body.move++;
-                    remaining -= 100;
-                }
-                else
-                    break;
-            }
+            var remaining = remainingEnergy - 350 * basicModulesCount;
+            remaining = Math.min(remaining, 300);
         }
         return body;
     }
@@ -795,96 +895,153 @@ var Repairer = (function (_super) {
         this.creep = creep;
         this.mainRoom = mainRoom;
         this.memory.autoFlee = true;
-        if (Repairer.staticTracer == null) {
-            Repairer.staticTracer = new Tracer('Repairer');
-            Colony.tracers.push(Repairer.staticTracer);
-        }
-        this.tracer = Repairer.staticTracer;
+        this.myTick = profiler.registerFN(this.myTick, 'Repairer.tick');
+        this.pickUpEnergy = profiler.registerFN(this.pickUpEnergy, 'Repairer.pickupEnergy');
+        this.getEmergencyTarget = profiler.registerFN(this.getEmergencyTarget, 'Repairer.getEmergencyTarget');
+        this.getTarget = profiler.registerFN(this.getTarget, 'Repairer.getTarget');
     }
     Object.defineProperty(Repairer.prototype, "memory", {
         get: function () { return this.creep.memory; },
         enumerable: true,
         configurable: true
     });
+    Object.defineProperty(Repairer.prototype, "repairCost", {
+        get: function () {
+            if (!this._repairCost)
+                this.repairPower * REPAIR_COST;
+            return this._repairCost;
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Object.defineProperty(Repairer.prototype, "repairPower", {
+        get: function () {
+            if (!this._repairPower)
+                this._repairPower = this.creep.getActiveBodyparts(WORK) * REPAIR_POWER;
+            return this._repairPower;
+        },
+        enumerable: true,
+        configurable: true
+    });
     Repairer.prototype.getEmergencyTarget = function () {
-        var _this = this;
         var myRoom = Colony.getRoom(this.creep.room.name);
         if (myRoom)
-            var target = _.sortBy(myRoom.emergencyRepairStructures, function (x) { return Math.pow((x.pos.x - _this.creep.pos.x), 2) + Math.pow((x.pos.y - _this.creep.pos.y), 2); })[0];
+            var target = myRoom.emergencyRepairStructures[0];
         return target;
     };
     Repairer.prototype.pickUpEnergy = function () {
         var _this = this;
-        var trace = this.tracer.start('pickupEnergy()');
         var resources = _.filter(Colony.getRoom(this.creep.room.name).resourceDrops, function (r) { return r.resourceType == RESOURCE_ENERGY; });
         var energy = _.sortBy(_.filter(resources, function (r) { return r.pos.inRangeTo(_this.creep.pos, 4); }), function (r) { return r.pos.getRangeTo(_this.creep.pos); })[0];
         if (energy != null) {
             if (this.creep.pickup(energy) == ERR_NOT_IN_RANGE)
                 this.creep.moveTo(energy);
-            trace.stop();
             return true;
         }
-        trace.stop();
         return false;
     };
     Repairer.prototype.getTarget = function (myRoom) {
-        var _this = this;
-        if (this.memory.targetCheckTime != null && this.memory.targetCheckTime + 20 > Game.time) {
-            return;
-        }
-        this.memory.targetCheckTime = Game.time;
-        var trace = this.tracer.start('getTarget()');
-        var sortedStructures = _.sortBy(myRoom.repairStructures, function (x) { return Math.pow((x.pos.x - _this.creep.pos.x), 2) + Math.pow((x.pos.y - _this.creep.pos.y), 2); });
-        var target = _.filter(sortedStructures, RepairManager.targetDelegate)[0];
-        //target = this.creep.pos.findClosestByRange<Structure>(FIND_STRUCTURES, { filter: RepairManager.targetDelegate });
+        //if (this.memory.targetCheckTime != null && this.memory.targetCheckTime + 20 > Game.time) {
+        //    return;
+        //}
+        //this.memory.targetCheckTime = Game.time;
+        var target = _.filter(myRoom.repairStructures, RepairManager.targetDelegate)[0];
         if (target) {
             this.memory.targetId = target.id;
             this.memory.isEmergency = false;
         }
         else {
-            //target = this.creep.pos.findClosestByRange<Structure>(FIND_STRUCTURES, { filter: (x: Structure) => !RepairManager.forceStopRepairDelegate(x) && x.hits < x.hitsMax });
             target = _.sortBy(_.filter(myRoom.repairStructures, function (s) { return !RepairManager.forceStopRepairDelegate(s) && (s.structureType == STRUCTURE_WALL || s.structureType == STRUCTURE_RAMPART); }), function (x) { return x.hits; })[0];
-            //target = _.sortBy(this.creep.room.find<Structure>(FIND_STRUCTURES, { filter: (x: Structure) => !RepairManager.forceStopRepairDelegate(x) && (x.structureType == STRUCTURE_WALL || x.structureType == STRUCTURE_RAMPART) }), x => x.hits)[0];
             if (target) {
                 this.memory.targetId = target.id;
                 this.memory.isEmergency = false;
             }
             else {
-                target = sortedStructures[0];
-                //target = this.creep.pos.findClosestByPath<Structure>(FIND_STRUCTURES, { filter: (x: Structure) => x.hits < x.hitsMax });
+                target = myRoom.repairStructures[0];
                 if (target) {
                     this.memory.targetId = target.id;
                     this.memory.isEmergency = false;
                 }
             }
         }
-        trace.stop();
         return target;
     };
     Repairer.prototype.myTick = function () {
+        var _this = this;
         var myRoom = Colony.getRoom(this.creep.room.name);
-        if (this.creep.room.name == this.memory.roomName && (this.creep.pos.x == 0 || this.creep.pos.x == 49 || this.creep.pos.y == 0 || this.creep.pos.y == 49)) {
-            if (this.creep.pos.x == 0)
-                this.creep.move(RIGHT);
-            else if (this.creep.pos.x == 49)
-                this.creep.move(LEFT);
-            else if (this.creep.pos.y == 0)
-                this.creep.move(BOTTOM);
-            else if (this.creep.pos.y == 49)
-                this.creep.move(TOP);
-        }
-        else {
-            if (this.memory.state == 1 /* Repairing */ && this.creep.carry.energy == 0) {
-                this.memory.state = 0 /* Refilling */;
-                this.memory.fillupContainerId = null;
-                this.memory.targetId = null;
-            }
-            else if (this.memory.state == 0 /* Refilling */ && this.creep.carry.energy == this.creep.carryCapacity)
-                this.memory.state = 1 /* Repairing */;
-            if (this.memory.state == 1 /* Repairing */) {
-                if (this.creep.room.name != this.memory.roomName) {
-                    this.creep.moveTo(new RoomPosition(25, 25, this.memory.roomName));
+        //if (this.memory.recycle) {
+        //    this.creep.say('Recycle');
+        //    if (this.creep.room.name != this.mainRoom.name) {
+        //        this.creep.moveTo(this.mainRoom.spawns[0]);
+        //    }
+        //    else if (this.creep.carry.energy > 0) {
+        //        if (this.creep.transfer(this.mainRoom.mainContainer, RESOURCE_ENERGY) == ERR_NOT_IN_RANGE)
+        //            this.creep.moveTo(this.mainRoom.mainContainer);
+        //    }
+        //    else if (this.mainRoom.spawns[0].recycleCreep(this.creep) == ERR_NOT_IN_RANGE)
+        //        this.creep.moveTo(this.mainRoom.spawns[0]);
+        //    return;
+        //}
+        if (this.creep.carry.energy >= this.repairCost) {
+            var roadDummy = _.filter(this.myRoom.repairStructures, function (r) { return _this.creep.pos.inRangeTo(r.pos, 3) && r.structureType == STRUCTURE_ROAD && r.hits < r.hitsMax; })[0];
+            if (roadDummy) {
+                var road = Game.getObjectById(roadDummy.id);
+                if (this.creep.hits < this.creep.hitsMax) {
+                    var keepers = _.filter(this.myRoom.hostileScan.keepers, function (k) { return k.pos.inRangeTo(_this.creep.pos, 3); });
+                    if (keepers.length > 0) {
+                        var fleePath = PathFinder.search(this.creep.pos, _.map(keepers, function (k) {
+                            return { pos: k.pos, range: 4 };
+                        }), {
+                            roomCallback: Colony.getCreepAvoidanceMatrix, flee: true, plainCost: 2, swampCost: 10
+                        });
+                        this.creep.say('StepAway');
+                        var structure = Game.getObjectById(this.memory.targetId);
+                        if (structure == null) {
+                            this.creep.repair(structure);
+                        }
+                        this.creep.move(this.creep.pos.getDirectionTo(fleePath.path[0]));
+                        return;
+                    }
                 }
+                this.creep.say('Repair' + this.creep.repair(road));
+                if (road.hitsMax - road.hits <= this.repairPower)
+                    delete this.myRoom.repairStructures[road.id];
+                return;
+            }
+        }
+        if (this.repairPower == 0)
+            this.recycle();
+        if (this.memory.state == 1 /* Repairing */ && this.creep.carry.energy == 0) {
+            this.memory.state = 0 /* Refilling */;
+            this.memory.fillupContainerId = null;
+            this.memory.targetId = null;
+        }
+        else if (this.memory.state == 0 /* Refilling */ && this.creep.carry.energy == this.creep.carryCapacity) {
+            this.memory.state = 1 /* Repairing */;
+        }
+        if (this.memory.state == 1 /* Repairing */) {
+            if (this.creep.hits < this.creep.hitsMax) {
+                var keepers = _.filter(this.myRoom.hostileScan.keepers, function (k) { return k.pos.inRangeTo(_this.creep.pos, 3); });
+                if (keepers.length > 0) {
+                    var fleePath = PathFinder.search(this.creep.pos, _.map(keepers, function (k) {
+                        return { pos: k.pos, range: 4 };
+                    }), {
+                        roomCallback: Colony.getCreepAvoidanceMatrix, flee: true, plainCost: 2, swampCost: 10
+                    });
+                    this.creep.say('StepAway');
+                    this.creep.move(this.creep.pos.getDirectionTo(fleePath.path[0]));
+                    return;
+                }
+            }
+            if (this.creep.room.name != this.memory.roomName || this.isOnEdge) {
+                if (this.memory.path == null || this.memory.path.path.length <= 2) {
+                    this.memory.path = PathFinder.search(this.creep.pos, { pos: new RoomPosition(25, 25, this.memory.roomName), range: 20 }, { roomCallback: Colony.getTravelMatrix, plainCost: 2, swampCost: 10 });
+                    this.memory.path.path.unshift(this.creep.pos);
+                }
+                this.moveByPath();
+            }
+            else {
+                delete this.memory.path;
                 if (this.creep.room.name == this.memory.roomName && this.memory.targetId == null) {
                     var target = this.getEmergencyTarget();
                     if (target) {
@@ -905,9 +1062,11 @@ var Repairer = (function (_super) {
                         this.memory.targetId = null;
                     }
                     else {
-                        if (!this.creep.pos.isNearTo(structure))
-                            this.creep.moveTo(structure);
+                        if (!this.creep.pos.inRangeTo(structure.pos, 3))
+                            this.moveTo({ pos: structure.pos, range: 3 });
                         this.creep.repair(structure);
+                        if (structure.hitsMax - structure.hits <= this.repairPower)
+                            delete this.myRoom.repairStructures[structure.id];
                         if (this.memory.isEmergency && RepairManager.emergencyStopDelegate(structure))
                             this.memory.isEmergency = false;
                         if (RepairManager.forceStopRepairDelegate(structure) || this.memory.isEmergency == false && this.getEmergencyTarget() != null)
@@ -915,21 +1074,37 @@ var Repairer = (function (_super) {
                     }
                 }
             }
-            else {
-                if (this.memory.fillupContainerId == null) {
-                    var container_1 = null;
-                    container_1 = this.mainRoom.mainContainer;
-                    if (container_1 != null) {
-                        this.memory.fillupContainerId = container_1.id;
-                    }
+        }
+        else if (this.memory.state == 0 /* Refilling */) {
+            if (!this.memory.fillupContainerId) {
+                var possbibleContainers = _.map(_.filter(this.myRoom.mySources, function (s) { return (s.hasKeeper == false || s.keeper.lair.ticksToSpawn > 100 || s.keeper.creep && s.keeper.creep.hits <= 100) && s.container; }), function (s) { return s.container; });
+                var container = _.sortBy(possbibleContainers, function (x) { return x.pos.getRangeTo(_this.creep.pos); })[0];
+                if (container) {
+                    this.memory.fillupContainerId = container.id;
+                    this.memory.path = PathFinder.search(this.creep.pos, { pos: container.pos, range: 3 }, { roomCallback: Colony.getTravelMatrix, plainCost: 1, swampCost: 5 });
+                    this.memory.path.path.unshift(this.creep.pos);
                 }
-                var container = Game.getObjectById(this.memory.fillupContainerId);
-                if (container == null)
-                    this.memory.fillupContainerId = null;
-                else if (container.store.energy > 0) {
+            }
+            if (this.memory.fillupContainerId) {
+                if (this.memory.path && this.memory.path.path.length > 2)
+                    this.moveByPath();
+                else {
+                    var container = Game.getObjectById(this.memory.fillupContainerId);
                     if (this.creep.withdraw(container, RESOURCE_ENERGY) == ERR_NOT_IN_RANGE)
-                        this.creep.moveTo(container);
+                        this.moveTo({ pos: container.pos, range: 3 });
                 }
+            }
+            else if (this.creep.room.name != this.mainRoom.name || this.isOnEdge) {
+                if (this.memory.path == null || this.memory.path.path.length <= 2) {
+                    this.memory.path = PathFinder.search(this.creep.pos, { pos: this.mainRoom.mainContainer.pos, range: 3 }, { roomCallback: Colony.getTravelMatrix, plainCost: 1, swampCost: 5 });
+                    this.memory.path.path.unshift(this.creep.pos);
+                }
+                this.moveByPath();
+            }
+            else {
+                this.memory.path = null;
+                if (this.creep.withdraw(this.mainRoom.mainContainer, RESOURCE_ENERGY) == ERR_NOT_IN_RANGE)
+                    this.moveTo({ pos: this.mainRoom.mainContainer.pos, range: 3 });
             }
         }
     };
@@ -938,14 +1113,13 @@ var Repairer = (function (_super) {
 /// <reference path="../creeps/repairer/repairerDefinition.ts" />
 /// <reference path="../creeps/repairer/repairer.ts" />
 /// <reference path="./manager.ts" />
-var RepairManager = (function (_super) {
-    __extends(RepairManager, _super);
+var RepairManager = (function () {
     function RepairManager(mainRoom) {
-        _super.call(this, RepairManager.staticTracer);
         this.mainRoom = mainRoom;
         this._creeps = { time: 0, creeps: null };
         this._idleCreeps = { time: 0, creeps: null };
         this.maxCreeps = 2;
+        this.preTick = profiler.registerFN(this.preTick, 'RepairManager.preTick');
     }
     Object.defineProperty(RepairManager.prototype, "memory", {
         get: function () {
@@ -1003,44 +1177,26 @@ var RepairManager = (function (_super) {
     RepairManager.emergencyStopDelegate = function (s) {
         return ((s.structureType == STRUCTURE_WALL || s.structureType == STRUCTURE_RAMPART) && s.hits > 20000 || s.hits >= s.hitsMax && s.structureType == STRUCTURE_ROAD || s.hits > 0.5 * s.hitsMax && s.structureType == STRUCTURE_CONTAINER) || s.hits >= s.hitsMax;
     };
-    Object.defineProperty(RepairManager, "staticTracer", {
-        get: function () {
-            if (RepairManager._staticTracer == null) {
-                RepairManager._staticTracer = new Tracer('RepairManager');
-                Colony.tracers.push(RepairManager._staticTracer);
-            }
-            return RepairManager._staticTracer;
-        },
-        enumerable: true,
-        configurable: true
-    });
-    RepairManager.prototype._preTick = function () {
+    RepairManager.prototype.preTick = function (myRoom) {
         if (this.mainRoom.spawnManager.isBusy || !this.mainRoom.mainContainer)
             return;
-        var _loop_3 = function(idx) {
-            var myRoom = this_2.mainRoom.allRooms[idx];
-            if (myRoom.name == myRoom.mainRoom.name || myRoom.room && _.filter(myRoom.repairStructures, function (s) { return RepairManager.targetDelegate(s); }).length > 0) {
-                var roomCreeps = _.filter(this_2.creeps, function (x) { return x.memory.roomName == myRoom.name; });
-                if (roomCreeps.length < (myRoom.name == this_2.mainRoom.name ? Math.min(1, _.size(this_2.mainRoom.sources)) : 1)) {
-                    var definition = (myRoom.name == myRoom.mainRoom.name) ? RepairerDefinition.getDefinition(this_2.mainRoom.maxSpawnEnergy).getBody() : [WORK, WORK, CARRY, CARRY, CARRY, CARRY, MOVE, MOVE, MOVE];
-                    this_2.mainRoom.spawnManager.addToQueue(definition, { role: 'repairer', roomName: myRoom.name, state: 0 /* Refilling */ }, 1);
-                }
+        if (myRoom.name == myRoom.mainRoom.name || myRoom.room && _.filter(myRoom.repairStructures, function (s) { return RepairManager.targetDelegate(s); }).length > 0) {
+            var roomCreeps = _.filter(this.creeps, function (x) { return x.memory.roomName == myRoom.name; });
+            if (roomCreeps.length < (myRoom.name == this.mainRoom.name ? Math.min(1, _.size(this.mainRoom.sources)) : 1)) {
+                var definition = RepairerDefinition.getDefinition(this.mainRoom.maxSpawnEnergy).getBody();
+                this.mainRoom.spawnManager.addToQueue(definition, { role: 'repairer', roomName: myRoom.name, state: 0 /* Refilling */ }, 1);
             }
-        };
-        var this_2 = this;
-        for (var idx in this.mainRoom.allRooms) {
-            _loop_3(idx);
         }
     };
-    RepairManager.prototype._tick = function () {
+    RepairManager.prototype.tick = function () {
         var _this = this;
         this.creeps.forEach(function (c) { return new Repairer(c, _this.mainRoom).tick(); });
     };
     return RepairManager;
-}(Manager));
+}());
 var UpgraderDefinition;
 (function (UpgraderDefinition) {
-    function getDefinition(maxEnergy, minCarry, maxWorkParts) {
+    function getDefinition(maxEnergy, minCarry, maxWorkParts, resources) {
         if (minCarry === void 0) { minCarry = false; }
         if (maxWorkParts === void 0) { maxWorkParts = 50; }
         var body = new Body();
@@ -1078,14 +1234,24 @@ var UpgraderDefinition;
         }
         if (minCarry)
             body.carry = Math.min(Math.floor(body.getBody().length / 5), body.carry);
+        if (resources) {
+            var boostCompound = _.filter(_.sortByOrder(ReactionManager.BOOSTPOWERS['upgradeController'].resources, [function (r) { return r.resource; }], ['desc']), function (r) { return resources[r.resource] >= body.work * LAB_BOOST_MINERAL; })[0];
+            if (boostCompound) {
+                body.boosts[boostCompound.resource] = { compound: boostCompound.resource, amount: body.work };
+            }
+        }
         return body;
     }
     UpgraderDefinition.getDefinition = getDefinition;
 })(UpgraderDefinition || (UpgraderDefinition = {}));
-var Upgrader = (function () {
+/// <reference path="../myCreep.ts" />
+var Upgrader = (function (_super) {
+    __extends(Upgrader, _super);
     function Upgrader(creep, mainRoom) {
+        _super.call(this, creep);
         this.creep = creep;
         this.mainRoom = mainRoom;
+        this.myTick = profiler.registerFN(this.myTick, 'Upgrader.tick');
     }
     Upgrader.prototype.upgrade = function () {
         var result = this.creep.upgradeController(this.creep.room.controller);
@@ -1093,7 +1259,7 @@ var Upgrader = (function () {
         if (result == ERR_NOT_IN_RANGE)
             this.creep.moveTo(this.creep.room.controller);
     };
-    Upgrader.prototype.tick = function () {
+    Upgrader.prototype.myTick = function () {
         var _this = this;
         if (this.creep.carry.energy >= _.sum(this.creep.body, function (x) { return x.type == WORK ? 1 : 0; })) {
             this.upgrade();
@@ -1102,7 +1268,7 @@ var Upgrader = (function () {
             if (!this.mainRoom)
                 return;
             var resources = _.filter(Colony.getRoom(this.creep.room.name).resourceDrops, function (r) { return r.resourceType == RESOURCE_ENERGY; });
-            var energy = _.filter(resources, function (r) { return Math.pow((r.pos.x - _this.creep.pos.x), 2) + Math.pow((r.pos.y - _this.creep.pos.y), 2) <= 1; })[0];
+            var energy = _.filter(resources, function (r) { return r.pos.isNearTo(_this.creep.pos); })[0];
             if (energy != null && this.creep.carry.energy < this.creep.carryCapacity) {
                 this.creep.pickup(energy);
             }
@@ -1133,16 +1299,15 @@ var Upgrader = (function () {
         }
     };
     return Upgrader;
-}());
+}(MyCreep));
 /// <reference path="../creeps/upgrader/upgraderDefinition.ts" />
 /// <reference path="../creeps/upgrader/upgrader.ts" />
 /// <reference path="./manager.ts" />
-var UpgradeManager = (function (_super) {
-    __extends(UpgradeManager, _super);
+var UpgradeManager = (function () {
     function UpgradeManager(mainRoom) {
-        _super.call(this, UpgradeManager.staticTracer);
         this.mainRoom = mainRoom;
         this._creeps = { time: 0, creeps: null };
+        this.preTick = profiler.registerFN(this.preTick, 'UpgradeManager.preTick');
     }
     Object.defineProperty(UpgradeManager.prototype, "creeps", {
         get: function () {
@@ -1155,49 +1320,49 @@ var UpgradeManager = (function (_super) {
         enumerable: true,
         configurable: true
     });
-    Object.defineProperty(UpgradeManager, "staticTracer", {
-        get: function () {
-            if (UpgradeManager._staticTracer == null) {
-                UpgradeManager._staticTracer = new Tracer('UpgradeManager');
-                Colony.tracers.push(UpgradeManager._staticTracer);
-            }
-            return UpgradeManager._staticTracer;
-        },
-        enumerable: true,
-        configurable: true
-    });
-    UpgradeManager.prototype._preTick = function () {
+    UpgradeManager.prototype.preTick = function () {
         if (this.mainRoom.spawnManager.isBusy)
             return;
-        if (this.mainRoom.mainContainer != null && this.mainRoom.room.energyAvailable == this.mainRoom.room.energyCapacityAvailable && this.mainRoom.spawnManager.queue.length < 1 && (this.creeps.length < 1 || (this.mainRoom.mainContainer.store.energy == this.mainRoom.mainContainer.storeCapacity || this.mainRoom.mainContainer.store.energy > 300000 || this.mainRoom.mainContainer.store.energy > 50000 && this.mainRoom.room.controller.level < 6) && this.creeps.length < 5 && this.mainRoom.room.controller.level < 8)) {
-            this.mainRoom.spawnManager.addToQueue(UpgraderDefinition.getDefinition(this.mainRoom.maxSpawnEnergy, _.any(this.mainRoom.links, function (x) { return x.nearController; }), this.mainRoom.room.controller.level == 8 ? 15 : 50).getBody(), { role: 'upgrader' }, 1);
+        if (this.mainRoom.mainContainer != null && this.mainRoom.room.energyAvailable == this.mainRoom.room.energyCapacityAvailable && (this.creeps.length < 1 || (this.mainRoom.mainContainer.store.energy == this.mainRoom.mainContainer.storeCapacity || this.mainRoom.mainContainer.store.energy > 300000 || this.mainRoom.mainContainer.store.energy > 50000 && this.mainRoom.room.controller.level < 6) && this.creeps.length < 5 && this.mainRoom.room.controller.level < 8)) {
+            var definition = UpgraderDefinition.getDefinition(this.mainRoom.maxSpawnEnergy, _.any(this.mainRoom.links, function (x) { return x.nearController; }), this.mainRoom.room.controller.level == 8 ? 15 : 50, this.mainRoom.managers.labManager.availablePublishResources);
+            this.mainRoom.spawnManager.addToQueue(definition.getBody(), { role: 'upgrader', requiredBoosts: definition.boosts }, 1);
         }
     };
-    UpgradeManager.prototype._tick = function () {
+    UpgradeManager.prototype.tick = function () {
         var _this = this;
         this.creeps.forEach(function (c) { return new Upgrader(c, _this.mainRoom).tick(); });
     };
     return UpgradeManager;
-}(Manager));
+}());
 var SpawnFillerDefinition;
 (function (SpawnFillerDefinition) {
     function getDefinition(maxEnergy) {
         var body = new Body();
-        var remainingEnergy = Math.min(maxEnergy, 1200);
+        var remainingEnergy = Math.min(maxEnergy, 150 * 12);
         var basicModuleCount = ~~(remainingEnergy / 150);
-        basicModuleCount = (basicModuleCount > 8) ? 8 : basicModuleCount;
+        //basicModuleCount = (basicModuleCount > 8) ? 8 : basicModuleCount;
         body.carry = 2 * basicModuleCount;
         body.move = 1 * basicModuleCount;
         return body;
     }
     SpawnFillerDefinition.getDefinition = getDefinition;
 })(SpawnFillerDefinition || (SpawnFillerDefinition = {}));
-var SpawnFiller = (function () {
+/// <reference path="../MyCreep.ts" />
+var SpawnFiller = (function (_super) {
+    __extends(SpawnFiller, _super);
     function SpawnFiller(creep, mainRoom) {
+        _super.call(this, creep);
         this.creep = creep;
         this.mainRoom = mainRoom;
+        this.myTick = profiler.registerFN(this.myTick, 'SpawnFiller.tick');
     }
+    Object.defineProperty(SpawnFiller.prototype, "memory", {
+        get: function () { return this.creep.memory; },
+        enumerable: true,
+        configurable: true
+    });
     SpawnFiller.prototype.refill = function () {
+        var _this = this;
         if (!this.mainRoom)
             return;
         //let resources = _.filter(Colony.getRoom(this.creep.room.name).resourceDrops, r => r.resourceType == RESOURCE_ENERGY);
@@ -1207,18 +1372,31 @@ var SpawnFiller = (function () {
         //        this.creep.moveTo(energy);
         //}
         //else {
-        var mainContainer = this.mainRoom.mainContainer;
-        if (mainContainer != null && mainContainer.store.energy > 0) {
-            if (mainContainer.transfer(this.creep, RESOURCE_ENERGY) == ERR_NOT_IN_RANGE)
-                this.creep.moveTo(mainContainer);
+        var energy = _.filter(this.myRoom.resourceDrops, function (r) { return r.resourceType == RESOURCE_ENERGY && _.any(_this.mainRoom.spawns, function (s) { return s.pos.isNearTo(r.pos); }); })[0];
+        if (energy) {
+            if (this.creep.pickup(energy) == ERR_NOT_IN_RANGE)
+                this.creep.moveTo(energy);
         }
-        else if (this.mainRoom.room.terminal && this.mainRoom.room.terminal.store.energy > 0) {
-            if (this.mainRoom.room.terminal.transfer(this.creep, RESOURCE_ENERGY) == ERR_NOT_IN_RANGE)
-                this.creep.moveTo(this.mainRoom.room.terminal);
+        else {
+            var mainContainer = this.mainRoom.mainContainer;
+            if (mainContainer != null && mainContainer.store.energy > 0) {
+                if (mainContainer.transfer(this.creep, RESOURCE_ENERGY) == ERR_NOT_IN_RANGE)
+                    this.creep.moveTo(mainContainer);
+            }
+            else if (this.mainRoom.room.terminal && this.mainRoom.room.terminal.store.energy > 0) {
+                if (this.mainRoom.room.terminal.transfer(this.creep, RESOURCE_ENERGY) == ERR_NOT_IN_RANGE)
+                    this.creep.moveTo(this.mainRoom.room.terminal);
+            }
+            else {
+                var link = _.filter(this.mainRoom.links, function (l) { return l.nextToStorage; })[0];
+                if (link && link.link && link.link.energy > 0 && this.creep.withdraw(link.link, RESOURCE_ENERGY) == ERR_NOT_IN_RANGE)
+                    this.creep.moveTo(link.link);
+            }
         }
         //}
     };
-    SpawnFiller.prototype.tick = function () {
+    SpawnFiller.prototype.myTick = function () {
+        var _this = this;
         if (this.creep.ticksToLive <= 20) {
             if (this.creep.carry.energy > 0) {
                 if (this.creep.transfer(this.mainRoom.energyDropOffStructure, RESOURCE_ENERGY) == ERR_NOT_IN_RANGE)
@@ -1229,32 +1407,58 @@ var SpawnFiller = (function () {
                     this.creep.moveTo(this.mainRoom.spawns[0]);
             }
         }
+        else if (this.creep.carry.energy < this.creep.carryCapacity && _.filter(this.mainRoom.myRoom.resourceDrops, function (r) { return r.resourceType == RESOURCE_ENERGY && r.pos.isNearTo(_this.creep.pos); }).length > 0) {
+            var energy = _.filter(this.mainRoom.myRoom.resourceDrops, function (r) { return r.resourceType == RESOURCE_ENERGY && r.pos.isNearTo(_this.creep.pos); })[0];
+            if (energy) {
+                this.creep.pickup(energy);
+            }
+        }
         else {
             if (this.creep.carry.energy == 0) {
+                this.memory.targetStructureId = null;
                 this.refill();
             }
             else {
-                var target = this.creep.pos.findClosestByPath(FIND_MY_STRUCTURES, { filter: function (s) { return (s.structureType == STRUCTURE_SPAWN || s.structureType == STRUCTURE_EXTENSION) && s.energy < s.energyCapacity; } });
-                if (target == null)
+                if (this.mainRoom.mainContainer && this.creep.carry.energy < this.creep.carryCapacity && this.mainRoom.mainContainer.store.energy > 0 && this.creep.pos.isNearTo(this.mainRoom.mainContainer.pos)) {
+                    this.creep.withdraw(this.mainRoom.mainContainer, RESOURCE_ENERGY);
+                }
+                if (this.mainRoom.room.energyAvailable < this.mainRoom.room.energyCapacityAvailable) {
+                    if (this.memory.targetStructureId) {
+                        var target = Game.getObjectById(this.memory.targetStructureId);
+                        if (target != null && target.energy == target.energyCapacity)
+                            target = null;
+                    }
+                    var targets = this.creep.room.find(FIND_MY_STRUCTURES, { filter: function (s) { return (s.structureType == STRUCTURE_SPAWN || s.structureType == STRUCTURE_EXTENSION) && s.energy < s.energyCapacity && !_.any(_this.mainRoom.managers.spawnFillManager.creeps, function (c) { return c.name != _this.creep.name && c.memory.targetStructureId && c.memory.targetStructureId == s.id; }); } });
+                    if (target == null)
+                        target = _.filter(targets, function (t) { return t.pos.inRangeTo(_this.creep.pos, 1); })[0];
+                    if (target == null)
+                        target = _.sortBy(targets, function (t) { return t.pos.getRangeTo(_this.creep.pos); })[0];
+                    if (target == null) {
+                        this.memory.targetStructureId = null;
+                        this.refill();
+                    }
+                    else {
+                        this.memory.targetStructureId = target.id;
+                        if (this.creep.transfer(target, RESOURCE_ENERGY) == ERR_NOT_IN_RANGE)
+                            this.creep.moveTo(target);
+                    }
+                }
+                else if (this.creep.carry.energy < this.creep.carryCapacity) {
                     this.refill();
-                else {
-                    if (this.creep.transfer(target, RESOURCE_ENERGY) == ERR_NOT_IN_RANGE)
-                        this.creep.moveTo(target);
                 }
             }
         }
     };
     return SpawnFiller;
-}());
+}(MyCreep));
 /// <reference path="../creeps/spawnFiller/spawnFillerDefinition.ts" />
 /// <reference path="../creeps/spawnFiller/spawnFiller.ts" />
 /// <reference path="./manager.ts" />
-var SpawnFillManager = (function (_super) {
-    __extends(SpawnFillManager, _super);
+var SpawnFillManager = (function () {
     function SpawnFillManager(mainRoom) {
-        _super.call(this, SpawnFillManager.staticTracer);
         this.mainRoom = mainRoom;
         this._creeps = { time: 0, creeps: null };
+        this.preTick = profiler.registerFN(this.preTick, 'SpawnFillManager.preTick');
     }
     Object.defineProperty(SpawnFillManager.prototype, "creeps", {
         get: function () {
@@ -1267,30 +1471,19 @@ var SpawnFillManager = (function (_super) {
         enumerable: true,
         configurable: true
     });
-    Object.defineProperty(SpawnFillManager, "staticTracer", {
-        get: function () {
-            if (SpawnFillManager._staticTracer == null) {
-                SpawnFillManager._staticTracer = new Tracer('SpawnFillManager');
-                Colony.tracers.push(SpawnFillManager._staticTracer);
-            }
-            return SpawnFillManager._staticTracer;
-        },
-        enumerable: true,
-        configurable: true
-    });
-    SpawnFillManager.prototype._preTick = function () {
+    SpawnFillManager.prototype.preTick = function () {
         if (this.mainRoom.spawnManager.isBusy)
             return;
         if (this.mainRoom.mainContainer != null && _.size(_.filter(this.mainRoom.creeps, function (c) { return c.memory.role == 'spawnFiller' && (c.ticksToLive > 70 || c.ticksToLive === undefined); })) < 2) {
-            this.mainRoom.spawnManager.addToQueue(SpawnFillerDefinition.getDefinition(this.mainRoom.maxSpawnEnergy).getBody(), { role: 'spawnFiller' }, 1, true);
+            this.mainRoom.spawnManager.addToQueue(SpawnFillerDefinition.getDefinition(this.creeps.length == 0 ? this.mainRoom.room.energyAvailable : this.mainRoom.maxSpawnEnergy).getBody(), { role: 'spawnFiller' }, 1, true);
         }
     };
-    SpawnFillManager.prototype._tick = function () {
+    SpawnFillManager.prototype.tick = function () {
         var _this = this;
         this.creeps.forEach(function (c) { return new SpawnFiller(c, _this.mainRoom).tick(); });
     };
     return SpawnFillManager;
-}(Manager));
+}());
 var EnergyHarvesterDefinition;
 (function (EnergyHarvesterDefinition) {
     function getHarvesterDefinition(maxEnergy, mySource) {
@@ -1313,7 +1506,7 @@ var EnergyHarvesterDefinition;
     }
     function getMinerDefinition(maxEnergy, mySource, resources) {
         var baseBody = new Body();
-        if (mySource.link)
+        if (mySource.link || !mySource.hasKeeper)
             baseBody.carry = 2;
         if (mySource.hasKeeper) {
             baseBody.heal = 2;
@@ -1383,10 +1576,11 @@ var EnergyHarvester = (function (_super) {
         //}
         this.healed = false;
         this.memory.autoFlee = true;
-        if (EnergyHarvester.staticTracer == null) {
-            EnergyHarvester.staticTracer = new Tracer('Harvester');
-        }
-        this.tracer = EnergyHarvester.staticTracer;
+        this.myTick = profiler.registerFN(this.myTick, 'EnergyHarvester.tick');
+        this.construct = profiler.registerFN(this.construct, 'EnergyHarvester.construct');
+        this.repair = profiler.registerFN(this.repair, 'EnergyHarvester.repair');
+        this.harvest = profiler.registerFN(this.harvest, 'EnergyHarvester.harvest');
+        this.deliver = profiler.registerFN(this.deliver, 'EnergyHarvester.deliver');
     }
     Object.defineProperty(EnergyHarvester.prototype, "memory", {
         get: function () { return this.creep.memory; },
@@ -1425,20 +1619,112 @@ var EnergyHarvester = (function (_super) {
         }
     };
     EnergyHarvester.prototype.createHarvestPath = function () {
-        this.memory.path = PathFinder.search(this.creep.pos, { pos: this.mySource.pos, range: 5 }, { roomCallback: Colony.getTravelMatrix, plainCost: 2, swampCost: 10 });
+        this.memory.path = PathFinder.search(this.creep.pos, { pos: this.mySource.pos, range: 1 }, { roomCallback: Colony.getTravelMatrix, plainCost: 2, swampCost: 10, maxOps: 10000 });
         this.memory.path.path.unshift(this.creep.pos);
     };
+    EnergyHarvester.prototype.repair = function () {
+        if (Game.time % 5 != 0)
+            return;
+        var repairPower = _.filter(this.creep.body, function (b) { return b.type == WORK; }).length * REPAIR_POWER;
+        var repairCost = REPAIR_POWER * REPAIR_COST;
+        if (this.mySource.container && RepairManager.emergencyTargetDelegate(this.mySource.container) && this.creep.carry.energy >= repairCost && this.mySource.container.hits < this.mySource.container.hitsMax - repairPower) {
+            if (this.creep.repair(this.mySource.container) == OK) {
+                var container = Game.getObjectById(this.mySource.container.id);
+                if (container && this.myRoom.repairStructures[container.id]) {
+                    if (container.hits == container.hitsMax)
+                        delete this.myRoom.repairStructures[container.id];
+                    else
+                        this.myRoom.repairStructures[container.id].hits = container.hits;
+                }
+            }
+            //this.creep.say('Repair');
+            return true;
+        }
+        return false;
+    };
+    EnergyHarvester.prototype.construct = function () {
+        if (this.mySource.container || this.mySource.link || this.mySource.hasKeeper)
+            return false;
+        else if (this.creep.carry.energy >= _.filter(this.creep.body, function (b) { return b.type == WORK; }).length * BUILD_POWER) {
+            var construction = this.mySource.pos.findInRange(FIND_CONSTRUCTION_SITES, 1)[0];
+            if (construction) {
+                this.creep.build(construction);
+                //this.creep.say('Build');
+                return true;
+            }
+            else {
+                this.creep.pos.createConstructionSite(STRUCTURE_CONTAINER);
+            }
+        }
+        return false;
+    };
+    EnergyHarvester.prototype.harvest = function () {
+        if (this.memory.path && this.memory.path.path.length > 2) {
+            //this.creep.say('Path');
+            this.moveByPath();
+        }
+        else if (this.creep.room.name != this.mySource.myRoom.name) {
+            this.createHarvestPath();
+            if (this.memory.path.path.length <= 2)
+                this.creep.moveTo(this.mySource.pos);
+            else
+                this.moveByPath();
+        }
+        else if (!this.creep.pos.isNearTo(this.mySource.pos)) {
+            if (this.mySource.container && !this.creep.pos.isEqualTo(this.mySource.container.pos) && !this.mySource.container.pos.isEqualTo(this.creep.pos) && this.mySource.container.pos.lookFor(LOOK_CREEPS).length == 0) {
+                this.creep.moveTo(this.mySource.container);
+            }
+            else
+                this.creep.moveTo(this.mySource.pos);
+        }
+        else if (!this.healed && !this.repair() && !this.construct()) {
+            if (this.mySource.container && !this.creep.pos.isEqualTo(this.mySource.container.pos) && this.mySource.container.pos.lookFor(LOOK_CREEPS).length == 0)
+                this.creep.moveTo(this.mySource.container);
+            if (this.creep.harvest(this.mySource.source) == ERR_NOT_IN_RANGE)
+                this.creep.moveTo(this.mySource.source);
+            //this.creep.say('Harvest');
+            if (this.creep.carry.energy > this.creep.carryCapacity - _.filter(this.creep.body, function (b) { return b.type == WORK; }).length * 2) {
+                if (this.mySource.link) {
+                    //this.creep.say('Link');
+                    if (this.creep.transfer(this.mySource.link, RESOURCE_ENERGY) == ERR_NOT_IN_RANGE)
+                        this.creep.moveTo(this.mySource.link);
+                }
+                else if (this.mainRoom.harvestersShouldDeliver) {
+                    //this.creep.say('Deliver');
+                    if (this.memory.path == null) {
+                        this.memory.path = PathFinder.search(this.creep.pos, { pos: this.mainRoom.mainContainer.pos, range: 5 }, { roomCallback: Colony.getTravelMatrix, plainCost: 2, swampCost: 10 });
+                        this.memory.path.path.unshift(this.creep.pos);
+                    }
+                    if (this.memory.path && this.memory.path.path.length > 2)
+                        this.moveByPath();
+                    else if (this.creep.transfer(this.mainRoom.energyDropOffStructure, RESOURCE_ENERGY) == ERR_NOT_IN_RANGE)
+                        this.creep.moveTo(this.mainRoom.energyDropOffStructure);
+                }
+            }
+        }
+    };
+    EnergyHarvester.prototype.deliver = function () {
+        if (this.memory.path && this.memory.path.path.length > 2)
+            this.moveByPath();
+        else {
+            if (this.creep.transfer(this.mainRoom.energyDropOffStructure, RESOURCE_ENERGY) == ERR_NOT_IN_RANGE)
+                this.creep.moveTo(this.mainRoom.energyDropOffStructure);
+        }
+    };
     EnergyHarvester.prototype.myTick = function () {
-        var trace = this.tracer.start('tick()');
+        //this.creep.say('Tick');
         this.healed = false;
-        if (this.mySource == null)
+        if (this.mySource == null) {
+            //this.creep.say('Reassign');
             this.reassignMainRoom();
+        }
         if (!this.mySource) {
-            trace.stop();
+            //this.creep.say('No Source');
             return;
         }
-        if (this.creep.getActiveBodyparts(HEAL) > 0 && this.creep.hits + this.creep.getActiveBodyparts(HEAL) * HEAL_POWER <= this.creep.hitsMax) {
+        if (_.filter(this.creep.body, function (b) { return b.type == HEAL; }).length > 0 && this.creep.hits + _.filter(this.creep.body, function (b) { return b.type == HEAL; }).length * HEAL_POWER <= this.creep.hitsMax) {
             this.creep.heal(this.creep);
+            //this.creep.say('Heal');
             this.healed = true;
         }
         //else if (this.creep.getActiveBodyparts(HEAL) > 0) {
@@ -1454,51 +1740,21 @@ var EnergyHarvester = (function (_super) {
         }
         else if (this.memory.state == 0 /* Harvesting */ && _.sum(this.creep.carry) == this.creep.carryCapacity && !this.mySource.link && this.mainRoom.harvestersShouldDeliver) {
             if (!this.mainRoom.energyDropOffStructure) {
-                trace.stop();
                 return;
             }
             this.memory.path = PathFinder.search(this.creep.pos, { pos: this.mainRoom.energyDropOffStructure.pos, range: 2 }, { roomCallback: Colony.getTravelMatrix, plainCost: 2, swampCost: 10 });
             this.memory.state = 1 /* Delivering */;
         }
         if (this.memory.state == 0 /* Harvesting */) {
-            if (this.memory.path && this.memory.path.path.length > 2)
-                this.moveByPath();
-            else if (this.creep.room.name != this.mySource.myRoom.name) {
-                this.createHarvestPath();
-                this.moveByPath();
-            }
-            else if (!this.healed) {
-                if (this.creep.harvest(this.mySource.source) == ERR_NOT_IN_RANGE)
-                    this.creep.moveTo(this.mySource.source);
-                if (this.creep.carry.energy > this.creep.carryCapacity - _.filter(this.creep.body, function (b) { return b.type == WORK; }).length * 2) {
-                    if (this.mySource.link) {
-                        if (this.creep.transfer(this.mySource.link, RESOURCE_ENERGY) == ERR_NOT_IN_RANGE)
-                            this.creep.moveTo(this.mySource.link);
-                    }
-                    else if (this.mainRoom.harvestersShouldDeliver) {
-                        if (this.memory.path == null) {
-                            this.memory.path = PathFinder.search(this.creep.pos, { pos: this.mainRoom.mainContainer.pos, range: 5 }, { roomCallback: Colony.getTravelMatrix, plainCost: 2, swampCost: 10 });
-                            this.memory.path.path.unshift(this.creep.pos);
-                        }
-                        if (this.memory.path && this.memory.path.path.length > 2)
-                            this.moveByPath();
-                        else if (this.creep.transfer(this.mainRoom.energyDropOffStructure, RESOURCE_ENERGY) == ERR_NOT_IN_RANGE)
-                            this.creep.moveTo(this.mainRoom.energyDropOffStructure);
-                    }
-                }
-            }
-            else if (this.healed && !this.mySource.pos.isNearTo(this.creep.pos))
-                this.creep.moveTo(this.mySource.pos);
+            //this.creep.say('State 1');
+            this.harvest();
         }
         else if (this.memory.state == 1 /* Delivering */) {
-            if (this.memory.path && this.memory.path.path.length > 2)
-                this.moveByPath();
-            else {
-                if (this.creep.transfer(this.mainRoom.energyDropOffStructure, RESOURCE_ENERGY) == ERR_NOT_IN_RANGE)
-                    this.creep.moveTo(this.mainRoom.energyDropOffStructure);
-            }
+            //this.creep.say('State 2');
+            this.deliver();
         }
-        trace.stop();
+        else {
+        }
     };
     return EnergyHarvester;
 }(MyCreep));
@@ -1529,10 +1785,7 @@ var SourceCarrier = (function (_super) {
         this.mainRoom = mainRoom;
         this._source = { time: 0, source: null };
         this.memory.autoFlee = true;
-        if (SourceCarrier.staticTracer == null) {
-            SourceCarrier.staticTracer = new Tracer('SourceCarrier');
-        }
-        this.tracer = SourceCarrier.staticTracer;
+        this.myTick = profiler.registerFN(this.myTick, 'SourceCarrier.tick');
     }
     Object.defineProperty(SourceCarrier.prototype, "memory", {
         get: function () { return this.creep.memory; },
@@ -1570,37 +1823,25 @@ var SourceCarrier = (function (_super) {
             this._mySource = null;
         }
     };
-    SourceCarrier.prototype.pickUpEnergy = function (range) {
-        var _this = this;
-        if (range === void 0) { range = 1; }
-        var resources = _.filter(Colony.getRoom(this.creep.room.name).resourceDrops, function (r) { return r.resourceType == RESOURCE_ENERGY; });
-        var energy = _.filter(resources, function (r) { return r.pos.inRangeTo(_this.creep.pos, range); })[0];
-        if (energy != null) {
-            if (this.creep.pickup(energy) == ERR_NOT_IN_RANGE)
-                this.creep.moveTo(energy);
-            return true;
-        }
-        return false;
-    };
     SourceCarrier.prototype.myTick = function () {
-        var trace = this.tracer.start('tick()');
+        var _this = this;
         if (this.creep.spawning) {
-            trace.stop();
             return;
         }
         if (!this.mySource)
             this.reassignMainRoom();
         if (!this.mySource) {
-            trace.stop();
             return;
         }
-        if (this.memory.state == null || this.memory.state == 1 /* Deliver */ && this.creep.carry.energy == 0) {
-            this.memory.path = PathFinder.search(this.creep.pos, { pos: this.mySource.pos, range: 3 }, { roomCallback: Colony.getTravelMatrix, plainCost: 2, swampCost: 2 });
+        if (this.memory.state == null || this.memory.state == 1 /* Deliver */ && this.creep.carry.energy == 0 && this.creep.carryCapacity > 0 && !(this.mainRoom.name == this.creep.room.name && this.creep.hits < this.creep.hitsMax)) {
+            this.memory.path = PathFinder.search(this.creep.pos, { pos: this.mySource.pos, range: 2 }, { roomCallback: Colony.getTravelMatrix, plainCost: 2, swampCost: 2, maxOps: 5000 });
             this.memory.path.path.unshift(this.creep.pos);
             this.memory.state = 0 /* Pickup */;
+            if (this.creep.ticksToLive < 3 * this.mySource.pathLengthToDropOff)
+                this.recycle();
         }
-        else if (this.memory.state == 0 /* Pickup */ && _.sum(this.creep.carry) == this.creep.carryCapacity) {
-            this.memory.path = PathFinder.search(this.creep.pos, { pos: this.mainRoom.energyDropOffStructure.pos, range: 3 }, { roomCallback: Colony.getTravelMatrix, plainCost: 2, swampCost: 10 });
+        else if (this.memory.state == 0 /* Pickup */ && (_.sum(this.creep.carry) >= (this.creep.hits == this.creep.hitsMax ? 1 : 0.5) * this.creep.carryCapacity || this.creep.ticksToLive < 1.5 * this.mySource.pathLengthToDropOff)) {
+            this.memory.path = PathFinder.search(this.creep.pos, { pos: this.mainRoom.energyDropOffStructure.pos, range: 3 }, { roomCallback: Colony.getTravelMatrix, plainCost: 2, swampCost: 10, maxOps: 5000 });
             this.memory.path.path.unshift(this.creep.pos);
             this.memory.state = 1 /* Deliver */;
         }
@@ -1609,8 +1850,24 @@ var SourceCarrier = (function (_super) {
                 if (this.memory.path.path.length > 2) {
                     this.moveByPath();
                 }
-                else if (this.creep.room.name != this.mySource.pos.roomName || !this.creep.pos.inRangeTo(this.mySource.pos, 2))
-                    this.creep.moveTo(this.mySource.pos);
+                else if (this.creep.room.name != this.mySource.pos.roomName) {
+                    this.memory.path = PathFinder.search(this.creep.pos, { pos: this.mySource.pos, range: 1 }, { roomCallback: Colony.getTravelMatrix, plainCost: 2, swampCost: 2 });
+                    this.memory.path.path.unshift(this.creep.pos);
+                    this.moveByPath();
+                }
+                else if (this.mySource.container && !this.creep.pos.isNearTo(this.mySource.container) || !this.mySource.container && !this.creep.pos.inRangeTo(this.mySource.pos, 2)) {
+                    if (this.mySource.container)
+                        this.creep.moveTo(this.mySource.container);
+                    else
+                        this.creep.moveTo(this.mySource.pos);
+                }
+                else if (this.mySource.container) {
+                    if (this.creep.withdraw(this.mySource.container, RESOURCE_ENERGY) == ERR_NOT_IN_RANGE)
+                        this.creep.moveTo(this.mySource.container);
+                    var energy = _.filter(this.myRoom.resourceDrops, function (r) { return r.resourceType == RESOURCE_ENERGY && r.pos.inRangeTo(_this.creep.pos, 1); })[0];
+                    if (energy)
+                        this.creep.pickup(energy);
+                }
                 else {
                     this.pickUpEnergy(4);
                 }
@@ -1618,22 +1875,22 @@ var SourceCarrier = (function (_super) {
         }
         else if (this.memory.state == 1 /* Deliver */) {
             if (!this.mainRoom) {
-                trace.stop();
                 return;
             }
             if (!this.mainRoom.energyDropOffStructure) {
-                trace.stop();
                 return;
             }
             if (this.memory.path.path.length > 2) {
                 this.moveByPath();
             }
             else {
-                if (this.creep.transfer(this.mainRoom.energyDropOffStructure, RESOURCE_ENERGY) == ERR_NOT_IN_RANGE)
+                var result = this.creep.transfer(this.mainRoom.energyDropOffStructure, RESOURCE_ENERGY);
+                if (result == ERR_NOT_IN_RANGE)
                     this.creep.moveTo(this.mainRoom.energyDropOffStructure);
+                else if (result == ERR_FULL)
+                    this.creep.drop(RESOURCE_ENERGY);
             }
         }
-        trace.stop();
         //if (this.creep.carry.energy < this.creep.carryCapacity && !(this.creep.carry.energy > this.creep.carryCapacity / 2 && this.creep.room.name == this.mainRoom.name))
         //    this.pickUpNew();
         //else
@@ -1646,13 +1903,12 @@ var SourceCarrier = (function (_super) {
 /// <reference path="../creeps/sourceCarrier/sourceCarrierDefinition.ts" />
 /// <reference path="../creeps/sourceCarrier/sourceCarrier.ts" />
 /// <reference path="./manager.ts" />
-var EnergyHarvestingManager = (function (_super) {
-    __extends(EnergyHarvestingManager, _super);
+var EnergyHarvestingManager = (function () {
     function EnergyHarvestingManager(mainRoom) {
-        _super.call(this, EnergyHarvestingManager.staticTracer);
         this.mainRoom = mainRoom;
         this._harvesterCreeps = { time: -1, creeps: null };
         this._sourceCarrierCreeps = { time: -1, creeps: null };
+        this.preTick = profiler.registerFN(this.preTick, 'EnergyHarvestingManager.preTick');
     }
     Object.defineProperty(EnergyHarvestingManager.prototype, "memory", {
         get: function () {
@@ -1691,13 +1947,24 @@ var EnergyHarvestingManager = (function (_super) {
         enumerable: true,
         configurable: true
     });
-    Object.defineProperty(EnergyHarvestingManager, "staticTracer", {
+    Object.defineProperty(EnergyHarvestingManager.prototype, "harvestersBySource", {
         get: function () {
-            if (EnergyHarvestingManager._staticTracer == null) {
-                EnergyHarvestingManager._staticTracer = new Tracer('EnergyHarvestingManager');
-                Colony.tracers.push(EnergyHarvestingManager._staticTracer);
-            }
-            return EnergyHarvestingManager._staticTracer;
+            if (this._harvestersBySource == null || this._harvestersBySource.time < Game.time)
+                this._harvestersBySource = {
+                    time: Game.time, harvesters: _.groupBy(this.harvesterCreeps, function (x) { return x.memory.sourceId; })
+                };
+            return this._harvestersBySource.harvesters;
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Object.defineProperty(EnergyHarvestingManager.prototype, "carriersBySource", {
+        get: function () {
+            if (this._carriersBySource == null || this._carriersBySource.time < Game.time)
+                this._carriersBySource = {
+                    time: Game.time, carriers: _.groupBy(this.sourceCarrierCreeps, function (x) { return x.memory.sourceId; })
+                };
+            return this._carriersBySource.carriers;
         },
         enumerable: true,
         configurable: true
@@ -1724,13 +1991,11 @@ var EnergyHarvestingManager = (function (_super) {
     //}
     EnergyHarvestingManager.prototype.getHarvesterBodyAndCount = function (sourceInfo, noLocalRestriction) {
         if (noLocalRestriction === void 0) { noLocalRestriction = false; }
-        var trace = this.tracer.start('getHarvesterBodyAndCount()');
         var maxSpawnEnergy = noLocalRestriction ? _.max(_.values(Colony.mainRooms), function (x) { return x.maxSpawnEnergy; }).maxSpawnEnergy : this.mainRoom.maxSpawnEnergy;
         var result = EnergyHarvesterDefinition.getDefinition(maxSpawnEnergy, sourceInfo, this.mainRoom.harvestersShouldDeliver, this.mainRoom.managers.labManager.availablePublishResources);
         return result;
     };
     EnergyHarvestingManager.prototype.getSourceCarrierBodyAndCount = function (sourceInfo, maxMiningRate) {
-        var trace = this.tracer.start('getSourceCarrierBodyAndCount()');
         var useRoads = (this.mainRoom.mainContainer && sourceInfo.roadBuiltToRoom == this.mainRoom.name);
         var pathLengh = (sourceInfo.pathLengthToDropOff + 10) * 1;
         if (pathLengh == null)
@@ -1738,17 +2003,59 @@ var EnergyHarvestingManager = (function (_super) {
         var sourceRate = sourceInfo.capacity / ENERGY_REGEN_TIME;
         var energyPerTick = maxMiningRate == null ? sourceRate : Math.min(maxMiningRate, sourceRate);
         var requiredCapacity = energyPerTick * pathLengh * (useRoads ? 2 : 3);
-        trace.stop();
         return SourceCarrierDefinition.getDefinition(this.mainRoom.maxSpawnEnergy, requiredCapacity, this.mainRoom.managers.labManager.availablePublishResources);
     };
-    EnergyHarvestingManager.prototype._preTick = function () {
-        var _this = this;
-        if (this.mainRoom.spawnManager.isBusy)
+    EnergyHarvestingManager.prototype.createCreep = function (sourceInfo, spawnManager) {
+        //var harvesters = _.filter(this.harvesterCreeps, (c) => (<EnergyHarvesterMemory>c.memory).sourceId == sourceInfo.id);
+        if (this.harvesterCreeps.length != 0 && this.sourceCarrierCreeps.length != 0 && this.memory.creepCounts && this.memory.creepCounts[sourceInfo.id] && this.memory.creepCounts[sourceInfo.id].harvesters == this.harvesterCreeps.length && this.memory.creepCounts[sourceInfo.id].carriers == this.sourceCarrierCreeps.length) {
+            if (!this.memory.sleepUntil)
+                this.memory.sleepUntil = {};
+            this.memory.sleepUntil[sourceInfo.id] = Game.time + 10;
             return;
-        var startCpu;
-        var endCpu;
+        }
+        var harvesters = this.harvestersBySource[sourceInfo.id];
+        var harvesterRequirements = this.getHarvesterBodyAndCount(sourceInfo);
+        if (harvesterRequirements.count > 0) {
+            var requestedCreep = false;
+            //if (!sourceInfo.hasKeeper && harvesterRequirements.body.energyHarvestingRate * harvesterRequirements.count < sourceInfo.capacity / ENERGY_REGEN_TIME) {
+            //    let requestHarvesterRequirements = this.getHarvesterBodyAndCount(sourceInfo, true);
+            //    console.log('MainRoom ' + this.mainRoom.name + ' requests harvester: ' + requestHarvesterRequirements.count);
+            //    requestedCreep = Colony.spawnCreep(this.mainRoom.myRoom, requestHarvesterRequirements.body, { role: 'harvester', state: EnergyHarvesterState.Harvesting, sourceId: sourceInfo.id, mainRoomName: this.mainRoom.name, requiredBoosts: requestHarvesterRequirements.body.boosts, }, requestHarvesterRequirements.count - (harvesters ? harvesters.length : 0));
+            //}
+            if (!requestedCreep) {
+                var livingHarvesters = _.filter(harvesters, function (x) { return ((x.ticksToLive > sourceInfo.pathLengthToDropOff + harvesterRequirements.body.getBody().length * 3) || x.spawning); });
+                var harvesterCount = harvesterRequirements.count - livingHarvesters.length;
+                spawnManager.addToQueue(harvesterRequirements.body.getBody(), { role: 'harvester', state: 0 /* Harvesting */, sourceId: sourceInfo.id, mainRoomName: this.mainRoom.name, requiredBoosts: harvesterRequirements.body.boosts }, harvesterCount);
+            }
+            if (sourceInfo.link == null && this.mainRoom.mainContainer) {
+                var miningRate = Math.min(Math.ceil(harvesterRequirements.body.energyHarvestingRate * harvesterRequirements.count / (sourceInfo.hasKeeper ? 2 : 1)), Math.ceil(sourceInfo.capacity / 300) * 1) * (sourceInfo.hasKeeper ? 1.1 : 1);
+                //var sourceCarriers = _.filter(this.sourceCarrierCreeps, (c) => (<SourceCarrierMemory>c.memory).sourceId == sourceInfo.id);
+                var sourceCarriers = this.carriersBySource[sourceInfo.id];
+                var requirements = this.getSourceCarrierBodyAndCount(sourceInfo, miningRate);
+                var carrierCount = Math.min(requirements.count, requirements.count) - (sourceCarriers ? sourceCarriers.length : 0);
+                spawnManager.addToQueue(requirements.body.getBody(), { role: 'sourceCarrier', sourceId: sourceInfo.id, mainRoomName: this.mainRoom.name }, carrierCount);
+            }
+        }
+        if (!(harvesterCount > 0 || carrierCount > 0)) {
+            if (!this.memory.sleepUntil)
+                this.memory.sleepUntil = {};
+            this.memory.sleepUntil[sourceInfo.id] = Game.time + 10;
+            if (!this.memory.creepCounts)
+                this.memory.creepCounts = {};
+            this.memory.creepCounts[sourceInfo.id] = {
+                carriers: this.carriersBySource[sourceInfo.id] ? this.carriersBySource[sourceInfo.id].length : 0,
+                harvesters: this.harvestersBySource[sourceInfo.id] ? this.harvestersBySource[sourceInfo.id].length : 0,
+            };
+        }
+    };
+    EnergyHarvestingManager.prototype.preTick = function (myRoom) {
+        var _this = this;
+        if (this.mainRoom.spawnManager.isBusy || !myRoom.canHarvest || _.any(myRoom.hostileScan.creeps, function (c) { return c.bodyInfo.totalAttackRate > 0; }))
+            return;
+        if (this.memory.sleepUntil && this.memory.sleepUntil.sleepUntil > Game.time)
+            return;
         var spawnManager = null;
-        if (this.mainRoom.mainContainer && this.mainRoom.mainContainer.store.energy >= 800000)
+        if (this.mainRoom.mainContainer && this.mainRoom.mainContainer.store.energy >= 800000 || _.sum(this.mainRoom.mainContainer.store) == this.mainRoom.mainContainer.storeCapacity && _.filter(this.mainRoom.myRoom.resourceDrops, function (r) { return r.resourceType == RESOURCE_ENERGY && _this.mainRoom.mainContainer.pos.isNearTo(r.pos); }))
             this.mainRoom.harvestingActive = false;
         else if (!this.mainRoom.mainContainer || this.mainRoom.mainContainer.store.energy < 500000)
             this.mainRoom.harvestingActive = true;
@@ -1761,70 +2068,35 @@ var EnergyHarvestingManager = (function (_super) {
         spawnManager = this.mainRoom.spawnManager;
         if (spawnManager == null || spawnManager.isBusy)
             return;
-        var harvestersBySource = _.groupBy(this.harvesterCreeps, function (x) { return x.memory.sourceId; });
-        var carriersBySource = _.groupBy(this.sourceCarrierCreeps, function (x) { return x.memory.sourceId; });
-        var sources = _.filter(this.mainRoom.sources, function (s) { return s.myRoom.name == _this.mainRoom.name || _this.mainRoom.harvestingActive; });
-        var _loop_4 = function() {
-            if (spawnManager.isBusy)
-                return "break";
-            sourceInfo = sources[idx];
-            if (sourceInfo.myRoom && _.any(sourceInfo.myRoom.hostileScan.creeps, function (c) { return c.bodyInfo.totalAttackRate > 0; }))
-                return { value: void 0 };
-            if (!Colony.getRoom(sourceInfo.pos.roomName).canHarvest) {
-                return "continue";
-            }
-            if (sourceInfo.hasKeeper && (_.size(this_3.mainRoom.managers.labManager.myLabs) == 0 || sourceInfo.maxHarvestingSpots == 1)) {
-                return "continue";
-            }
-            //var harvesters = _.filter(this.harvesterCreeps, (c) => (<EnergyHarvesterMemory>c.memory).sourceId == sourceInfo.id);
-            var harvesters = harvestersBySource[sourceInfo.id];
-            var harvesterRequirements = this_3.getHarvesterBodyAndCount(sourceInfo);
-            if (harvesterRequirements.count > 0) {
-                var requestedCreep = false;
-                //if (!sourceInfo.hasKeeper && harvesterRequirements.body.energyHarvestingRate * harvesterRequirements.count < sourceInfo.capacity / ENERGY_REGEN_TIME) {
-                //    let requestHarvesterRequirements = this.getHarvesterBodyAndCount(sourceInfo, true);
-                //    console.log('MainRoom ' + this.mainRoom.name + ' requests harvester: ' + requestHarvesterRequirements.count);
-                //    requestedCreep = Colony.spawnCreep(this.mainRoom.myRoom, requestHarvesterRequirements.body, { role: 'harvester', state: EnergyHarvesterState.Harvesting, sourceId: sourceInfo.id, mainRoomName: this.mainRoom.name, requiredBoosts: requestHarvesterRequirements.body.boosts, }, requestHarvesterRequirements.count - (harvesters ? harvesters.length : 0));
-                //}
-                if (!requestedCreep) {
-                    var livingHarvesters = _.filter(harvesters, function (x) { return ((x.ticksToLive > sourceInfo.pathLengthToDropOff + harvesterRequirements.body.getBody().length * 3) || x.spawning); });
-                    spawnManager.addToQueue(harvesterRequirements.body.getBody(), { role: 'harvester', state: 0 /* Harvesting */, sourceId: sourceInfo.id, mainRoomName: this_3.mainRoom.name, requiredBoosts: harvesterRequirements.body.boosts }, harvesterRequirements.count - livingHarvesters.length);
-                }
-                if (sourceInfo.link == null && this_3.mainRoom.mainContainer) {
-                    var miningRate = Math.min(Math.ceil(harvesterRequirements.body.energyHarvestingRate * harvesterRequirements.count / (sourceInfo.hasKeeper ? 2 : 1)), Math.ceil(sourceInfo.capacity / 300));
-                    //var sourceCarriers = _.filter(this.sourceCarrierCreeps, (c) => (<SourceCarrierMemory>c.memory).sourceId == sourceInfo.id);
-                    var sourceCarriers = carriersBySource[sourceInfo.id];
-                    var requirements = this_3.getSourceCarrierBodyAndCount(sourceInfo, miningRate);
-                    spawnManager.addToQueue(requirements.body.getBody(), { role: 'sourceCarrier', sourceId: sourceInfo.id, mainRoomName: this_3.mainRoom.name }, Math.min(requirements.count, 5) - (sourceCarriers ? sourceCarriers.length : 0));
-                }
-            }
-        };
-        var this_3 = this;
-        var sourceInfo;
+        var sources = _.filter(myRoom.mySources, function (s) { return s.usable && (!_this.memory.sleepUntil || !_this.memory.sleepUntil[s.id] || _this.memory.sleepUntil[s.id] < Game.time) && (_this.mainRoom.harvestingActive || s.myRoom.name == _this.mainRoom.name); });
+        if (sources.length == 0) {
+            if (!this.memory.sleepUntil)
+                this.memory.sleepUntil = {};
+            this.memory.sleepUntil.sleepUntil = Game.time + 10;
+        }
         for (var idx in sources) {
-            var state_4 = _loop_4();
-            if (typeof state_4 === "object") return state_4.value;
-            if (state_4 === "break") break;
-            if (state_4 === "continue") continue;
+            if (spawnManager.isBusy)
+                break;
+            this.createCreep(sources[idx], spawnManager);
         }
     };
-    EnergyHarvestingManager.prototype._tick = function () {
+    EnergyHarvestingManager.prototype.tick = function () {
         var _this = this;
         this.harvesterCreeps.forEach(function (c) { new EnergyHarvester(c, _this.mainRoom).tick(); });
         this.sourceCarrierCreeps.forEach(function (c) { new SourceCarrier(c, _this.mainRoom).tick(); });
     };
     return EnergyHarvestingManager;
-}(Manager));
+}());
 var DefenderDefinition;
 (function (DefenderDefinition) {
     function getDefinition(maxEnergy) {
         var body = new Body();
-        var remainingEnergy = Math.min(maxEnergy, 1500);
-        var basicModulesCount = ~~(remainingEnergy / 330); //work,carry,move
+        var remainingEnergy = Math.min(maxEnergy, 700);
+        var basicModulesCount = ~~(remainingEnergy / 140); //work,carry,move
         body.attack = basicModulesCount;
-        body.ranged_attack = basicModulesCount;
+        body.tough = basicModulesCount;
         body.move = 2 * basicModulesCount;
-        remainingEnergy = remainingEnergy - 330 * basicModulesCount;
+        remainingEnergy = remainingEnergy - 140 * basicModulesCount;
         while (remainingEnergy >= (BODYPART_COST.attack + BODYPART_COST.move) && body.getBody().length <= 48) {
             body.attack++;
             body.move++;
@@ -1839,47 +2111,50 @@ var DefenderDefinition;
     }
     DefenderDefinition.getDefinition = getDefinition;
 })(DefenderDefinition || (DefenderDefinition = {}));
-var Defender = (function () {
+/// <reference path="../myCreep.ts" />
+var Defender = (function (_super) {
+    __extends(Defender, _super);
     function Defender(creep, mainRoom) {
+        _super.call(this, creep);
         this.creep = creep;
         this.mainRoom = mainRoom;
         this.creep = creep;
         this.mainRoom = mainRoom;
         this.memory = this.creep.memory;
+        this.myTick = profiler.registerFN(this.myTick, 'Defender.tick');
     }
-    Defender.prototype.tick = function () {
+    Defender.prototype.myTick = function () {
         var _this = this;
         this.memory = this.creep.memory;
         var closestHostileCreep = this.creep.pos.findClosestByPath(FIND_HOSTILE_CREEPS, { filter: function (c) { return c.owner.username != 'Source Keeper'; } });
         if (closestHostileCreep != null) {
+            this.memory.path = null;
             this.creep.moveTo(closestHostileCreep);
             this.creep.attack(closestHostileCreep);
             this.creep.rangedAttack(closestHostileCreep);
         }
         else {
             var otherRoom = _.filter(this.mainRoom.allRooms, function (r) { return r.name != _this.creep.room.name && r.requiresDefense && r.canHarvest; })[0];
-            if (otherRoom != null)
-                this.creep.moveTo(new RoomPosition(25, 25, otherRoom.name));
-            else if (this.creep.pos.x == 0 || this.creep.pos.x == 49 || this.creep.pos.y == 0 || this.creep.pos.y == 49)
-                this.creep.moveTo(new RoomPosition(25, 25, this.creep.room.name));
-            else {
-                if (this.mainRoom.spawns[0].recycleCreep(this.creep) == ERR_NOT_IN_RANGE)
-                    this.creep.moveTo(this.mainRoom.spawns[0]);
+            if (otherRoom != null) {
+                if (this.memory.path == null || this.memory.path.path.length <= 2) {
+                    this.memory.path = PathFinder.search(this.creep.pos, { pos: new RoomPosition(25, 25, otherRoom.name), range: 20 }, { roomCallback: Colony.getTravelMatrix, plainCost: 1, swampCost: 5, maxOps: 5000 });
+                    this.memory.path.path.unshift(this.creep.pos);
+                }
+                this.moveByPath();
             }
         }
     };
     return Defender;
-}());
+}(MyCreep));
 /// <reference path="../creeps/defender/defenderDefinition.ts" />
 /// <reference path="../creeps/defender/defender.ts" />
 /// <reference path="./manager.ts" />
-var DefenseManager = (function (_super) {
-    __extends(DefenseManager, _super);
+var DefenseManager = (function () {
     function DefenseManager(mainRoom) {
-        _super.call(this, DefenseManager.staticTracer);
         this.mainRoom = mainRoom;
         this._creeps = { time: 0, creeps: null };
         this.maxCreeps = 1;
+        this.preTick = profiler.registerFN(this.preTick, 'DefenseManager.preTick');
     }
     Object.defineProperty(DefenseManager.prototype, "creeps", {
         get: function () {
@@ -1892,30 +2167,19 @@ var DefenseManager = (function (_super) {
         enumerable: true,
         configurable: true
     });
-    Object.defineProperty(DefenseManager, "staticTracer", {
-        get: function () {
-            if (DefenseManager._staticTracer == null) {
-                DefenseManager._staticTracer = new Tracer('DefenseManager');
-                Colony.tracers.push(DefenseManager._staticTracer);
-            }
-            return DefenseManager._staticTracer;
-        },
-        enumerable: true,
-        configurable: true
-    });
-    DefenseManager.prototype._preTick = function () {
+    DefenseManager.prototype.preTick = function () {
         if (this.mainRoom.spawnManager.isBusy)
             return;
         if (_.filter(this.mainRoom.allRooms, function (r) { return !r.memory.foreignOwner && !r.memory.foreignReserver && r.requiresDefense && r.canHarvest; }).length > 0 && this.creeps.length < this.maxCreeps) {
             this.mainRoom.spawnManager.addToQueue(DefenderDefinition.getDefinition(this.mainRoom.maxSpawnEnergy).getBody(), { role: 'defender' }, this.maxCreeps - this.creeps.length, true);
         }
     };
-    DefenseManager.prototype._tick = function () {
+    DefenseManager.prototype.tick = function () {
         var _this = this;
         this.creeps.forEach(function (c) { return new Defender(c, _this.mainRoom).tick(); });
     };
     return DefenseManager;
-}(Manager));
+}());
 /// <reference path="../myCreep.ts" />
 var Reserver = (function (_super) {
     __extends(Reserver, _super);
@@ -1925,12 +2189,13 @@ var Reserver = (function (_super) {
         this.mainRoom = mainRoom;
         this.memory = creep.memory;
         this.memory.autoFlee = true;
+        this.myTick = profiler.registerFN(this.myTick, 'Reserver.tick');
     }
     Reserver.prototype.myTick = function () {
         this.memory = this.creep.memory;
         var myRoom = Colony.getRoom(this.memory.targetRoomName);
         if (this.creep.room.name != this.memory.targetRoomName && (this.memory.path == null || this.memory.path.path.length <= 2)) {
-            this.memory.path = PathFinder.search(this.creep.pos, { pos: myRoom.controllerPosition, range: 3 }, { roomCallback: Colony.getTravelMatrix, plainCost: 1, swampCost: 5 });
+            this.memory.path = PathFinder.search(this.creep.pos, { pos: myRoom.controllerPosition, range: 3 }, { roomCallback: Colony.getTravelMatrix, plainCost: 1, swampCost: 5, maxOps: 5000 });
             this.memory.path.path.unshift(this.creep.pos);
         }
         if (this.memory.path && this.memory.path.path.length > 2)
@@ -1944,12 +2209,11 @@ var Reserver = (function (_super) {
 }(MyCreep));
 /// <reference path="../creeps/reserver/reserver.ts" />
 /// <reference path="./manager.ts" />
-var ReservationManager = (function (_super) {
-    __extends(ReservationManager, _super);
+var ReservationManager = (function () {
     function ReservationManager(mainRoom) {
-        _super.call(this, ReservationManager.staticTracer);
         this.mainRoom = mainRoom;
         this._creeps = { time: 0, creeps: null };
+        this.preTick = profiler.registerFN(this.preTick, 'ReservationManager.preTick');
     }
     Object.defineProperty(ReservationManager.prototype, "creeps", {
         get: function () {
@@ -1962,53 +2226,38 @@ var ReservationManager = (function (_super) {
         enumerable: true,
         configurable: true
     });
-    Object.defineProperty(ReservationManager, "staticTracer", {
-        get: function () {
-            if (ReservationManager._staticTracer == null) {
-                ReservationManager._staticTracer = new Tracer('ReservationManager');
-                Colony.tracers.push(ReservationManager._staticTracer);
-            }
-            return ReservationManager._staticTracer;
-        },
-        enumerable: true,
-        configurable: true
-    });
-    ReservationManager.prototype._preTick = function () {
+    ReservationManager.prototype.preTick = function (myRoom) {
         var mainRoom = this.mainRoom;
         if (this.mainRoom.spawnManager.isBusy)
             return;
+        if (mainRoom.room.controller.level <= 3)
+            return;
+        if (mainRoom.maxSpawnEnergy < 1300)
+            return;
         if (Memory['verbose'] == true)
             console.log('ReservationManager.checkCreep');
-        var rooms = _.filter(this.mainRoom.connectedRooms, function (r) { return r.canHarvest == true && r.hasController && r.controllerPosition; });
-        var _loop_5 = function() {
-            var myRoom = rooms[idx];
-            if (Memory['verbose'] == true)
-                console.log('ReservationManager.checkCreep: 1 Room ' + myRoom.name);
-            var room = myRoom.room;
-            if (room && room.controller.reservation != null && (room.controller.reservation.ticksToEnd > 4500 || this_4.mainRoom.room.controller.level <= 3 && room.controller.reservation.ticksToEnd > 500))
-                return "continue";
-            if (Memory['verbose'] == true)
-                console.log('ReservationManager.checkCreep: 2 Room ' + myRoom.name);
-            if (this_4.mainRoom.maxSpawnEnergy < 650)
-                return { value: void 0 };
-            var requiredCount = this_4.mainRoom.maxSpawnEnergy < 1300 ? 2 : 1;
-            if (_.filter(this_4.creeps, function (x) { return x.memory.targetRoomName == myRoom.name; }).length < requiredCount) {
-                this_4.mainRoom.spawnManager.addToQueue(requiredCount > 1 ? [CLAIM, MOVE] : [CLAIM, CLAIM, MOVE, MOVE], { role: 'reserver', targetRoomName: myRoom.name }, 1, false);
-            }
-        };
-        var this_4 = this;
-        for (var idx in rooms) {
-            var state_5 = _loop_5();
-            if (typeof state_5 === "object") return state_5.value;
-            if (state_5 === "continue") continue;
+        if (!myRoom.canHarvest || !myRoom.hasController || !myRoom.controllerPosition || myRoom.name == this.mainRoom.name)
+            return;
+        if (Memory['verbose'] == true)
+            console.log('ReservationManager.checkCreep: 1 Room ' + myRoom.name);
+        var room = myRoom.room;
+        if (room && room.controller.reservation != null && (room.controller.reservation.ticksToEnd > 4500 || this.mainRoom.room.controller.level <= 3 && room.controller.reservation.ticksToEnd >= 500))
+            return;
+        if (Memory['verbose'] == true)
+            console.log('ReservationManager.checkCreep: 2 Room ' + myRoom.name);
+        if (this.mainRoom.maxSpawnEnergy < 650)
+            return;
+        var requiredCount = this.mainRoom.maxSpawnEnergy < 1300 ? 2 : 1;
+        if (_.filter(this.creeps, function (x) { return x.memory.targetRoomName == myRoom.name; }).length < requiredCount) {
+            this.mainRoom.spawnManager.addToQueue(requiredCount > 1 ? [CLAIM, MOVE] : [CLAIM, CLAIM, MOVE, MOVE], { role: 'reserver', targetRoomName: myRoom.name }, 1, false);
         }
     };
-    ReservationManager.prototype._tick = function () {
+    ReservationManager.prototype.tick = function () {
         var _this = this;
         this.creeps.forEach(function (c) { return new Reserver(c, _this.mainRoom).tick(); });
     };
     return ReservationManager;
-}(Manager));
+}());
 var LinkFillerDefinition;
 (function (LinkFillerDefinition) {
     function getDefinition() {
@@ -2019,12 +2268,17 @@ var LinkFillerDefinition;
     }
     LinkFillerDefinition.getDefinition = getDefinition;
 })(LinkFillerDefinition || (LinkFillerDefinition = {}));
-var LinkFiller = (function () {
+/// <reference path="../MyCreep.ts" />
+var LinkFiller = (function (_super) {
+    __extends(LinkFiller, _super);
     function LinkFiller(creep, mainRoom) {
+        _super.call(this, creep);
         this.creep = creep;
         this.mainRoom = mainRoom;
+        this.myTick = profiler.registerFN(this.myTick, 'Builder.tick');
     }
-    LinkFiller.prototype.tick = function () {
+    LinkFiller.prototype.myTick = function () {
+        var _this = this;
         var storage = this.mainRoom.room.storage;
         if (this.creep.ticksToLive <= 10) {
             if (this.creep.carry.energy == 0)
@@ -2032,6 +2286,15 @@ var LinkFiller = (function () {
             else {
                 if (this.creep.transfer(storage, RESOURCE_ENERGY) == ERR_NOT_IN_RANGE)
                     this.creep.moveTo(storage);
+            }
+            return;
+        }
+        if (this.creep.carry.energy < this.creep.carryCapacity && _.filter(this.mainRoom.myRoom.resourceDrops, function (x) { return x.resourceType == RESOURCE_ENERGY; }).length > 0) {
+            var energy = _.filter(this.mainRoom.myRoom.resourceDrops, function (x) { return x.resourceType == RESOURCE_ENERGY && x.pos.inRangeTo(_this.mainRoom.mainContainer.pos, 2); })[0];
+            if (energy) {
+                if (this.creep.pickup(energy) == ERR_NOT_IN_RANGE)
+                    this.creep.moveTo(energy);
+                return;
             }
         }
         var myLink = _.filter(this.mainRoom.links, function (x) { return x.nextToStorage; })[0];
@@ -2072,16 +2335,15 @@ var LinkFiller = (function () {
         }
     };
     return LinkFiller;
-}());
+}(MyCreep));
 /// <reference path="../creeps/linkFiller/linkFillerDefinition.ts" />
 /// <reference path="../creeps/linkFiller/linkFiller.ts" />
 /// <reference path="./manager.ts" />
-var LinkFillerManager = (function (_super) {
-    __extends(LinkFillerManager, _super);
+var LinkFillerManager = (function () {
     function LinkFillerManager(mainRoom) {
-        _super.call(this, LinkFillerManager.staticTracer);
         this.mainRoom = mainRoom;
         this._creeps = { time: 0, creeps: null };
+        this.preTick = profiler.registerFN(this.preTick, 'LinkFillerManager.preTick');
     }
     Object.defineProperty(LinkFillerManager.prototype, "creeps", {
         get: function () {
@@ -2094,36 +2356,24 @@ var LinkFillerManager = (function (_super) {
         enumerable: true,
         configurable: true
     });
-    Object.defineProperty(LinkFillerManager, "staticTracer", {
-        get: function () {
-            if (LinkFillerManager._staticTracer == null) {
-                LinkFillerManager._staticTracer = new Tracer('LinkFillerManager');
-                Colony.tracers.push(LinkFillerManager._staticTracer);
-            }
-            return LinkFillerManager._staticTracer;
-        },
-        enumerable: true,
-        configurable: true
-    });
-    LinkFillerManager.prototype._preTick = function () {
+    LinkFillerManager.prototype.preTick = function () {
         if (this.mainRoom.spawnManager.isBusy)
             return;
         if (this.creeps.length == 0 && this.mainRoom.links.length > 0) {
             this.mainRoom.spawnManager.addToQueue(LinkFillerDefinition.getDefinition().getBody(), { role: 'linkFiller' });
         }
     };
-    LinkFillerManager.prototype._tick = function () {
+    LinkFillerManager.prototype.tick = function () {
         var _this = this;
         this.creeps.forEach(function (c) { return new LinkFiller(c, _this.mainRoom).tick(); });
     };
     return LinkFillerManager;
-}(Manager));
+}());
 /// <reference path="./manager.ts" />
-var RoadConstructionManager = (function (_super) {
-    __extends(RoadConstructionManager, _super);
+var RoadConstructionManager = (function () {
     function RoadConstructionManager(mainRoom) {
-        _super.call(this, RoadConstructionManager.staticTracer);
         this.mainRoom = mainRoom;
+        this.tick = profiler.registerFN(this.tick, 'RoadConstructionManager.tick');
     }
     Object.defineProperty(RoadConstructionManager.prototype, "memory", {
         get: function () {
@@ -2139,17 +2389,6 @@ var RoadConstructionManager = (function (_super) {
             };
         return this.mainRoom.memory.roadConstructionManager;
     };
-    Object.defineProperty(RoadConstructionManager, "staticTracer", {
-        get: function () {
-            if (RoadConstructionManager._staticTracer == null) {
-                RoadConstructionManager._staticTracer = new Tracer('RoadConstructionManager');
-                Colony.tracers.push(RoadConstructionManager._staticTracer);
-            }
-            return RoadConstructionManager._staticTracer;
-        },
-        enumerable: true,
-        configurable: true
-    });
     RoadConstructionManager.prototype.buildExtensionRoads = function () {
         var extensions = this.mainRoom.room.find(FIND_MY_STRUCTURES, {
             filter: function (s) { return s.structureType == STRUCTURE_EXTENSION; }
@@ -2202,7 +2441,7 @@ var RoadConstructionManager = (function (_super) {
                 return;
             if (_this.mainRoom.terminal) {
                 _.forEach(_this.mainRoom.allRooms, function (room) { return room.recreateTravelMatrix(); });
-                var path = PathFinder.search(myMineral.pos, { pos: _this.mainRoom.terminal.pos, range: 1 }, { plainCost: 2, swampCost: 3, roomCallback: Colony.getTravelMatrix, maxOps: 10000 });
+                var path = PathFinder.search(_this.mainRoom.terminal.pos, { pos: myMineral.pos, range: 1 }, { plainCost: 2, swampCost: 3, roomCallback: Colony.getTravelMatrix, maxOps: 10000 });
                 _this.constructRoad(path.path, 0);
                 myMineral.roadBuiltToRoom = _this.mainRoom.name;
             }
@@ -2221,48 +2460,53 @@ var RoadConstructionManager = (function (_super) {
         var path = PathFinder.search(this.mainRoom.mainContainer.pos, { pos: this.mainRoom.room.controller.pos, range: 1 }, { plainCost: 2, swampCost: 3, roomCallback: Colony.getTravelMatrix });
         this.constructRoad(path.path, 0);
     };
-    RoadConstructionManager.prototype._tick = function () {
-        try {
-            //if (Game.cpu.bucket < 2000)
-            //    return;
-            if (this.memory.remainingPath && this.memory.remainingPath.length > 0) {
-                var remainingPath = this.memory.remainingPath;
-                this.memory.remainingPath = null;
-                this.constructRoad(remainingPath);
-            }
-            else if (Game.time % 50 == 0 && !(Game.time % 100 == 0)) {
-            }
-            else if (Game.time % 100 == 0 && !(Game.time % 200 == 0)) {
-                this.buildHarvestPaths();
-            }
-            else if (Game.time % 200 == 0) {
-                this.buildControllerRoad();
-            }
-        }
-        catch (e) {
-            console.log(e.stack);
-        }
+    RoadConstructionManager.prototype.tick = function () {
+        //try {
+        //    //if (Game.cpu.bucket < 2000)
+        //    //    return;
+        //    if (this.memory.remainingPath && this.memory.remainingPath.length > 0) {
+        //        let remainingPath = this.memory.remainingPath;
+        //        this.memory.remainingPath = null;
+        //        this.constructRoad(remainingPath);
+        //    }
+        //    else if (Game.time % 50 == 0 && !(Game.time % 100 == 0)) {
+        //        //this.buildExtensionRoads();
+        //    }
+        //    else if (Game.time % 100 == 0 && !(Game.time % 200 == 0)) {
+        //        this.buildHarvestPaths();
+        //    }
+        //    else if (Game.time % 200 == 0) {
+        //        this.buildControllerRoad();
+        //    }
+        //}
+        //catch (e) {
+        //    console.log(e.stack);
+        //}
     };
     return RoadConstructionManager;
-}(Manager));
+}());
 /// <reference path="../body.ts" />
 var TowerFillerDefinition;
 (function (TowerFillerDefinition) {
     function getDefinition(maxEnergy, towerCount) {
         if (towerCount === void 0) { towerCount = 1; }
         var body = new Body();
-        body.carry = 4 * Math.max(towerCount, 5);
-        body.move = 2 * Math.max(towerCount, 5);
+        body.carry = 4 * Math.min(towerCount, 5);
+        body.move = 2 * Math.min(towerCount, 5);
         return body;
     }
     TowerFillerDefinition.getDefinition = getDefinition;
 })(TowerFillerDefinition || (TowerFillerDefinition = {}));
-var TowerFiller = (function () {
+/// <reference path="../myCreep.ts" />
+var TowerFiller = (function (_super) {
+    __extends(TowerFiller, _super);
     function TowerFiller(creep, mainRoom) {
+        _super.call(this, creep);
         this.creep = creep;
         this.mainRoom = mainRoom;
+        this.myTick = profiler.registerFN(this.myTick, 'TowerFiller.tick');
     }
-    TowerFiller.prototype.tick = function () {
+    TowerFiller.prototype.myTick = function () {
         if (this.mainRoom.towers.length == 0)
             return;
         if (this.creep.carry.energy == 0) {
@@ -2289,16 +2533,15 @@ var TowerFiller = (function () {
         }
     };
     return TowerFiller;
-}());
+}(MyCreep));
 /// <reference path="../creeps/towerFiller/towerFillerDefinition.ts" />
 /// <reference path="../creeps/towerFiller/towerFiller.ts" />
 /// <reference path="./manager.ts" />
-var TowerManager = (function (_super) {
-    __extends(TowerManager, _super);
+var TowerManager = (function () {
     function TowerManager(mainRoom) {
-        _super.call(this, TowerManager.staticTracer);
         this.mainRoom = mainRoom;
         this._creeps = { time: -1, creeps: null };
+        this.preTick = profiler.registerFN(this.preTick, 'TowerManager.preTick');
     }
     Object.defineProperty(TowerManager.prototype, "memory", {
         get: function () {
@@ -2326,18 +2569,7 @@ var TowerManager = (function (_super) {
         enumerable: true,
         configurable: true
     });
-    Object.defineProperty(TowerManager, "staticTracer", {
-        get: function () {
-            if (TowerManager._staticTracer == null) {
-                TowerManager._staticTracer = new Tracer('TowerManager');
-                Colony.tracers.push(TowerManager._staticTracer);
-            }
-            return TowerManager._staticTracer;
-        },
-        enumerable: true,
-        configurable: true
-    });
-    TowerManager.prototype._preTick = function () {
+    TowerManager.prototype.preTick = function () {
         if (this.mainRoom.spawnManager.isBusy)
             return;
         if ((this.mainRoom.towers.length == 0 || this.mainRoom.mainContainer == null) || (_.all(this.mainRoom.towers, function (x) { return x.energy >= 0.5 * x.energyCapacity; }) && _.size(this.mainRoom.myRoom.hostileScan.creeps) == 0))
@@ -2346,12 +2578,12 @@ var TowerManager = (function (_super) {
             this.mainRoom.spawnManager.addToQueue(TowerFillerDefinition.getDefinition(this.mainRoom.maxSpawnEnergy, this.mainRoom.towers.length).getBody(), { role: 'towerFiller' }, 1);
         }
     };
-    TowerManager.prototype._tick = function () {
+    TowerManager.prototype.tick = function () {
         var _this = this;
         this.creeps.forEach(function (c) { return new TowerFiller(c, _this.mainRoom).tick(); });
     };
     return TowerManager;
-}(Manager));
+}());
 var MineralHarvesterDefinition;
 (function (MineralHarvesterDefinition) {
     function getDefinition(maxEnergy, myMineral, resources) {
@@ -2399,11 +2631,7 @@ var MineralHarvester = (function (_super) {
         this.mainRoom = mainRoom;
         this.healed = false;
         this.memory.autoFlee = true;
-        if (MineralHarvester.staticTracer == null) {
-            MineralHarvester.staticTracer = new Tracer('MineralHarvester');
-            Colony.tracers.push(MineralHarvester.staticTracer);
-        }
-        this.tracer = MineralHarvester.staticTracer;
+        this.myTick = profiler.registerFN(this.myTick, 'MineralHarvester.tick');
     }
     Object.defineProperty(MineralHarvester.prototype, "memory", {
         get: function () { return this.creep.memory; },
@@ -2433,9 +2661,11 @@ var MineralHarvester = (function (_super) {
         configurable: true
     });
     MineralHarvester.prototype.myTick = function () {
-        var trace = this.tracer.start('tick()');
         if (this.creep.spawning) {
-            trace.stop();
+            return;
+        }
+        if (this.myMineral.amount == 0 && this.myMineral.refreshTime > Game.time + this.creep.ticksToLive) {
+            this.recycle();
             return;
         }
         this.healed = false;
@@ -2445,7 +2675,6 @@ var MineralHarvester = (function (_super) {
         }
         if (this.myMineral == null) {
             this.creep.say('NoMineral');
-            trace.stop();
             return;
         }
         if (this.memory.path == null) {
@@ -2463,7 +2692,6 @@ var MineralHarvester = (function (_super) {
                     this.creep.moveTo(this.myMineral.mineral);
             }
         }
-        trace.stop();
     };
     return MineralHarvester;
 }(MyCreep));
@@ -2475,11 +2703,7 @@ var MineralCarrier = (function (_super) {
         this.creep = creep;
         this.mainRoom = mainRoom;
         this.memory.autoFlee = true;
-        if (MineralCarrier.staticTracer == null) {
-            MineralCarrier.staticTracer = new Tracer('MineralCarrier');
-            Colony.tracers.push(MineralCarrier.staticTracer);
-        }
-        this.tracer = MineralCarrier.staticTracer;
+        this.myTick = profiler.registerFN(this.myTick, 'MineralCarrier.tick');
     }
     Object.defineProperty(MineralCarrier.prototype, "memory", {
         get: function () { return this.creep.memory; },
@@ -2517,17 +2741,16 @@ var MineralCarrier = (function (_super) {
                 this.creep.moveTo(resource);
             return true;
         }
+        else if (resource == null && this.myMineral.amount == 0 && this.myMineral.refreshTime > Game.time + this.creep.ticksToLive)
+            this.recycle();
         return false;
     };
     MineralCarrier.prototype.myTick = function () {
-        var trace = this.tracer.start('tick()');
         if (this.creep.spawning) {
-            trace.stop();
             return;
         }
         if (!this.myMineral) {
             this.creep.say('NoMineral');
-            trace.stop();
             return;
         }
         if (this.memory.state == null || this.memory.state == 1 /* Deliver */ && (this.creep.carry[this.myMineral.resource] == null || this.creep.carry[this.myMineral.resource] == 0)) {
@@ -2535,10 +2758,9 @@ var MineralCarrier = (function (_super) {
             this.memory.path.path.unshift(this.creep.pos);
             this.memory.state = 0 /* Pickup */;
         }
-        else if (this.memory.state == 0 /* Pickup */ && _.sum(this.creep.carry) == this.creep.carryCapacity) {
+        else if (this.memory.state == 0 /* Pickup */ && _.sum(this.creep.carry) >= 0.5 * this.creep.carryCapacity) {
             if (this.mainRoom.terminal == null) {
                 this.creep.say('NoTerm');
-                trace.stop();
                 return;
             }
             this.memory.path = PathFinder.search(this.creep.pos, { pos: this.mainRoom.terminal.pos, range: 3 }, { roomCallback: Colony.getTravelMatrix, plainCost: 2, swampCost: 10 });
@@ -2558,7 +2780,6 @@ var MineralCarrier = (function (_super) {
         }
         else if (this.memory.state == 1 /* Deliver */) {
             if (!this.mainRoom || !this.mainRoom.terminal) {
-                trace.stop();
                 return;
             }
             if (this.memory.path.path.length > 2) {
@@ -2569,7 +2790,6 @@ var MineralCarrier = (function (_super) {
                     this.creep.moveTo(this.mainRoom.terminal);
             }
         }
-        trace.stop();
     };
     return MineralCarrier;
 }(MyCreep));
@@ -2578,13 +2798,12 @@ var MineralCarrier = (function (_super) {
 /// <reference path="../creeps/sourceCarrier/sourceCarrierDefinition.ts" />
 /// <reference path="../creeps/minerals/mineralCarrier.ts" />
 /// <reference path="./manager.ts" />
-var MineralHarvestingManager = (function (_super) {
-    __extends(MineralHarvestingManager, _super);
+var MineralHarvestingManager = (function () {
     function MineralHarvestingManager(mainRoom) {
-        _super.call(this, MineralHarvestingManager.staticTracer);
         this.mainRoom = mainRoom;
         this._harvesterCreeps = { time: -1, creeps: null };
         this._carrierCreeps = { time: -1, creeps: null };
+        this.preTick = profiler.registerFN(this.preTick, 'MineralHarvestingManager.preTick');
     }
     Object.defineProperty(MineralHarvestingManager.prototype, "harvesterCreeps", {
         get: function () {
@@ -2608,53 +2827,47 @@ var MineralHarvestingManager = (function (_super) {
         enumerable: true,
         configurable: true
     });
-    Object.defineProperty(MineralHarvestingManager, "staticTracer", {
-        get: function () {
-            if (MineralHarvestingManager._staticTracer == null) {
-                MineralHarvestingManager._staticTracer = new Tracer('MineralHarvestingManager');
-                Colony.tracers.push(MineralHarvestingManager._staticTracer);
-            }
-            return MineralHarvestingManager._staticTracer;
-        },
-        enumerable: true,
-        configurable: true
-    });
-    MineralHarvestingManager.prototype._preTick = function () {
-        var _this = this;
+    MineralHarvestingManager.prototype.preTick = function (myRoom) {
         if (this.mainRoom.spawnManager.isBusy)
             return;
-        _.forEach(this.mainRoom.minerals, function (myMineral) {
-            //console.log('MineralHarvestingManager.checkCreeps()');
-            if ((!myMineral.hasKeeper || _.size(_this.mainRoom.managers.labManager.myLabs) > 0 && myMineral.maxHarvestingSpots > 1) && _this.mainRoom.terminal && myMineral.hasExtractor && (myMineral.amount > 0 || myMineral.refreshTime <= Game.time)) {
-                //  console.log('MineralHarvestingManager.checkCreeps - 2');
-                var targetAmount = Colony.reactionManager.requiredAmount * 5;
-                var mineralType = myMineral.resource;
-                if (mineralType == RESOURCE_HYDROGEN || mineralType == RESOURCE_OXYGEN || mineralType == RESOURCE_CATALYST) {
-                    targetAmount = Colony.reactionManager.requiredAmount * 10;
-                }
-                //console.log('MineralHarvestingManager.checkCreeps target: ' + targetAmount + ' value: ' + this.mainRoom.terminal.store[mineralType]);
-                if (_this.mainRoom.terminal.store[mineralType] == null || _this.mainRoom.terminal.store[mineralType] < targetAmount) {
-                    var harvesters = _.filter(_this.harvesterCreeps, function (c) { return c.memory.mineralId == myMineral.id; });
-                    //console.log('MineralHarvestingManager.checkCreeps - 3');
-                    if (harvesters.length == 0) {
-                        //      console.log('MineralHarvestingManager.checkCreeps - 4');
-                        var definition = MineralHarvesterDefinition.getDefinition(_this.mainRoom.maxSpawnEnergy, myMineral);
-                        _this.mainRoom.spawnManager.addToQueue(definition.body.getBody(), { role: 'mineralHarvester', mineralId: myMineral.id }, definition.count);
-                    }
-                    var carriers = _.filter(_this.carrierCreeps, function (c) { return c.memory.mineralId == myMineral.id; });
-                    if (carriers.length == 0) {
-                        //        console.log('MineralHarvestingManager.checkCreeps - 5');
-                        //let pathLength = PathFinder.search(this.mainRoom.extractor.pos, { pos: this.mainRoom.terminal.pos, range: 2 }).path.length;
-                        var pathLength = (myMineral.pathLengthToDropOff + 10) * 1.1;
-                        var requiredCapacity = Math.ceil(pathLength * 2 * 10 * (['O', 'H'].indexOf(myMineral.resource) >= 0 ? 2 : 1) / (myMineral.hasKeeper ? 2 : 1));
-                        var definition = SourceCarrierDefinition.getDefinition(_this.mainRoom.maxSpawnEnergy, requiredCapacity, _this.mainRoom.managers.labManager.availablePublishResources);
-                        _this.mainRoom.spawnManager.addToQueue(definition.body.getBody(), { role: 'mineralCarrier', mineralId: myMineral.id }, definition.count - carriers.length);
-                    }
-                }
+        if (_.size(this.mainRoom.managers.labManager.myLabs) == 0)
+            return;
+        var myMineral = myRoom.myMineral;
+        if (myMineral == null || (myMineral.hasKeeper && _.size(this.mainRoom.managers.labManager.myLabs) == 0) || !myMineral.hasExtractor)
+            return;
+        if (myMineral.myRoom && _.any(myMineral.myRoom.hostileScan.creeps, function (c) { return c.bodyInfo.totalAttackRate > 0; }))
+            return;
+        //console.log('MineralHarvestingManager.checkCreeps()');
+        if ((!myMineral.hasKeeper || _.size(this.mainRoom.managers.labManager.myLabs) > 0 && myMineral.maxHarvestingSpots > 1) && this.mainRoom.terminal && myMineral.hasExtractor && (myMineral.amount > 0 || myMineral.refreshTime <= Game.time)) {
+            //  console.log('MineralHarvestingManager.checkCreeps - 2');
+            var targetAmount = Colony.reactionManager.requiredAmount * 5;
+            var mineralType = myMineral.resource;
+            if (mineralType == RESOURCE_HYDROGEN || mineralType == RESOURCE_OXYGEN || mineralType == RESOURCE_CATALYST) {
+                targetAmount = Colony.reactionManager.requiredAmount * 10;
             }
-        });
+            //console.log('MineralHarvestingManager.checkCreeps target: ' + targetAmount + ' value: ' + this.mainRoom.terminal.store[mineralType]);
+            if (this.mainRoom.terminal.store[mineralType] == null || this.mainRoom.terminal.store[mineralType] < targetAmount) {
+                var harvesters = _.filter(this.harvesterCreeps, function (c) { return c.memory.mineralId == myMineral.id; });
+                //console.log('MineralHarvestingManager.checkCreeps - 3');
+                if (harvesters.length == 0) {
+                    //      console.log('MineralHarvestingManager.checkCreeps - 4');
+                    var definition_1 = MineralHarvesterDefinition.getDefinition(this.mainRoom.maxSpawnEnergy, myMineral);
+                    this.mainRoom.spawnManager.addToQueue(definition_1.body.getBody(), { role: 'mineralHarvester', mineralId: myMineral.id }, definition_1.count);
+                }
+                var carriers = _.filter(this.carrierCreeps, function (c) { return c.memory.mineralId == myMineral.id; });
+                //        console.log('MineralHarvestingManager.checkCreeps - 5');
+                //let pathLength = PathFinder.search(this.mainRoom.extractor.pos, { pos: this.mainRoom.terminal.pos, range: 2 }).path.length;
+                var pathLength = (myMineral.pathLengthToDropOff + 10) * 1.1;
+                var requiredCapacity = Math.ceil(pathLength * 2 * 10 * (['O', 'H'].indexOf(myMineral.resource) >= 0 ? 2 : 1) / (myMineral.hasKeeper ? 2 : 1));
+                //console.log('Mineral Carrier: required capacits' + requiredCapacity);
+                var definition = SourceCarrierDefinition.getDefinition(this.mainRoom.maxSpawnEnergy, requiredCapacity, this.mainRoom.managers.labManager.availablePublishResources);
+                //console.log('Mineral Carrier: ' + definition.count);
+                //console.log('Mineral Carrier: body size ' + definition.body.getBody().length);
+                this.mainRoom.spawnManager.addToQueue(definition.body.getBody(), { role: 'mineralCarrier', mineralId: myMineral.id }, definition.count - carriers.length);
+            }
+        }
     };
-    MineralHarvestingManager.prototype._tick = function () {
+    MineralHarvestingManager.prototype.tick = function () {
         var _this = this;
         //let startCpu = Game.cpu.getUsed();
         this.harvesterCreeps.forEach(function (c) { try {
@@ -2678,7 +2891,7 @@ var MineralHarvestingManager = (function (_super) {
         //console.log('SourceCarriers ' + this.mainRoom.name + ' [' + this.harvesterCreeps.length + ']: ' + (Game.cpu.getUsed() - startCpu).toFixed(2) + ' CPU');
     };
     return MineralHarvestingManager;
-}(Manager));
+}());
 /// <reference path="../body.ts" />
 var TerminalFillerDefinition;
 (function (TerminalFillerDefinition) {
@@ -2690,16 +2903,20 @@ var TerminalFillerDefinition;
     }
     TerminalFillerDefinition.getDefinition = getDefinition;
 })(TerminalFillerDefinition || (TerminalFillerDefinition = {}));
-var TerminalFiller = (function () {
+/// <reference path="../myCreep.ts" />
+var TerminalFiller = (function (_super) {
+    __extends(TerminalFiller, _super);
     function TerminalFiller(creep, mainRoom) {
+        _super.call(this, creep);
         this.creep = creep;
         this.mainRoom = mainRoom;
-        if (TerminalFiller.staticTracer == null) {
-            TerminalFiller.staticTracer = new Tracer('TerminalFiller');
-            Colony.tracers.push(TerminalFiller.staticTracer);
-        }
-        this.tracer = TerminalFiller.staticTracer;
+        this.myTick = profiler.registerFN(this.myTick, 'TerminalFiller.tick');
     }
+    Object.defineProperty(TerminalFiller.prototype, "memory", {
+        get: function () { return this.creep.memory; },
+        enumerable: true,
+        configurable: true
+    });
     Object.defineProperty(TerminalFiller.prototype, "mainContainer", {
         get: function () {
             return this.mainRoom.mainContainer;
@@ -2723,10 +2940,8 @@ var TerminalFiller = (function () {
     };
     TerminalFiller.prototype.transferCompounds = function () {
         var _this = this;
-        var trace = this.tracer.start('transferCompounds()');
         var publishableCompounds = _.indexBy(Colony.reactionManager.publishableCompounds, function (x) { return x; });
         if (_.sum(this.creep.carry) > this.creep.carry.energy) {
-            var dropTrace = this.tracer.start('transferCompounds() - drop');
             for (var resource in this.creep.carry) {
                 if (resource == RESOURCE_ENERGY)
                     continue;
@@ -2738,24 +2953,16 @@ var TerminalFiller = (function () {
                     if (this.creep.transfer(this.terminal, resource) == ERR_NOT_IN_RANGE)
                         this.creep.moveTo(this.terminal);
                 }
-                trace.stop();
-                dropTrace.stop();
                 return true;
             }
-            dropTrace.stop();
         }
         else {
-            var pickupTrace = this.tracer.start('transferCompounds() - pickup1');
             var resourceToTransfer = _.filter(Colony.reactionManager.publishableCompounds, function (c) { return (_this.mainContainer.store[c] == null || _this.mainContainer.store[c] < 5000) && _this.terminal.store[c] > 0; })[0];
             if (resourceToTransfer) {
                 if (this.creep.withdraw(this.terminal, resourceToTransfer) == ERR_NOT_IN_RANGE)
                     this.creep.moveTo(this.terminal);
-                trace.stop();
-                pickupTrace.stop();
                 return true;
             }
-            pickupTrace.stop();
-            pickupTrace = this.tracer.start('transferCompounds() - pickup2');
             resourceToTransfer = null;
             for (var resource in this.mainContainer.store) {
                 if (resource == RESOURCE_ENERGY)
@@ -2763,18 +2970,13 @@ var TerminalFiller = (function () {
                 if (!publishableCompounds[resource] && this.mainContainer.store[resource] > 0 || this.mainContainer.store[resource] > 5000 + this.creep.carryCapacity) {
                     if (this.creep.withdraw(this.mainContainer, resource) == ERR_NOT_IN_RANGE)
                         this.creep.moveTo(this.mainContainer);
-                    trace.stop();
-                    pickupTrace.stop();
                     return true;
                 }
             }
-            pickupTrace.stop();
         }
-        trace.stop();
         return false;
     };
     TerminalFiller.prototype.transferEnergy = function () {
-        var trace = this.tracer.start('transferEnergy()');
         var pickUpStruct = null;
         var dropOffStruct = null;
         if (this.terminal.store.energy < 24000 && this.mainContainer.store.energy > this.mainRoom.maxSpawnEnergy * 2) {
@@ -2794,43 +2996,49 @@ var TerminalFiller = (function () {
                 if (this.creep.transfer(dropOffStruct, RESOURCE_ENERGY) == ERR_NOT_IN_RANGE)
                     this.creep.moveTo(dropOffStruct);
             }
-            trace.stop();
             return true;
         }
         else {
-            trace.stop();
             return false;
         }
     };
-    TerminalFiller.prototype.tick = function () {
-        var trace = this.tracer.start('tick()');
+    TerminalFiller.prototype.myTick = function () {
+        var _this = this;
         var store = this.mainRoom.mainContainer;
         var terminal = this.mainRoom.room.terminal;
         if (this.creep.ticksToLive <= 20 && _.sum(this.creep.carry) > 0) {
             this.saveBeforeDeath();
         }
-        else {
+        else if (_.sum(this.creep.carry) < this.creep.carryCapacity && _.filter(this.mainRoom.myRoom.resourceDrops, function (x) { return x.resourceType == RESOURCE_ENERGY && x.pos.inRangeTo(_this.mainRoom.mainContainer.pos, 10); }).length > 0) {
+            var energy = _.filter(this.mainRoom.myRoom.resourceDrops, function (x) { return x.resourceType == RESOURCE_ENERGY && x.pos.inRangeTo(_this.mainRoom.mainContainer.pos, 10); })[0];
+            if (energy) {
+                if (this.creep.pickup(energy) == ERR_NOT_IN_RANGE)
+                    this.creep.moveTo(energy);
+            }
+        }
+        else if (this.memory.idleUntil == null || this.memory.idleUntil <= Game.time) {
             if (this.creep.carry.energy > 0)
                 this.transferEnergy();
             else if (_.sum(this.creep.carry) > 0)
                 this.transferCompounds();
             else {
-                this.transferEnergy() || this.transferCompounds();
+                if (!(this.transferEnergy() || this.transferCompounds())) {
+                    this.memory.idleUntil = Game.time + 20;
+                }
             }
         }
-        trace.stop();
     };
     return TerminalFiller;
-}());
+}(MyCreep));
 /// <reference path="../creeps/terminalFiller/terminalFillerDefinition.ts" />
 /// <reference path="../creeps/terminalFiller/terminalFiller.ts" />
-var TerminalManager = (function (_super) {
-    __extends(TerminalManager, _super);
+var TerminalManager = (function () {
     function TerminalManager(mainRoom) {
-        _super.call(this, TerminalManager.staticTracer);
         this.mainRoom = mainRoom;
         this._creeps = { time: 0, creeps: null };
         this.maxCreeps = 1;
+        this.preTick = profiler.registerFN(this.preTick, 'TerminalManager.preTick');
+        this.tick = profiler.registerFN(this.tick, 'TerminalManager.tick');
     }
     Object.defineProperty(TerminalManager.prototype, "memory", {
         get: function () {
@@ -2858,25 +3066,14 @@ var TerminalManager = (function (_super) {
         enumerable: true,
         configurable: true
     });
-    Object.defineProperty(TerminalManager, "staticTracer", {
-        get: function () {
-            if (TerminalManager._staticTracer == null) {
-                TerminalManager._staticTracer = new Tracer('TerminalManager');
-                Colony.tracers.push(TerminalManager._staticTracer);
-            }
-            return TerminalManager._staticTracer;
-        },
-        enumerable: true,
-        configurable: true
-    });
-    TerminalManager.prototype._preTick = function () {
+    TerminalManager.prototype.preTick = function () {
         if (!this.mainRoom.room || !this.mainRoom.mainContainer || !this.mainRoom.room.terminal || !this.mainRoom.room.terminal.isActive() || this.mainRoom.spawnManager.isBusy)
             return;
         if (this.creeps.length == 0) {
             this.mainRoom.spawnManager.addToQueue(TerminalFillerDefinition.getDefinition(this.mainRoom.maxSpawnEnergy).getBody(), { role: 'terminalManager' }, this.maxCreeps - this.creeps.length);
         }
     };
-    TerminalManager.prototype._tick = function () {
+    TerminalManager.prototype.tick = function () {
         var _this = this;
         if (!this.mainRoom.room || !this.mainRoom.mainContainer || !this.mainRoom.room.terminal || !this.mainRoom.room.terminal.isActive()) {
             return;
@@ -2886,7 +3083,6 @@ var TerminalManager = (function (_super) {
     };
     TerminalManager.prototype.handleTradeAgreements = function (terminal) {
         var _this = this;
-        var trace = this.tracer.start('handleTradeAgreements()');
         var incomingTransactions = _.filter(Game.market.incomingTransactions, function (transaction) { return transaction.time >= _this.memory.transactionCheckTime && transaction.to == _this.mainRoom.name; });
         _.forEach(incomingTransactions, function (transaction) {
             var tradeAgreements = _.filter(_this.memory.tradeAgreements, function (ta) { return ta.partnerName == transaction.sender.username && ta.receivingResource == transaction.resourceType && Game.map.getRoomLinearDistance(_this.mainRoom.room.name, transaction.from) <= ta.maxDistance; });
@@ -2923,14 +3119,12 @@ var TerminalManager = (function (_super) {
                 }
             }
         }
-        trace.stop();
     };
     TerminalManager.prototype.handleEnergyBalance = function (terminal) {
-        var _this = this;
-        var trace = this.tracer.start('handleEnergyBalance()');
         //if ((this.resourceSentOn == null || this.resourceSentOn < Game.time) && this.mainRoom.mainContainer.store.energy > 450000 && terminal.store.energy > 1000) {
         //    let targetMainRoom = _.sortByAll(_.filter(Colony.mainRooms, x => x.mainContainer && x.room && x.room.terminal && x.room.terminal.isActive() && x.mainContainer.store.energy < 350000 && Game.map.getRoomLinearDistance(this.mainRoom.name, x.name) <= 3), [x => Game.map.getRoomLinearDistance(this.mainRoom.name, x.name), x => x.mainContainer.store.energy])[0];
         //    if (targetMainRoom) {
+        var _this = this;
         //        let amountToTransfer = Math.min(this.mainRoom.mainContainer.store.energy - 400000, 400000 - targetMainRoom.mainContainer.store.energy, terminal.store.energy, targetMainRoom.room.terminal.storeCapacity - targetMainRoom.room.terminal.store.energy);
         //        let distance = Game.map.getRoomLinearDistance(this.mainRoom.name, targetMainRoom.name);
         //        let tax = Math.ceil(0.1 * amountToTransfer * distance);
@@ -2948,11 +3142,9 @@ var TerminalManager = (function (_super) {
                 supplierRoom.managers.terminalManager.send(RESOURCE_ENERGY, amount_1, this.mainRoom.name);
             }
         }
-        trace.stop();
     };
     TerminalManager.prototype.handleMineralBalance = function (terminal) {
         var _this = this;
-        var trace = this.tracer.start('handleMineralBalance()');
         _.forEach(_.filter(_.uniq(Colony.reactionManager.highestPowerCompounds.concat(this.mainRoom.managers.labManager.imports)), function (x) { return x != RESOURCE_ENERGY && _this.mainRoom.getResourceAmount(x) <= 5000; }), function (resource) {
             if (_this.mainRoom.mainContainer && _this.mainRoom.mainContainer.structureType == STRUCTURE_STORAGE && _.size(_this.mainRoom.managers.labManager.myLabs) > 0) {
                 var requiredAmount = 5000 - _this.mainRoom.getResourceAmount(resource);
@@ -2969,7 +3161,6 @@ var TerminalManager = (function (_super) {
                 }
             }
         });
-        trace.stop();
     };
     TerminalManager.prototype.send = function (resource, amount, destination, description) {
         if ((this.resourceSentOn == null || this.resourceSentOn < Game.time) && this.mainRoom.terminal) {
@@ -2987,18 +3178,14 @@ var TerminalManager = (function (_super) {
             this.handleMineralBalance(terminal);
     };
     return TerminalManager;
-}(Manager));
+}());
 var MyLab = (function () {
     function MyLab(labManager, id) {
         this.labManager = labManager;
         this.id = id;
         this._connectedLabs = null;
         this._lab = null;
-        if (MyLab.staticTracer == null) {
-            MyLab.staticTracer = new Tracer('MyLab');
-            Colony.tracers.push(MyLab.staticTracer);
-        }
-        this.tracer = MyLab.staticTracer;
+        this.tick = profiler.registerFN(this.tick, 'MyLab.tick');
     }
     Object.defineProperty(MyLab.prototype, "memory", {
         get: function () {
@@ -3115,14 +3302,17 @@ var MyLab = (function () {
     };
     MyLab.prototype.tick = function () {
         var _this = this;
-        var trace = this.tracer.start('tick()');
         //console.log('myLab.tick try room: ' + this.labManager.mainRoom.name);
-        if (this.memory.mode & 2 /* reaction */ && this.lab && this.lab.cooldown == 0 && this.memory.reactionLabIds.length == 2 && (this.lab.mineralType == this.memory.resource || this.lab.mineralAmount == 0)) {
-            if (_.all(this.memory.reactionLabIds, function (x) { return _this.labManager.myLabs[x].lab != null && _this.labManager.myLabs[x].lab.mineralType == _this.labManager.myLabs[x].memory.resource; })) {
-                this.lab.runReaction(this.labManager.myLabs[this.memory.reactionLabIds[0]].lab, this.labManager.myLabs[this.memory.reactionLabIds[1]].lab);
+        try {
+            if (this.memory.mode & 2 /* reaction */ && this.lab && this.lab.cooldown == 0 && this.memory.reactionLabIds.length == 2 && (this.lab.mineralType == this.memory.resource || this.lab.mineralAmount == 0)) {
+                if (_.all(this.memory.reactionLabIds, function (x) { return _this.labManager.myLabs[x].lab != null && _this.labManager.myLabs[x].lab.mineralType == _this.labManager.myLabs[x].memory.resource && _this.labManager.myLabs[x].lab.mineralAmount >= LAB_COOLDOWN; })) {
+                    this.lab.runReaction(this.labManager.myLabs[this.memory.reactionLabIds[0]].lab, this.labManager.myLabs[this.memory.reactionLabIds[1]].lab);
+                }
             }
         }
-        trace.stop();
+        catch (e) {
+            console.log(e.stack);
+        }
     };
     return MyLab;
 }());
@@ -3137,11 +3327,20 @@ var LabCarrierDefinition;
     }
     LabCarrierDefinition.getDefinition = getDefinition;
 })(LabCarrierDefinition || (LabCarrierDefinition = {}));
-var LabCarrier = (function () {
+/// <reference path="../myCreep.ts" />
+var LabCarrier = (function (_super) {
+    __extends(LabCarrier, _super);
     function LabCarrier(creep, labManager) {
+        _super.call(this, creep);
         this.creep = creep;
         this.labManager = labManager;
+        this.myTick = profiler.registerFN(this.myTick, 'LabCarrier.tick');
     }
+    Object.defineProperty(LabCarrier.prototype, "memory", {
+        get: function () { return this.creep.memory; },
+        enumerable: true,
+        configurable: true
+    });
     LabCarrier.prototype.dropOffEnergy = function () {
         var _this = this;
         var myLab = _.filter(this.labManager.myLabs, function (lab) { return lab.memory.mode & 4 /* publish */ && lab.lab.energy <= lab.lab.energyCapacity - _this.creep.carry.energy; })[0];
@@ -3163,21 +3362,21 @@ var LabCarrier = (function () {
         var foundTarget = false;
         //let resource =  _.keys(this.creep.carry)[0];
         //let myLab = _.filter(this.labManager.myLabs, lab => lab.memory.mode & LabMode.import && lab.memory.resource == && lab.lab.
-        var _loop_6 = function(resource) {
-            if (this_5.creep.carry[resource] > 0) {
-                var myLab = _.filter(this_5.labManager.myLabs, function (lab) { return lab.memory.mode & 1 /* import */ && lab.memory.resource == resource && lab.lab && (lab.lab.mineralType == resource || lab.lab.mineralAmount == 0) && lab.lab.mineralAmount <= lab.lab.mineralCapacity - _this.creep.carry[resource]; })[0];
+        var _loop_3 = function(resource) {
+            if (this_2.creep.carry[resource] > 0) {
+                var myLab = _.filter(this_2.labManager.myLabs, function (lab) { return lab.memory.mode & 1 /* import */ && lab.memory.resource == resource && lab.lab && (lab.lab.mineralType == resource || lab.lab.mineralAmount == 0) && lab.lab.mineralAmount <= lab.lab.mineralCapacity - _this.creep.carry[resource]; })[0];
                 if (myLab) {
-                    if (this_5.creep.transfer(myLab.lab, resource) == ERR_NOT_IN_RANGE)
-                        this_5.creep.moveTo(myLab.lab);
+                    if (this_2.creep.transfer(myLab.lab, resource) == ERR_NOT_IN_RANGE)
+                        this_2.creep.moveTo(myLab.lab);
                     foundTarget = true;
                     return "break";
                 }
             }
         };
-        var this_5 = this;
+        var this_2 = this;
         for (var resource in this.creep.carry) {
-            var state_6 = _loop_6(resource);
-            if (state_6 === "break") break;
+            var state_3 = _loop_3(resource);
+            if (state_3 === "break") break;
         }
         if (!foundTarget && this.labManager.mainRoom.terminal) {
             for (var resource in this.creep.carry) {
@@ -3203,13 +3402,15 @@ var LabCarrier = (function () {
             //this.creep.say('A');
             if (this.creep.withdraw(wrongResourceLab.lab, wrongResourceLab.lab.mineralType) == ERR_NOT_IN_RANGE)
                 this.creep.moveTo(wrongResourceLab.lab);
+            return true;
         }
         else {
             var publishLab = _.filter(this.labManager.myLabs, function (lab) { return lab.memory.mode & 4 /* publish */ && lab.lab && lab.lab.energy <= lab.lab.energyCapacity - _this.creep.carryCapacity; })[0];
-            if (publishLab && this.labManager.mainRoom.mainContainer && this.labManager.mainRoom.mainContainer.store.energy >= this.labManager.mainRoom.maxSpawnEnergy * 2) {
+            if (publishLab && this.labManager.mainRoom.mainContainer && this.labManager.mainRoom.mainContainer.store.energy > 0) {
                 //this.creep.say('B');
                 if (this.creep.withdraw(this.labManager.mainRoom.mainContainer, RESOURCE_ENERGY) == ERR_NOT_IN_RANGE)
                     this.creep.moveTo(this.labManager.mainRoom.mainContainer);
+                return true;
             }
             else {
                 var outputLab = _.filter(this.labManager.myLabs, function (lab) { return lab.memory.mode & 2 /* reaction */ && lab.lab && (lab.lab.mineralAmount >= 1000 + _this.creep.carryCapacity && !(lab.memory.mode & 4 /* publish */) || lab.lab.mineralAmount - _this.creep.carryCapacity >= lab.lab.mineralCapacity / 2); })[0];
@@ -3217,59 +3418,75 @@ var LabCarrier = (function () {
                     //this.creep.say('C');
                     if (this.creep.withdraw(outputLab.lab, outputLab.lab.mineralType) == ERR_NOT_IN_RANGE)
                         this.creep.moveTo(outputLab.lab);
+                    return true;
                 }
                 else if (this.labManager.mainRoom.terminal || this.labManager.mainRoom.mainContainer) {
                     var inputLab = null;
                     var source = null;
                     if (this.labManager.mainRoom.terminal) {
-                        inputLab = _.sortBy(_.filter(this.labManager.myLabs, function (lab) { return lab.memory.mode & 1 /* import */ && lab.lab && (lab.lab.mineralAmount == 0 || lab.lab.mineralType == lab.memory.resource && lab.lab.mineralAmount <= 2000 - _this.creep.carryCapacity) && _this.labManager.mainRoom.terminal.store[lab.memory.resource] >= 0; }), function (x) { return x.lab.mineralAmount ? x.lab.mineralAmount : 0; })[0];
+                        inputLab = _.sortByAll(_.filter(this.labManager.myLabs, function (lab) { return lab.memory.mode & 1 /* import */ && lab.lab && (lab.lab.mineralAmount == 0 || lab.lab.mineralType == lab.memory.resource && lab.lab.mineralAmount <= 2000 - _this.creep.carryCapacity) && _this.labManager.mainRoom.terminal.store[lab.memory.resource] >= 0; }), [function (x) { return (x.memory.mode & 4 /* publish */) ? 0 : 1; }, function (x) { return x.lab.mineralAmount ? x.lab.mineralAmount : 0; }])[0];
                         source = this.labManager.mainRoom.terminal;
                     }
                     if (inputLab == null && this.labManager.mainRoom.mainContainer) {
-                        inputLab = _.sortBy(_.filter(this.labManager.myLabs, function (lab) { return lab.memory.mode & 1 /* import */ && lab.lab && (lab.lab.mineralAmount == 0 || lab.lab.mineralType == lab.memory.resource && lab.lab.mineralAmount <= 2000 - _this.creep.carryCapacity) && _this.labManager.mainRoom.mainContainer.store[lab.memory.resource] >= 0; }), function (x) { return x.lab.mineralAmount ? x.lab.mineralAmount : 0; })[0];
+                        inputLab = _.sortByAll(_.filter(this.labManager.myLabs, function (lab) { return lab.memory.mode & 1 /* import */ && lab.lab && (lab.lab.mineralAmount == 0 || lab.lab.mineralType == lab.memory.resource && lab.lab.mineralAmount <= 2000 - _this.creep.carryCapacity) && _this.labManager.mainRoom.mainContainer.store[lab.memory.resource] >= 0; }), [function (x) { return (x.memory.mode & 4 /* publish */) ? 0 : 1; }, function (x) { return x.lab.mineralAmount ? x.lab.mineralAmount : 0; }])[0];
                         source = this.labManager.mainRoom.mainContainer;
                     }
                     if (inputLab) {
                         //this.creep.say('D');
                         if (this.creep.withdraw(source, inputLab.memory.resource) == ERR_NOT_IN_RANGE)
                             this.creep.moveTo(source);
+                        return true;
+                    }
+                    else {
+                        var drop = _.sortBy(_.filter(this.myRoom.resourceDrops, function (x) { return x.resourceType != RESOURCE_ENERGY; }), function (x) { return x.pos.getRangeTo(_this.creep.pos); })[0];
+                        if (drop) {
+                            if (this.creep.pickup(drop) == ERR_NOT_IN_RANGE)
+                                this.creep.moveTo(drop);
+                            return true;
+                        }
                     }
                 }
             }
         }
+        return false;
     };
     LabCarrier.prototype.saveBeforeDeath = function () {
         var _this = this;
         if (this.labManager.mainRoom.terminal && this.creep.transfer(this.labManager.mainRoom.terminal, _.filter(_.keys(this.creep.carry), function (r) { return _this.creep.carry[r] > 0; })[0]) == ERR_NOT_IN_RANGE)
             this.creep.moveTo(this.labManager.mainRoom.terminal);
     };
-    LabCarrier.prototype.tick = function () {
-        if (this.creep.ticksToLive <= 20 && _.sum(this.creep.carry) > 0) {
+    LabCarrier.prototype.myTick = function () {
+        if (this.creep.ticksToLive <= 50) {
             this.saveBeforeDeath();
+            if (_.sum(this.creep.carry) == 0)
+                this.creep.suicide();
         }
-        if (this.creep.carry.energy > 0) {
-            this.dropOffEnergy();
+        else if (this.memory.idleUntil == null || this.memory.idleUntil <= Game.time || _.filter(this.labManager.myLabs, function (l) { return l.memory.mode & 4 /* publish */; }).length > 0) {
+            if (this.creep.carry.energy > 0) {
+                this.dropOffEnergy();
+            }
+            else if (_.sum(this.creep.carry) > 0) {
+                this.dropOffResource();
+            }
+            else {
+                if (!this.pickUp())
+                    this.memory.idleUntil = Game.time + 10;
+            }
         }
-        else if (_.sum(this.creep.carry) > 0) {
-            this.dropOffResource();
-        }
-        else
-            this.pickUp();
     };
     return LabCarrier;
-}());
+}(MyCreep));
 /// <reference path="../structures/myLab.ts" />
 /// <reference path="../creeps/labCarrier/labCarrierDefinition.ts" />
 /// <reference path="../creeps/labCarrier/labCarrier.ts" />
 /// <reference path="./manager.ts" />
-var LabManager = (function (_super) {
-    __extends(LabManager, _super);
+var LabManager = (function () {
     function LabManager(mainRoom) {
-        _super.call(this, LabManager.staticTracer);
         this.mainRoom = mainRoom;
         this._creeps = { time: -1, creeps: null };
         this._publish = null;
         Colony.reactionManager.registerLabManager(this);
+        this.preTick = profiler.registerFN(this.preTick, 'LabManager.preTick');
     }
     Object.defineProperty(LabManager.prototype, "memory", {
         get: function () {
@@ -3324,7 +3541,7 @@ var LabManager = (function (_super) {
             var _this = this;
             //let trace = this.tracer.start("Property mylabs");
             if (this._myLabs == null || this._myLabs.time + 500 < Game.time) {
-                var labs = this.mainRoom.room.find(FIND_MY_STRUCTURES, { filter: function (s) { return s.structureType == STRUCTURE_LAB && s.isActive(); } });
+                var labs = this.mainRoom.room.find(FIND_MY_STRUCTURES, { filter: function (s) { return s.structureType == STRUCTURE_LAB; } });
                 this._myLabs = { time: Game.time, myLabs: _.indexBy(_.map(labs, function (l) { return new MyLab(_this, l.id); }), function (x) { return x.id; }) };
             }
             //trace.stop();
@@ -3372,17 +3589,6 @@ var LabManager = (function (_super) {
         enumerable: true,
         configurable: true
     });
-    Object.defineProperty(LabManager, "staticTracer", {
-        get: function () {
-            if (LabManager._staticTracer == null) {
-                LabManager._staticTracer = new Tracer('LabManager');
-                Colony.tracers.push(LabManager._staticTracer);
-            }
-            return LabManager._staticTracer;
-        },
-        enumerable: true,
-        configurable: true
-    });
     LabManager.prototype.bestLabForReaction = function (resource) {
         console.log('LabManager.bestLabForReaction');
         var labRequirements = _.map(this.myLabs, function (x) { return { lab: x, requiredLabs: x.requiredLabsForReaction(resource) }; });
@@ -3410,7 +3616,7 @@ var LabManager = (function (_super) {
     LabManager.prototype.restore = function () {
         _.forEach(this.myLabs, function (l) { return l.restore(); });
     };
-    LabManager.prototype._preTick = function () {
+    LabManager.prototype.preTick = function () {
         if (this.mainRoom.spawnManager.isBusy)
             return;
         if (_.any(this.myLabs, function (x) { return x.memory.mode != 0 /* available */; }) && this.creeps.length == 0) {
@@ -3418,9 +3624,8 @@ var LabManager = (function (_super) {
             this.mainRoom.spawnManager.addToQueue(body.getBody(), { role: 'labCarrier' });
         }
     };
-    LabManager.prototype._tick = function () {
+    LabManager.prototype.tick = function () {
         var _this = this;
-        _.forEach(this.myLabs, function (x) { return x.tick(); });
         this.requiredPublishs = [];
         _.forEach(_.map(_.filter(this.mainRoom.creeps, function (c) { return c.memory.requiredBoosts && _.size(c.memory.requiredBoosts) > 0; }), function (c) { return c.memory.requiredBoosts; }), function (c) {
             for (var resource in c) {
@@ -3431,26 +3636,27 @@ var LabManager = (function (_super) {
         this.setupPublishs();
         this.restorePublishs();
         _.forEach(this.creeps, function (x) { return new LabCarrier(x, _this).tick(); });
+        _.forEach(this.myLabs, function (x) { return x.tick(); });
     };
     LabManager.prototype.setupPublishs = function () {
         var _this = this;
-        var _loop_7 = function(resource) {
-            if (_.any(this_6.myLabs, function (l) { return l.memory.mode & 4 /* publish */ && l.memory.resource == resource; }))
+        var _loop_4 = function(resource) {
+            if (_.any(this_3.myLabs, function (l) { return l.memory.mode & 4 /* publish */ && l.memory.resource == resource; }))
                 return "continue";
-            var lab = _.filter(this_6.myLabs, function (l) { return l.memory.mode & 2 /* reaction */ && l.memory.resource == resource; })[0];
+            var lab = _.filter(this_3.myLabs, function (l) { return l.memory.mode & 2 /* reaction */ && l.memory.resource == resource; })[0];
             if (lab) {
                 lab.backupPublish();
                 lab.memory.mode |= 1 /* import */ | 4 /* publish */;
                 return "continue";
             }
-            lab = _.sortBy(_.filter(this_6.myLabs, function (l) { return l.memory.mode == 0 /* available */; }), function (l) { return l.lab.mineralType == resource ? 0 : 1; })[0];
+            lab = _.sortBy(_.filter(this_3.myLabs, function (l) { return l.memory.mode == 0 /* available */; }), function (l) { return l.lab.mineralType == resource ? 0 : 1; })[0];
             if (lab) {
                 lab.backupPublish();
                 lab.memory.mode = 1 /* import */ | 4 /* publish */;
                 lab.memory.resource = resource;
                 return "continue";
             }
-            lab = _.filter(this_6.myLabs, function (l) { return _.all(_this.myLabs, function (other) { return other.memory.reactionLabIds.indexOf(l.id) < 0; }); })[0];
+            lab = _.filter(this_3.myLabs, function (l) { return !(l.memory.mode & 4 /* publish */) && _.all(_this.myLabs, function (other) { return other.id != l.id && (!other.memory.reactionLabIds || other.memory.reactionLabIds.indexOf(l.id) < 0); }); })[0];
             if (lab) {
                 lab.backupPublish();
                 lab.memory.mode = 1 /* import */ | 4 /* publish */;
@@ -3458,7 +3664,7 @@ var LabManager = (function (_super) {
                 lab.memory.reactionLabIds = [];
                 return "continue";
             }
-            lab = _.sortBy(_.filter(this_6.myLabs, function (l) { return ~(l.memory.mode & 4 /* publish */); }), function (l) { return l.lab.mineralAmount; })[0];
+            lab = _.sortBy(_.filter(this_3.myLabs, function (l) { return !(l.memory.mode & 4 /* publish */); }), function (l) { return l.lab.mineralAmount; })[0];
             if (lab) {
                 lab.backupPublish();
                 lab.memory.mode = 1 /* import */ | 4 /* publish */;
@@ -3467,11 +3673,11 @@ var LabManager = (function (_super) {
                 return "continue";
             }
         };
-        var this_6 = this;
+        var this_3 = this;
         for (var _i = 0, _a = this.requiredPublishs; _i < _a.length; _i++) {
             var resource = _a[_i];
-            var state_7 = _loop_7(resource);
-            if (state_7 === "continue") continue;
+            var state_4 = _loop_4(resource);
+            if (state_4 === "continue") continue;
         }
     };
     LabManager.prototype.restorePublishs = function () {
@@ -3481,7 +3687,7 @@ var LabManager = (function (_super) {
         });
     };
     return LabManager;
-}(Manager));
+}());
 /// <reference path="../myCreep.ts" />
 var KeeperBuster = (function (_super) {
     __extends(KeeperBuster, _super);
@@ -3489,9 +3695,31 @@ var KeeperBuster = (function (_super) {
         _super.call(this, creep);
         this.mainRoom = mainRoom;
         this.creep = creep;
+        this.myTick = profiler.registerFN(this.myTick, 'KeeperBuster.tick');
     }
     Object.defineProperty(KeeperBuster.prototype, "memory", {
         get: function () { return this.creep.memory; },
+        enumerable: true,
+        configurable: true
+    });
+    Object.defineProperty(KeeperBuster.prototype, "harvestingSitesToDefend", {
+        get: function () {
+            return _.filter(_.values(this.myRoom.mySources).concat(this.myRoom.myMineral), function (s) { return s.usable && s.keeper; });
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Object.defineProperty(KeeperBuster.prototype, "keeperCreeps", {
+        get: function () {
+            return _.map(_.filter(this.harvestingSitesToDefend, function (s) { return s.keeper.creep; }), function (s) { return s.keeper.creep; });
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Object.defineProperty(KeeperBuster.prototype, "keeperLairs", {
+        get: function () {
+            return _.map(this.harvestingSitesToDefend, function (s) { return s.keeper.lair; });
+        },
         enumerable: true,
         configurable: true
     });
@@ -3505,17 +3733,18 @@ var KeeperBuster = (function (_super) {
         }
         if (this.memory.targetId != null) {
             var keeper = Game.getObjectById(this.memory.targetId);
-            if (keeper == null || keeper.hits <= 100)
+            if (keeper == null || keeper.hits <= 100) {
                 this.memory.targetId = null;
+                keeper = null;
+            }
         }
         if (keeper == null) {
-            var keepers = _.filter(this.myRoom.hostileScan.creeps, function (c) { return c.owner == 'Invader'; });
+            var keepers = _.map(_.filter(this.myRoom.hostileScan.creeps, function (c) { return c.owner == 'Invader'; }), function (c) { return c.creep; });
             if (keepers.length == 0)
-                keepers = _.map(this.myRoom.hostileScan.keepers, function (x) { return x; });
-            var keeperInfo = _.sortBy(keepers, function (x) { return _this.creep.pos.findPathTo(x.pos).length; })[0];
-            if (keeperInfo) {
-                keeper = keeperInfo.creep;
-                this.memory.targetId = keeperInfo.id;
+                keepers = _.filter(this.keeperCreeps, function (x) { return x.hits > 100; });
+            keeper = _.sortBy(keepers, function (x) { return _this.creep.pos.findPathTo(x.pos).length; })[0];
+            if (keeper) {
+                this.memory.targetId = keeper.id;
             }
         }
         if (keeper) {
@@ -3523,14 +3752,13 @@ var KeeperBuster = (function (_super) {
                 this.creep.moveTo(keeper);
         }
         else {
-            var keepers_1 = _.map(this.myRoom.hostileScan.keepers, function (k) { return k.creep; });
-            var keeperCreep_1 = _.filter(keepers_1, function (k) { return k.ticksToLive > 200 && _.any(keepers_1, function (k2) { return k2.ticksToLive > 200 && k2 != k && k.ticksToLive > k2.ticksToLive - 100 && k.ticksToLive < k2.ticksToLive + 100; }); })[0];
+            var keeperCreep_1 = _.filter(this.keeperCreeps, function (k) { return k.ticksToLive < _this.creep.ticksToLive - 50 && _.any(_this.keeperCreeps, function (k2) { return k2.id != k.id && k2.ticksToLive >= k.ticksToLive && k2.ticksToLive < k.ticksToLive + 300; }); })[0];
             if (keeperCreep_1) {
-                var closestByTime = _.sortBy(_.filter(keepers_1, function (k) { return k != keeperCreep_1; }), function (k) { return Math.abs(keeperCreep_1.ticksToLive - k.ticksToLive); })[0];
+                var closestByTime = _.sortBy(_.filter(this.keeperCreeps, function (k) { return k.id != keeperCreep_1.id && keeperCreep_1.ticksToLive < k.ticksToLive; }), function (k) { return k.ticksToLive; })[0];
                 if (!this.creep.pos.inRangeTo(keeperCreep_1.pos, 3))
                     this.creep.moveTo(keeperCreep_1);
                 this.creep.say('WAIT');
-                if (closestByTime.ticksToLive == 200)
+                if (closestByTime.ticksToLive == 300)
                     this.creep.rangedAttack(keeperCreep_1);
             }
             else if (_.size(this.myRoom.hostileScan.creeps) > 0) {
@@ -3539,11 +3767,15 @@ var KeeperBuster = (function (_super) {
                     this.creep.moveTo(creep);
             }
             else {
-                var nextKeeperLair = _.sortBy(this.myRoom.room.find(FIND_HOSTILE_STRUCTURES, {
-                    filter: function (x) { return x.structureType == STRUCTURE_KEEPER_LAIR; }
-                }), function (lair) { return lair.ticksToSpawn; })[0];
-                if (nextKeeperLair && !this.creep.pos.inRangeTo(nextKeeperLair.pos, 3)) {
-                    this.creep.moveTo(nextKeeperLair);
+                var ticksUntilNextKeeperAttack = _.min(_.map(this.harvestingSitesToDefend, function (x) { return x.keeper.creep ? x.keeper.creep.ticksToLive + 300 : 0 + x.keeper.lair.ticksToSpawn; }));
+                if (ticksUntilNextKeeperAttack + 100 > this.creep.ticksToLive) {
+                    this.recycle();
+                }
+                else {
+                    var nextKeeperLair = _.sortBy(this.keeperLairs, function (lair) { return lair.ticksToSpawn; })[0];
+                    if (nextKeeperLair && !this.creep.pos.inRangeTo(nextKeeperLair.pos, 4)) {
+                        this.creep.moveTo(nextKeeperLair);
+                    }
                 }
             }
         }
@@ -3556,21 +3788,19 @@ var KeeperBusterDefinition;
     function getDefinition(maxEnergy, resources) {
         var body = new Body();
         body.tough = 1;
-        var requiredHealAmount = 10 * RANGED_ATTACK_POWER;
+        var requiredHealAmount = 8 * RANGED_ATTACK_POWER;
         var requiredHealModules = requiredHealAmount / HEAL_POWER;
-        for (var resource in resources) {
-            console.log('Creating KeeperBuster: Resource ' + resource + ': ' + resources[resource]);
-        }
         var boostCompound = _.filter(_.sortByOrder(ReactionManager.BOOSTPOWERS['heal'].resources, [function (r) { return r.resource; }], ['desc']), function (r) { return resources[r.resource] >= Math.ceil(requiredHealModules / r.factor) * LAB_BOOST_MINERAL; })[0];
         if (boostCompound) {
             requiredHealModules = Math.ceil(requiredHealModules / boostCompound.factor);
             body.boosts[boostCompound.resource] = { compound: boostCompound.resource, amount: requiredHealModules };
         }
         body.heal = requiredHealModules;
-        var rangedAttackModules = 3;
-        boostCompound = _.filter(_.sortByOrder(ReactionManager.BOOSTPOWERS['rangedAttack'].resources, [function (r) { return r.resource; }], ['desc']), function (r) { return resources[r.resource] >= Math.ceil(requiredHealModules / r.factor) * LAB_BOOST_MINERAL; })[0];
+        var rangedAttackModules = 12;
+        boostCompound = _.filter(_.sortByOrder(ReactionManager.BOOSTPOWERS['rangedAttack'].resources, [function (r) { return r.resource; }], ['desc']), function (r) { return resources[r.resource] >= Math.ceil(rangedAttackModules / r.factor) * LAB_BOOST_MINERAL; })[0];
         if (boostCompound) {
-            body.boosts[boostCompound.resource] = { compound: boostCompound.resource, amount: requiredHealModules };
+            rangedAttackModules = Math.floor(rangedAttackModules / boostCompound.factor);
+            body.boosts[boostCompound.resource] = { compound: boostCompound.resource, amount: rangedAttackModules };
         }
         body.ranged_attack = rangedAttackModules;
         body.move = body.tough + body.heal + body.ranged_attack;
@@ -3583,80 +3813,88 @@ var KeeperBusterDefinition;
 /// <reference path="../creeps/keeperBuster/keeperBuster.ts" />
 /// <reference path="../creeps/keeperBuster/keeperBusterDefinition.ts" />
 /// <reference path="./manager.ts" />
-var SourceKeeperManager = (function (_super) {
-    __extends(SourceKeeperManager, _super);
+var SourceKeeperManager = (function () {
     function SourceKeeperManager(mainRoom) {
-        _super.call(this, SourceKeeperManager.staticTracer);
         this.mainRoom = mainRoom;
+        this.preTick = profiler.registerFN(this.preTick, 'SourceKeeperManager.preTick');
     }
+    Object.defineProperty(SourceKeeperManager.prototype, "memory", {
+        get: function () {
+            return this.accessMemory();
+        },
+        enumerable: true,
+        configurable: true
+    });
+    SourceKeeperManager.prototype.accessMemory = function () {
+        if (this.mainRoom.memory.sourceKeeperManager == null)
+            this.mainRoom.memory.sourceKeeperManager = {};
+        return this.mainRoom.memory.sourceKeeperManager;
+    };
     Object.defineProperty(SourceKeeperManager.prototype, "creeps", {
         get: function () {
-            var trace = this.tracer.start('creeps()');
             if (this._creeps == null || this._creeps.time < Game.time)
                 this._creeps = {
                     time: Game.time, creeps: this.mainRoom.creepsByRole('keeperBuster')
                 };
-            trace.stop();
             return this._creeps.creeps;
         },
         enumerable: true,
         configurable: true
     });
-    Object.defineProperty(SourceKeeperManager, "staticTracer", {
-        get: function () {
-            if (SourceKeeperManager._staticTracer == null) {
-                SourceKeeperManager._staticTracer = new Tracer('SourceKeeperManager');
-                Colony.tracers.push(SourceKeeperManager._staticTracer);
-            }
-            return SourceKeeperManager._staticTracer;
-        },
-        enumerable: true,
-        configurable: true
-    });
-    SourceKeeperManager.prototype._preTick = function () {
-        var _this = this;
-        if (this.mainRoom.spawnManager.isBusy) {
+    SourceKeeperManager.prototype.sleep = function (myRoom) {
+        if (!this.memory.sleepUntil)
+            this.memory.sleepUntil = {};
+        this.memory.sleepUntil[myRoom.name] = Game.time + 10;
+    };
+    SourceKeeperManager.prototype.preTick = function (myRoom) {
+        if (this.mainRoom.spawnManager.isBusy || (this.memory.sleepUntil && this.memory.sleepUntil[myRoom.name] > Game.time)) {
             return;
         }
-        _.forEach(_.filter(this.mainRoom.allRooms, function (r) { return _.any(r.mySources, function (s) { return s.hasKeeper; }); }), function (myRoom) {
-            if (_.filter(_this.creeps, function (c) { return c.memory.roomName == myRoom.name; }).length == 0) {
-                var definition = KeeperBusterDefinition.getDefinition(_this.mainRoom.maxSpawnEnergy, _this.mainRoom.managers.labManager.availablePublishResources);
-                if (definition != null) {
-                    var memory = {
-                        role: 'keeperBuster',
-                        autoFlee: false,
-                        requiredBoosts: definition.boosts,
-                        handledByColony: false,
-                        mainRoomName: _this.mainRoom.name,
-                        roomName: myRoom.name,
-                        path: null,
-                        fleeing: null,
-                        targetId: null
-                    };
-                    _this.mainRoom.spawnManager.addToQueue(definition.getBody(), memory);
-                }
+        if (!(myRoom.myMineral.usable && myRoom.myMineral.hasKeeper && (!myRoom.myMineral.keeper.creep || myRoom.myMineral.keeper.creep.hits > 100) || _.any(myRoom.mySources, function (s) { return s.usable && s.hasKeeper && (!s.keeper.creep || s.keeper.creep.hits > 100); }))) {
+            this.sleep(myRoom);
+            return;
+        }
+        var definition = KeeperBusterDefinition.getDefinition(this.mainRoom.maxSpawnEnergy, this.mainRoom.managers.labManager.availablePublishResources);
+        if (definition == null) {
+            console.log('NO KEEPERBUSTER definition');
+            this.sleep(myRoom);
+            return;
+        }
+        if (_.filter(this.creeps, function (c) { return c.memory.roomName == myRoom.name && !c.memory.recycle && (c.spawning || (c.ticksToLive != null && c.ticksToLive > _.min(myRoom.mySources, function (x) { return x.pathLengthToDropOff; }).pathLengthToDropOff + 50 + definition.getBody().length * 3)); }).length == 0) {
+            if (definition != null) {
+                var memory = {
+                    role: 'keeperBuster',
+                    autoFlee: false,
+                    requiredBoosts: definition.boosts,
+                    handledByColony: false,
+                    mainRoomName: this.mainRoom.name,
+                    roomName: myRoom.name,
+                    path: undefined,
+                    fleeing: undefined,
+                    targetId: undefined,
+                    recycle: undefined
+                };
+                this.mainRoom.spawnManager.addToQueue(definition.getBody(), memory);
             }
-        });
+        }
     };
-    SourceKeeperManager.prototype._tick = function () {
+    SourceKeeperManager.prototype.tick = function () {
         var _this = this;
         _.forEach(this.creeps, function (c) { return new KeeperBuster(_this.mainRoom, c).tick(); });
     };
     return SourceKeeperManager;
-}(Manager));
+}());
 var MyTower = (function () {
     function MyTower(tower, mainRoom) {
         this.tower = tower;
         this.mainRoom = mainRoom;
-        if (MyTower.staticTracer == null) {
-            MyTower.staticTracer = new Tracer('MyTower');
-            Colony.tracers.push(MyTower.staticTracer);
-        }
-        this.tracer = MyTower.staticTracer;
+        this.tick = profiler.registerFN(this.tick, 'MyTower.tick');
+        this.handleHostiles = profiler.registerFN(this.handleHostiles, 'MyTower.handleHostiles');
+        this.handleWounded = profiler.registerFN(this.handleWounded, 'MyTower.handleWounded');
+        this.repairEmergencies = profiler.registerFN(this.repairEmergencies, 'MyTower.repairEmergencies');
     }
     MyTower.prototype.handleHostiles = function () {
         var _this = this;
-        var trace = this.tracer.start('handleHostiles()');
         if (this.mainRoom.myRoom.requiresDefense) {
             var closestHostile = _.sortBy(_.filter(this.mainRoom.myRoom.hostileScan.creeps, function (e) { return e.owner !== 'Source Keeper'; }), function (x) { return Math.pow((x.pos.x - _this.tower.pos.x), 2) + Math.pow((x.pos.y - _this.tower.pos.y), 2); })[0];
             //var closestHostile = this.tower.pos.findClosestByRange<Creep>(FIND_HOSTILE_CREEPS, { filter: (e: Creep) => e.owner.username !== 'Source Keeper' && Body.getFromCreep(e).heal > 0 });
@@ -3666,51 +3904,43 @@ var MyTower = (function () {
                 closestHostile = _.sortBy(_.filter(this.mainRoom.myRoom.hostileScan.creeps, function (e) { return e.owner !== 'Source Keeper'; }), function (x) { return Math.pow((x.pos.x - _this.tower.pos.x), 2) + Math.pow((x.pos.y - _this.tower.pos.y), 2); })[0];
             if (closestHostile != null) {
                 this.tower.attack(closestHostile.creep);
-                trace.stop();
                 return true;
             }
         }
-        trace.stop();
         return false;
     };
     MyTower.prototype.handleWounded = function () {
-        var trace = this.tracer.start('handleWounded()');
         var healTarget = this.mainRoom.room.find(FIND_MY_CREEPS, { filter: function (c) { return c.hits < c.hitsMax; } })[0];
         if (healTarget != null) {
             this.tower.heal(healTarget);
-            trace.stop();
             return true;
         }
-        trace.stop();
         return false;
     };
     MyTower.prototype.repairEmergencies = function () {
-        if (Game.time % 20 != 0)
+        if (this.tower.energy < this.tower.energyCapacity / 2)
             return false;
-        var trace = this.tracer.start('repairEmergencies()');
-        if (this.tower.id != this.mainRoom.towers[0].id && !this.mainRoom.myRoom.requiresDefense) {
-            trace.stop();
-            return false;
-        }
         var repairTarget = this.mainRoom.myRoom.emergencyRepairStructures[0];
-        if (repairTarget != null && this.tower.energy > this.tower.energyCapacity / 2) {
-            this.tower.repair(Game.getObjectById(repairTarget.id));
-            trace.stop();
-            return true;
+        if (repairTarget != null) {
+            var structure = Game.getObjectById(repairTarget.id);
+            if (structure) {
+                this.tower.repair(structure);
+                if (this.mainRoom.myRoom.repairStructures[repairTarget.id])
+                    this.mainRoom.myRoom.repairStructures[repairTarget.id].hits = structure.hits;
+                return true;
+            }
         }
-        trace.stop();
         return false;
     };
     MyTower.prototype.tick = function () {
-        var trace = this.tracer.start('tick()');
         this.handleHostiles() || this.handleWounded() || this.repairEmergencies();
-        trace.stop();
     };
     return MyTower;
 }());
 var MyObserver = (function () {
     function MyObserver(mainRoom) {
         this.mainRoom = mainRoom;
+        this.tick = profiler.registerFN(this.tick, 'MyObserver.tick');
     }
     Object.defineProperty(MyObserver.prototype, "memory", {
         get: function () {
@@ -3765,6 +3995,25 @@ var MyObserver = (function () {
     MyObserver.prototype.getRoomName = function (x, y) {
         return (x < 0 ? 'W' + (-x - 1) : 'E' + x) + (y < 0 ? 'N' + (-y - 1) : 'S' + y);
     };
+    MyObserver.prototype.shouldScanRoom = function (roomName) {
+        if (Colony.memory.rooms[roomName] && Colony.memory.rooms[roomName].mainRoomName || _.any(Game.flags, function (f) { return f.pos.roomName == roomName; })) {
+            return true;
+        }
+        if (Colony.memory.exits == null)
+            Colony.memory.exits = {};
+        if (!Colony.memory.exits[roomName]) {
+            Colony.memory.exits[roomName] = {};
+            for (var direction in Game.map.describeExits(roomName))
+                Colony.memory.exits[roomName][direction] = Game.map.describeExits(roomName)[direction];
+        }
+        for (var direction in Colony.memory.exits[roomName]) {
+            var exit = Colony.memory.exits[roomName][direction];
+            if (Colony.memory.rooms[exit] && Colony.memory.rooms[exit].mainRoomName) {
+                return true;
+            }
+        }
+        return false;
+    };
     MyObserver.prototype.tick = function () {
         if (!this.observer)
             return;
@@ -3789,58 +4038,148 @@ var MyObserver = (function () {
                         this.memory.scannedY = -5;
                 }
             }
-            this.memory.scanTime = Game.time;
-            console.log('Scanning ' + this.getRoomName(this.roomIndex.x + this.memory.scannedX, this.roomIndex.y + this.memory.scannedY));
-            this.observer.observeRoom(this.getRoomName(this.roomIndex.x + this.memory.scannedX, this.roomIndex.y + this.memory.scannedY));
+            var roomName = this.getRoomName(this.roomIndex.x + this.memory.scannedX, this.roomIndex.y + this.memory.scannedY);
+            if (this.shouldScanRoom(roomName)) {
+                this.memory.scanTime = Game.time;
+                console.log('Scanning ' + roomName);
+                this.observer.observeRoom(roomName);
+            }
+            else if (Colony.memory.rooms[roomName])
+                delete Colony.memory.rooms[roomName];
         }
     };
     return MyObserver;
 }());
-var TraceResult = (function () {
-    function TraceResult() {
-        this.usedCpu = 0;
-        this.startCPU = 0;
-        this.count = 0;
+/// <reference path="../myCreep.ts" />
+var Carrier = (function (_super) {
+    __extends(Carrier, _super);
+    function Carrier(creep) {
+        _super.call(this, creep);
+        this.creep = creep;
+        this.memory.autoFlee = true;
+        this.myTick = profiler.registerFN(this.myTick, 'Carrier.tick');
     }
-    TraceResult.prototype.stop = function () {
-        this.usedCpu += (Game.cpu.getUsed() - this.startCPU);
-        this.count++;
+    Object.defineProperty(Carrier.prototype, "memory", {
+        get: function () { return this.creep.memory; },
+        enumerable: true,
+        configurable: true
+    });
+    Carrier.prototype.createPickupPath = function (pickupRoom) {
+        this.memory.path = PathFinder.search(this.creep.pos, { pos: pickupRoom.mainContainer.pos, range: 3 }, { roomCallback: Colony.getTravelMatrix, plainCost: 2, swampCost: 2, maxOps: 5000 });
+        this.memory.path.path.unshift(this.creep.pos);
     };
-    return TraceResult;
-}());
-var Tracer = (function () {
-    function Tracer(name) {
-        this.name = name;
-        this.results = {};
-    }
-    ;
-    Tracer.prototype.start = function (name) {
-        var traceResult = this.results[name];
-        if (traceResult == null) {
-            traceResult = new TraceResult();
-            traceResult.name = name;
-            this.results[name] = traceResult;
+    Carrier.prototype.createDeliveryPath = function (targetRoom) {
+        this.memory.path = PathFinder.search(this.creep.pos, { pos: targetRoom.mainContainer.pos, range: 3 }, { roomCallback: Colony.getTravelMatrix, plainCost: 2, swampCost: 10, maxOps: 5000 });
+        this.memory.path.path.unshift(this.creep.pos);
+    };
+    Carrier.prototype.pickupEnergy = function () {
+        var _this = this;
+        if (this.myRoom.resourceDrops.length > 0) {
+            var energy = _.filter(this.myRoom.resourceDrops, function (r) { return r.amount >= 100 && r.resourceType == RESOURCE_ENERGY && r.pos.inRangeTo(_this.creep.pos, 3); })[0];
+            if (energy) {
+                if (this.creep.pickup(energy) == ERR_NOT_IN_RANGE)
+                    this.creep.moveTo(energy);
+                return true;
+            }
         }
-        traceResult.startCPU = Game.cpu.getUsed();
-        return traceResult;
+        return false;
     };
-    Tracer.prototype.print = function () {
-        if (Memory['tracer'] == true || Memory['tracer'] == 'true') {
-            console.log(this.name);
-            for (var i in this.results) {
-                var result = this.results[i];
-                if (!Memory['traceThreshold'] || result.usedCpu >= Memory['traceThreshold'])
-                    console.log('Trace CPU Used: ' + result.usedCpu.toFixed(2) + ' Count: ' + result.count + ': ' + this.name + ': ' + result.name);
+    Carrier.prototype.myTick = function () {
+        var pickupRoom = Colony.mainRooms[this.memory.sourceRoomName];
+        var targetRoom = Colony.mainRooms[this.memory.targetRoomName];
+        if (pickupRoom == null || pickupRoom.mainContainer == null || targetRoom == null || targetRoom.mainContainer == null)
+            return;
+        if (this.memory.state == null || this.memory.state == 2 /* Delivery */ && this.creep.carry.energy == 0) {
+            this.createPickupPath(pickupRoom);
+            if (this.creep.ticksToLive < 3 * this.memory.path.path.length) {
+                this.recycle();
+                return;
+            }
+            this.memory.state = 1 /* Pickup */;
+        }
+        else if (this.memory.state == 1 /* Pickup */ && _.sum(this.creep.carry) >= this.creep.carryCapacity / 2) {
+            this.createDeliveryPath(targetRoom);
+            this.memory.state = 2 /* Delivery */;
+        }
+        else if (this.memory.state != 1 /* Pickup */ || !this.pickupEnergy()) {
+            if (this.memory.path && this.memory.path.path.length > 2) {
+                this.creep.say('path');
+                this.moveByPath();
+            }
+            else if (this.memory.state == 2 /* Delivery */ && this.creep.room.name != this.memory.targetRoomName) {
+                this.createDeliveryPath(targetRoom);
+                this.moveByPath();
+            }
+            else if (this.memory.state == 1 /* Pickup */ && this.creep.room.name != this.memory.sourceRoomName) {
+                this.createPickupPath(pickupRoom);
+                this.moveByPath();
+            }
+            else if (this.memory.state == 1 /* Pickup */) {
+                if (this.creep.withdraw(pickupRoom.mainContainer, RESOURCE_ENERGY) == ERR_NOT_IN_RANGE)
+                    this.creep.moveTo(pickupRoom.mainContainer);
+            }
+            else if (this.memory.state == 2 /* Delivery */) {
+                if (!this.creep.pos.isNearTo(targetRoom.mainContainer))
+                    this.creep.moveTo(targetRoom.mainContainer);
+                else
+                    this.creep.transfer(targetRoom.mainContainer, RESOURCE_ENERGY);
             }
         }
     };
-    Tracer.prototype.reset = function () {
-        this.results = {};
+    return Carrier;
+}(MyCreep));
+/// <reference path="../creeps/sourceCarrier/sourceCarrierDefinition.ts" />
+/// <reference path="../creeps/carrier/carrier.ts" />
+/// <reference path="./manager.ts" />
+var CarrierManager = (function () {
+    function CarrierManager(mainRoom) {
+        this.mainRoom = mainRoom;
+        this._carrierCreeps = { time: -1, creeps: null };
+        this.preTick = profiler.registerFN(this.preTick, 'CarrierManager.preTick');
+    }
+    Object.defineProperty(CarrierManager.prototype, "carrierCreeps", {
+        get: function () {
+            if (this._carrierCreeps.time < Game.time)
+                this._carrierCreeps = {
+                    time: Game.time, creeps: this.mainRoom.creepsByRole('carrier')
+                };
+            return this._carrierCreeps.creeps;
+        },
+        enumerable: true,
+        configurable: true
+    });
+    CarrierManager.prototype.preTick = function () {
+        var _this = this;
+        if (this.mainRoom.terminal || !this.mainRoom.mainContainer || this.mainRoom.mainContainer.store.energy > 2 * this.mainRoom.maxSpawnEnergy)
+            return;
+        if (_.any(this.carrierCreeps, function (c) { return c.pos.isNearTo(_this.mainRoom.mainContainer); }))
+            return;
+        var closestMainRoomName = _.min(_.filter(this.mainRoom.myRoom.memory.mainRoomDistanceDescriptions, function (d) { return d.distance != 0 && Colony.mainRooms[d.roomName].mainContainer && Colony.mainRooms[d.roomName].mainContainer.store.energy >= 5 * Colony.mainRooms[d.roomName].maxSpawnEnergy && !Colony.mainRooms[d.roomName].spawnManager.isBusy; }), function (d) { return d.distance; }).roomName;
+        if (!closestMainRoomName)
+            return;
+        var closestMainRoom = Colony.mainRooms[closestMainRoomName];
+        var memory = {
+            targetRoomName: this.mainRoom.name,
+            sourceRoomName: closestMainRoomName,
+            role: 'carrier',
+            state: 1 /* Pickup */,
+            mainRoomName: this.mainRoom.name
+        };
+        var definition = SourceCarrierDefinition.getDefinition(closestMainRoom.maxSpawnEnergy, 2 * this.mainRoom.maxSpawnEnergy * this.mainRoom.myRoom.memory.mainRoomDistanceDescriptions[closestMainRoomName].distance);
+        console.log('Carriers required: ' + definition.count);
+        console.log('Carriers existing: ' + this.carrierCreeps.length);
+        console.log('Carriers size: ' + definition.body.getBody().length);
+        console.log('Carriers costs: ' + definition.body.costs);
+        console.log('Carriers spawn room: ' + closestMainRoom.name);
+        if (definition.count - this.carrierCreeps.length > 0)
+            closestMainRoom.spawnManager.addToQueue(definition.body.getBody(), memory, definition.count - this.carrierCreeps.length);
     };
-    return Tracer;
+    CarrierManager.prototype.tick = function () {
+        _.forEach(this.carrierCreeps, function (c) { return new Carrier(c).tick(); });
+    };
+    return CarrierManager;
 }());
 /// <reference path="../structures/myLink.ts" />
-/// <reference path="./spawnManager.ts" />
 /// <reference path="./spawnManager.ts" />
 /// <reference path="./constructionManager.ts" />
 /// <reference path="./repairManager.ts" />
@@ -3858,7 +4197,7 @@ var Tracer = (function () {
 /// <reference path="./sourceKeeperManager.ts" />
 /// <reference path="../structures/myTower.ts" />
 /// <reference path="../structures/myObserver.ts" />
-/// <reference path="../../tracer.ts" />
+/// <reference path="./carrierManager.ts" />
 var MainRoom = (function () {
     function MainRoom(roomName) {
         var _this = this;
@@ -3902,12 +4241,11 @@ var MainRoom = (function () {
         //}
         this._maxSpawnEnergy = { time: -101, maxSpawnEnergy: 300 };
         this._spawns = { time: -1, spawns: null };
-        if (MainRoom.staticTracer == null) {
-            MainRoom.staticTracer = new Tracer('MainRoom');
-            Colony.tracers.push(MainRoom.staticTracer);
-        }
-        //this.tracer = new Tracer('MySource ' + id);
-        this.tracer = MainRoom.staticTracer;
+        this.creepsByRole = profiler.registerFN(this.creepsByRole, 'MainRoom.creepsByRole');
+        this.tick = profiler.registerFN(this.tick, 'MainRoom.tick');
+        this.tickCreeps = profiler.registerFN(this.tickCreeps, 'MainRoom.tickCreeps');
+        this.checkCreeps = profiler.registerFN(this.checkCreeps, 'MainRoom.checkCreeps');
+        this._creeps_get = profiler.registerFN(this._creeps_get, 'MainRoom._creeps_get');
         this.name = roomName;
         this.myRoom = Colony.getRoom(roomName);
         this.myRoom.mainRoom = this;
@@ -3917,13 +4255,8 @@ var MainRoom = (function () {
         //this.spawnNames = _.map(_.filter(Game.spawns, (s) => s.room.name == roomName), (s) => s.name);
         this.links = _.map(this.room.find(FIND_MY_STRUCTURES, { filter: function (x) { return x.structureType == STRUCTURE_LINK; } }), function (x) { return new MyLink(x, _this); });
         this.myObserver = new MyObserver(this);
-        if (this.memory.mainPosition) {
-            var pos = this.memory.mainPosition;
-            this.mainPosition = new RoomPosition(pos.x, pos.y, roomName);
-        }
-        else {
-            this.mainPosition = this.spawns[0].pos;
-            this.memory.mainPosition = this.mainPosition;
+        if (this.memory.mainPosition == null) {
+            this.memory.mainPosition = this.spawns[0].pos;
         }
         //if (!this.memory.spawnManager) this.memory.spawnManager = {  }
         //if (!this.memory.constructionManager) this.memory.constructionManager = {}
@@ -3948,6 +4281,7 @@ var MainRoom = (function () {
             mineralHarvestingManager: new MineralHarvestingManager(this),
             sourceKeeperManager: new SourceKeeperManager(this),
             labManager: new LabManager(this),
+            carrierManager: new CarrierManager(this)
         };
         if (!this.memory.roadConstructionManager)
             this.memory.roadConstructionManager = null;
@@ -4135,34 +4469,27 @@ var MainRoom = (function () {
         enumerable: true,
         configurable: true
     });
+    MainRoom.prototype._creeps_get = function () {
+        if (this._creeps == null || this._creeps.time < Game.time)
+            this._creeps = {
+                //time: Game.time, creeps: _.filter(Game.creeps, (c) => (<CreepMemory>c.memory).mainRoomName === this.name && !(<CreepMemory>c.memory).handledByColony)
+                time: Game.time, creeps: Colony.getCreeps(this.name)
+            };
+        //trace.stop();
+        return this._creeps.creeps;
+    };
     Object.defineProperty(MainRoom.prototype, "creeps", {
         get: function () {
-            var _this = this;
-            //let trace = this.tracer.start('Property creeps');
-            if (this._creeps == null || this._creeps.time < Game.time)
-                this._creeps = {
-                    time: Game.time, creeps: _.filter(Game.creeps, function (c) { return c.memory.mainRoomName === _this.name && !c.memory.handledByColony; })
-                };
-            //trace.stop();
-            return this._creeps.creeps;
+            return this._creeps_get();
         },
         enumerable: true,
         configurable: true
     });
     MainRoom.prototype.creepsByRole = function (role) {
-        //let trace = this.tracer.start('Property creepsByRole');
-        if (this._creepsByRole == null || this._creepsByRole.time < Game.time)
+        if (this._creepsByRole == null || this._creepsByRole.time < Game.time) {
             this._creepsByRole = { time: Game.time, creeps: _.groupBy(this.creeps, function (c) { return c.memory.role; }) };
-        //trace.stop(); 
-        if (this._creepsByRole.creeps[role] != null) {
-            //console.log(role + ': Exists [' + _.size(this._creepsByRole.creeps[role])+']');
-            return this._creepsByRole.creeps[role];
         }
-        else {
-            //console.log(role + ': None');
-            return [];
-        }
-        //return this._creepsByRole.creeps[role] ? _.clone(this._creepsByRole.creeps[role]) : new Array();
+        return this._creepsByRole.creeps[role] || [];
     };
     Object.defineProperty(MainRoom.prototype, "mainContainerId", {
         get: function () {
@@ -4179,6 +4506,8 @@ var MainRoom = (function () {
     });
     Object.defineProperty(MainRoom.prototype, "mainContainer", {
         get: function () {
+            if (this.room && this.room.storage)
+                return this.room.storage;
             //let trace = this.tracer.start('Property mainContainer');
             if (this._mainContainer == null || this._mainContainer.time < Game.time)
                 this._mainContainer = { time: Game.time, mainContainer: Game.getObjectById(this.mainContainerId) };
@@ -4232,26 +4561,16 @@ var MainRoom = (function () {
         if (Colony.memory.mainRooms[this.name] == null)
             Colony.memory.mainRooms[this.name] = {
                 name: this.name,
-                mainPosition: null,
-                spawnManager: null,
-                constructionManager: null,
-                repairManager: null,
-                upgradeManager: null,
-                spawnFillManager: null,
-                energyHarvestingManager: null,
-                defenseManager: null,
-                reservationManager: null,
-                roadConstructionManager: null,
-                towerManager: null,
-                mainContainerId: null,
-                terminalManager: null,
-                labManager: null,
-                extractorContainerId: null,
-                myObserver: null,
-                harvestingActive: null
             };
         return Colony.memory.mainRooms[this.name];
     };
+    Object.defineProperty(MainRoom.prototype, "mainPosition", {
+        get: function () {
+            return RoomPos.fromObj(this.memory.mainPosition);
+        },
+        enumerable: true,
+        configurable: true
+    });
     MainRoom.prototype.placeMainContainer = function () {
         if (Memory['verbose'])
             console.log('SpawnRoomHandler.placeMainContainer');
@@ -4374,32 +4693,46 @@ var MainRoom = (function () {
         return this.checkAndPlaceMainContainer();
     };
     MainRoom.prototype.checkCreeps = function () {
-        var trace = this.tracer.start('checkCreeps()');
-        this.managers.towerManager.preTick();
-        this.managers.labManager.preTick();
-        this.managers.sourceKeeperManager.preTick();
-        this.managers.reservationManager.preTick();
-        this.managers.spawnFillManager.preTick();
-        this.managers.linkFillerManager.preTick();
+        var _this = this;
+        if (this.managers.spawnFillManager.creeps.length == 0 && this.mainContainer && this.mainContainer.store.energy >= this.maxSpawnEnergy * 2) {
+            this.managers.spawnFillManager.preTick();
+        }
+        else if (this.managers.energyHarvestingManager.harvesterCreeps.length == 0 && this.managers.energyHarvestingManager.sourceCarrierCreeps.length == 0)
+            this.managers.energyHarvestingManager.preTick(this.myRoom);
+        else {
+            this.managers.spawnFillManager.preTick();
+            this.managers.linkFillerManager.preTick();
+            this.managers.terminalManager.preTick();
+            this.managers.towerManager.preTick();
+            this.managers.labManager.preTick();
+            if (this.mainContainer && this.mainContainer.store.energy > 10000 && this.managers.upgradeManager.creeps.length == 0)
+                this.managers.upgradeManager.preTick();
+            _.forEach(_.sortByOrder(this.allRooms, [function (r) { return _.any(r.mySources, function (s) { return s.hasKeeper ? 1 : 0; }); }, function (r) { return r.memory.mainRoomDistanceDescriptions[_this.name].distance; }, function (r) { return _.size(r.mySources); }], ['asc', 'asc', 'desc']), function (myRoom) {
+                _this.managers.reservationManager.preTick(myRoom);
+                if (_this.mainContainer && _this.mainContainer.store.energy > 50000)
+                    _this.managers.repairManager.preTick(myRoom);
+                _this.managers.sourceKeeperManager.preTick(myRoom);
+                _this.managers.energyHarvestingManager.preTick(myRoom);
+                _this.managers.mineralHarvestingManager.preTick(myRoom);
+                if (_this.mainContainer && _this.mainContainer.store.energy <= 50000)
+                    _this.managers.repairManager.preTick(myRoom);
+            });
+        }
         this.managers.defenseManager.preTick();
-        this.managers.energyHarvestingManager.preTick();
-        this.managers.repairManager.preTick();
         this.managers.constructionManager.preTick();
-        this.managers.terminalManager.preTick();
-        this.managers.mineralHarvestingManager.preTick();
         this.managers.upgradeManager.preTick();
-        trace.stop();
+        this.managers.carrierManager.preTick();
     };
     MainRoom.prototype.tickCreeps = function () {
-        var trace = this.tracer.start('tickCreeps()');
+        this.managers.energyHarvestingManager.tick();
+        this.managers.sourceKeeperManager.tick();
+        this.managers.reservationManager.tick();
         this.managers.spawnFillManager.tick();
         this.managers.linkFillerManager.tick();
-        this.managers.repairManager.tick();
         this.managers.constructionManager.tick();
-        this.managers.energyHarvestingManager.tick();
+        this.managers.repairManager.tick();
         this.managers.upgradeManager.tick();
         this.managers.defenseManager.tick();
-        this.managers.reservationManager.tick();
         this.managers.towerManager.tick();
         this.managers.terminalManager.tick();
         this.managers.mineralHarvestingManager.tick();
@@ -4409,59 +4742,41 @@ var MainRoom = (function () {
         catch (e) {
             console.log(e.stack);
         }
-        this.managers.sourceKeeperManager.tick();
-        trace.stop();
+        this.managers.carrierManager.tick();
     };
     MainRoom.prototype.tick = function () {
         var _this = this;
-        //console.log('Memory Test= ' + JSON.stringify(Memory['colony']['rooms']['E21S22']['test']));
+        var startCpu = Game.cpu.getUsed();
         console.log();
         console.log('MainRoom ' + this.name + ': ' + this.creeps.length + ' creeps');
         if (Memory['verbose'])
             console.log('SpawnRoomHandler.tick');
-        if (this.room == null)
+        if (this.room == null) {
             return;
+        }
         this.links.forEach(function (x) { return x.tick(); });
-        //if (Memory['trace'])
-        //    startCpu = Game.cpu.getUsed();
-        //if (this.mainContainer && this.room.controller.level > 1)
-        //    this.creepManagers.harvestingManager.placeSourceContainers();
-        //if (Memory['trace']) {
-        //    endCpu = Game.cpu.getUsed();
-        //    if ((endCpu - startCpu) > Colony.memory.traceThreshold)
-        //        console.log('HarvestingManager.placeSourceContainers: ' + (endCpu - startCpu).toFixed(2));
-        //}
         if (this.mainContainer)
             this.roadConstructionManager.tick();
-        //if (Memory['trace'])
-        //    startCpu = Game.cpu.getUsed();
-        //this.allRooms.forEach(r => r.scanForHostiles());
-        //if (Memory['trace']) {
-        //    endCpu = Game.cpu.getUsed();
-        //    console.log('MainRoom.scanForHostiles: ' + (endCpu - startCpu).toFixed(2));
-        //}
         if (this.creeps.length > 0)
             this.checkCreeps();
         else
-            this.managers.energyHarvestingManager.preTick();
+            this.managers.energyHarvestingManager.preTick(this.myRoom);
         this.spawnManager.spawn();
-        this.room.find(FIND_MY_STRUCTURES, { filter: function (x) { return x.structureType == STRUCTURE_TOWER; } }).forEach(function (x) { return new MyTower(x, _this).tick(); });
+        //this.room.find<Tower>(FIND_MY_STRUCTURES, { filter: (x: Structure) => x.structureType == STRUCTURE_TOWER }).forEach(x => new MyTower(x, this).tick());
+        if (this.myRoom.hostileScan.creeps)
+            _.forEach(this.towers, function (t) { return new MyTower(t, _this).tick(); });
+        else if (this.towers.length > 0)
+            new MyTower(this.towers[0], this).tick();
         this.tickCreeps();
         this.myObserver.tick();
-        if (Game.time % 100 == 0) {
-            if (Memory['trace'])
-                for (var idx in this.allRooms) {
-                    var myRoom = this.allRooms[idx];
-                    myRoom.refresh();
-                }
-        }
+        console.log('MainRoom ' + this.name + ' finished: ' + (Game.cpu.getUsed() - startCpu).toFixed(2) + ' cpu used, ' + Game.cpu.getUsed().toFixed() + ' cpu used total');
     };
     return MainRoom;
 }());
 var METRICSOURCEDISTANCE = 1;
 var METRICSOURCE = 0.5;
 var METRICROOM = 0;
-var MAXMETRIC = 10;
+var MAXMETRIC = 9;
 var MAXDISTANCE = 2;
 var RoomAssignment = (function () {
     function RoomAssignment(mainRoom) {
@@ -4534,7 +4849,7 @@ var RoomAssignmentHandler = (function () {
         _.forEach(_.filter(this.rooms, this.roomFilter.bind(this)), function (x) { return _this.roomsToAssign[x.name] = x; });
     }
     RoomAssignmentHandler.prototype.roomFilter = function (myRoom) {
-        return _.every(this.forbidden, function (x) { return x != myRoom.name; }) && !Game.map.isRoomProtected(myRoom.name) && _.size(myRoom.mySources) > 0 && !myRoom.memory.foreignOwner && !myRoom.memory.foreignReserver && _.min(myRoom.memory.mainRoomDistanceDescriptions, function (x) { return x.distance; }).distance <= MAXDISTANCE;
+        return _.every(this.forbidden, function (x) { return x != myRoom.name; }) && _.size(myRoom.mySources) > 0 && !myRoom.memory.foreignOwner && !myRoom.memory.foreignReserver && _.min(myRoom.memory.mainRoomDistanceDescriptions, function (x) { return x.distance; }).distance <= MAXDISTANCE;
     };
     RoomAssignmentHandler.prototype.assignRoomsByMinDistance = function () {
         var _this = this;
@@ -4584,17 +4899,17 @@ var RoomAssignmentHandler = (function () {
         Memory['MainRoomCandidates'] = _.map(mainRoomCandidates, function (x) {
             return { mainRoom: x.mainRoom.name, myRooms: _.map(x.myRooms, function (y) { return y.name; }) };
         });
-        var _loop_8 = function() {
+        var _loop_5 = function() {
             var candidate = _.sortByAll(_.filter(mainRoomCandidates, function (x) { return x; }), [function (x) { return _.size(x.mainRoom.connectedRooms); }, function (x) { return _.size(x.myRooms); }, function (x) { return _this.assignments[x.mainRoom.name].freeMetric; }])[0];
             var rooms = _.sortByAll(_.values(candidate.myRooms), [function (x) { return (candidate.mainRoom.room.controller.level >= 6 && x.myMineral && x.myMineral.hasKeeper && avaiableResources.indexOf(x.myMineral.resource) < 0) ? 0 : 1; }, function (x) { return 10 - (candidate.mainRoom.room.controller.level >= 6 ? _.size(x.mySources) : _.size(x.useableSources)); }, function (x) { return x.name; }]);
             console.log('Candidate: ' + candidate.mainRoom.name + ' Rooms: ' + _.map(rooms, function (x) { return x.name; }).join(', '));
-            this_7.assignments[candidate.mainRoom.name].tryAddRoom(rooms[0]);
-            delete this_7.roomsToAssign[rooms[0].name];
-            mainRoomCandidates = this_7.getMainRoomCandidates();
+            this_4.assignments[candidate.mainRoom.name].tryAddRoom(rooms[0]);
+            delete this_4.roomsToAssign[rooms[0].name];
+            mainRoomCandidates = this_4.getMainRoomCandidates();
         };
-        var this_7 = this;
+        var this_4 = this;
         while (_.size(mainRoomCandidates) > 0) {
-            _loop_8();
+            _loop_5();
         }
     };
     RoomAssignmentHandler.prototype.getAssignments = function () {
@@ -4619,8 +4934,8 @@ var RoomAssignmentHandler = (function () {
                 };
             });
             console.log('Assigning Rooms');
-            _.forEach(this.rooms, function (x) { return x.mainRoom = null; });
-            _.forEach(assignments, function (assignment) { return _.forEach(assignment.myRooms, function (myRoom) { return myRoom.mainRoom = assignment.mainRoom; }); });
+            //_.forEach(this.rooms, (x) => x.mainRoom = null);
+            //_.forEach(assignments, (assignment) => _.forEach(assignment.myRooms, (myRoom) =>myRoom.mainRoom = assignment.mainRoom));
             //_.forEach(_.filter(this.rooms, room => room.mainRoom == null && _.any(room.memory.mainRoomDistanceDescriptions, x => x.distance == 1) && !room.memory.foreignOwner && !room.memory.foreignReserver), room => {
             //    let mainRoom = this.mainRooms[_.min(room.memory.mainRoomDistanceDescriptions, x => x.distance).roomName];
             //    room.mainRoom = mainRoom;
@@ -4712,17 +5027,17 @@ var ClaimingManager = (function () {
             return false;
         var needCreeps = false;
         var sources = _.filter(myRoom.mySources, function (x) { return x.hasKeeper == false; });
-        var _loop_9 = function(idx) {
+        var _loop_6 = function(idx) {
             var mySource = sources[idx];
-            var creepCount = _.filter(this_8.spawnConstructors, function (x) { return x.memory.sourceId == mySource.id; }).length;
+            var creepCount = _.filter(this_5.spawnConstructors, function (x) { return x.memory.sourceId == mySource.id; }).length;
             if (creepCount < 2) {
-                mainRoom.spawnManager.addToQueue(['work', 'work', 'work', 'work', 'work', 'carry', 'carry', 'carry', 'carry', 'carry', 'carry', 'carry', 'carry', 'carry', 'carry', 'move', 'move', 'move', 'move', 'move', 'move', 'move', 'move', 'move', 'move'], { handledByColony: true, claimingManager: this_8.roomName, role: 'spawnConstructor', targetPosition: this_8.targetPosition, sourceId: mySource.id }, 2 - creepCount);
+                mainRoom.spawnManager.addToQueue(['work', 'work', 'work', 'work', 'work', 'carry', 'carry', 'carry', 'carry', 'carry', 'carry', 'carry', 'carry', 'carry', 'carry', 'move', 'move', 'move', 'move', 'move', 'move', 'move', 'move', 'move', 'move'], { handledByColony: true, claimingManager: this_5.roomName, role: 'spawnConstructor', targetPosition: this_5.targetPosition, sourceId: mySource.id }, 2 - creepCount);
                 needCreeps = true;
             }
         };
-        var this_8 = this;
+        var this_5 = this;
         for (var idx in sources) {
-            _loop_9(idx);
+            _loop_6(idx);
         }
         return !needCreeps;
     };
@@ -4794,6 +5109,12 @@ var ClaimingManager = (function () {
     };
     return ClaimingManager;
 }());
+var SetupProcessResult;
+(function (SetupProcessResult) {
+    SetupProcessResult[SetupProcessResult["Failed"] = 1] = "Failed";
+    SetupProcessResult[SetupProcessResult["FromStorage"] = 2] = "FromStorage";
+    SetupProcessResult[SetupProcessResult["Reaction"] = 4] = "Reaction";
+})(SetupProcessResult || (SetupProcessResult = {}));
 var ReactionManager = (function () {
     function ReactionManager() {
         this.forbiddenCompounds = [RESOURCE_CATALYZED_KEANIUM_ACID, RESOURCE_CATALYZED_LEMERGIUM_ACID, RESOURCE_CATALYZED_UTRIUM_ALKALIDE, RESOURCE_CATALYZED_ZYNTHIUM_ALKALIDE];
@@ -4808,12 +5129,13 @@ var ReactionManager = (function () {
         //}
         this._availableResources = {};
         this.labManagers = {};
-        if (ReactionManager.staticTracer == null) {
-            ReactionManager.staticTracer = new Tracer('ReactionManager');
-            Colony.tracers.push(ReactionManager.staticTracer);
-        }
-        //this.tracer = new Tracer('MySource ' + id);
-        this.tracer = ReactionManager.staticTracer;
+        this.totalStorage = Colony.profiler.registerFN(this.totalStorage, 'ReactionManager.totalStorage');
+        this.canProvide = Colony.profiler.registerFN(this.canProvide, 'ReactionManager.canProvide');
+        this.getAvailableResourceAmount = Colony.profiler.registerFN(this.getAvailableResourceAmount, 'ReactionManager.getAvailableResourceAmount');
+        this.setupProcess = Colony.profiler.registerFN(this.setupProcess, 'ReactionManager.setupProcess');
+        this.setupProcessChain = Colony.profiler.registerFN(this.setupProcessChain, 'ReactionManager.setupProcessChain');
+        this.setup = Colony.profiler.registerFN(this.setup, 'ReactionManager.setup');
+        this.tick = Colony.profiler.registerFN(this.tick, 'ReactionManager.tick');
     }
     Object.defineProperty(ReactionManager.prototype, "memory", {
         get: function () {
@@ -4855,12 +5177,10 @@ var ReactionManager = (function () {
     Object.defineProperty(ReactionManager.prototype, "publishableCompounds", {
         get: function () {
             var _this = this;
-            var trace = this.tracer.start('Property publishableCompounds');
             if (this.memory.publishableCompounds == null || this.highestPowerCompounds == null || this.memory.publishableCompounds.time + 500 < this.memory.highestPowerCompounds.time) {
                 var compounds = _.uniq(this.highestPowerCompounds.concat(_.filter(RESOURCES_ALL, function (r) { return _this.ingredients[r] && _this.ingredients[r].indexOf(RESOURCE_CATALYST) >= 0; })));
                 this.memory.publishableCompounds = { time: this.memory.highestPowerCompounds.time, compounds: compounds };
             }
-            trace.stop();
             return this.memory.publishableCompounds.compounds;
         },
         enumerable: true,
@@ -4869,7 +5189,6 @@ var ReactionManager = (function () {
     Object.defineProperty(ReactionManager.prototype, "highestPowerCompounds", {
         get: function () {
             var _this = this;
-            var trace = this.tracer.start('Property highestPowerCompounds');
             if (this.memory.highestPowerCompounds == null || this.memory.highestPowerCompounds.time + 500 < Game.time) {
                 this.memory.highestPowerCompounds = { time: Game.time, compounds: [] };
                 _.forEach(ReactionManager.powerPriority, function (power) {
@@ -4882,7 +5201,6 @@ var ReactionManager = (function () {
                     }
                 });
             }
-            trace.stop();
             return this.memory.highestPowerCompounds.compounds;
         },
         enumerable: true,
@@ -4979,31 +5297,34 @@ var ReactionManager = (function () {
     });
     ReactionManager.prototype.setupProcess = function (resource) {
         var _this = this;
-        if (this.ingredients[resource] == null || this.totalStorage(resource) >= this.requiredAmount)
-            return true;
+        if (this.totalStorage(resource) >= this.requiredAmount)
+            return SetupProcessResult.FromStorage;
+        else if (this.ingredients[resource] == null)
+            return SetupProcessResult.Failed;
         var bestManager = _.sortByAll(_.filter(_.map(this.labManagers, function (x) {
             return { manager: x, requiredLabs: x.requiredLabsForReaction(resource) };
         }), function (x) { return x.requiredLabs != null; }), [function (x) { return x.requiredLabs; }, function (x) { return CONTROLLER_STRUCTURES.lab[8] - x.manager.freeLabs.length; }])[0];
         if (bestManager) {
             bestManager.manager.addReaction(resource);
-            _.forEach(this.ingredients[resource], function (r) {
-                if (!_this.setupProcess(r))
-                    return false;
-            });
-            return true;
+            var result = _.map(this.ingredients[resource], function (r) { return _this.setupProcess(r); });
+            if (_.any(result, function (r) { return r == SetupProcessResult.Failed; }))
+                return SetupProcessResult.Failed;
+            else
+                return SetupProcessResult.Reaction;
         }
-        return false;
+        return SetupProcessResult.Failed;
     };
     ReactionManager.prototype.setupProcessChain = function (resource) {
         var _this = this;
         console.log('Reaction Manager: Setup process chain ' + resource);
         this.backup();
-        if (!this.setupProcess(resource)) {
+        var result = this.setupProcess(resource);
+        if (result & SetupProcessResult.Failed) {
             this.restore();
-            _.forEach(this.ingredients[resource], function (r) {
-                _this.setupProcessChain(r);
-            });
+            var cascadeResult = _.map(this.ingredients[resource], function (r) { return _this.setupProcessChain(r); });
+            return (cascadeResult[0] | cascadeResult[1]);
         }
+        return result;
     };
     ReactionManager.prototype.backup = function () {
         _.forEach(this.labManagers, function (lm) { return lm.backup(); });
@@ -5021,12 +5342,21 @@ var ReactionManager = (function () {
             if (this.canProvide(RESOURCE_GHODIUM))
                 compoundsToProduce_1.push(RESOURCE_GHODIUM);
             _.forEach(this.highestPowerCompounds, function (c) { return compoundsToProduce_1.push(c); });
-            console.log('Reaction Manager: Compounds to produce: ' + compoundsToProduce_1.join(','));
-            _.forEach(compoundsToProduce_1, function (c) {
-                var result = _this.setupProcessChain(c);
-                if (result)
-                    console.log('Reaction Manager: Succcessfully setup ' + c);
-            });
+            while (compoundsToProduce_1.length > 0) {
+                console.log();
+                console.log('Reaction Manager: Compounds to produce: ' + compoundsToProduce_1.join(','));
+                var loopCompounds = _.clone(compoundsToProduce_1);
+                compoundsToProduce_1 = [];
+                _.forEach(loopCompounds, function (c) {
+                    var result = _this.setupProcessChain(c);
+                    if (!(result & SetupProcessResult.Failed))
+                        console.log('Reaction Manager: Succcessfully setup ' + c);
+                    console.log('Reaction Manager ' + c + ' result: ' + result);
+                    if (result & SetupProcessResult.Reaction) {
+                        compoundsToProduce_1.push(c);
+                    }
+                });
+            }
         }
     };
     ReactionManager.prototype.tick = function () {
@@ -5109,7 +5439,6 @@ var MyCostMatrix = (function () {
     };
     return MyCostMatrix;
 }());
-/// <reference path="../../tracer.ts" />
 /// <reference path="../../memoryObject.ts" />
 /// <reference path="../../helpers.ts" />
 var MySource = (function () {
@@ -5119,13 +5448,8 @@ var MySource = (function () {
         this.memoryInitialized = false;
         this._room = { time: -1, room: null };
         this._source = { time: -1, source: null };
-        if (MySource.staticTracer == null) {
-            MySource.staticTracer = new Tracer('MySource');
-            Colony.tracers.push(MySource.staticTracer);
-        }
-        //this.tracer = new Tracer('MySource ' + id);
-        this.tracer = MySource.staticTracer;
-        this.accessMemory();
+        this.hasKeeper;
+        this.maxHarvestingSpots;
     }
     Object.defineProperty(MySource.prototype, "memory", {
         get: function () {
@@ -5141,12 +5465,14 @@ var MySource = (function () {
             this.myRoom.memory.sources[this.id] = {
                 id: this.id,
                 pos: this.source.pos,
-                capacity: null,
-                harvestingSpots: null,
-                keeper: null,
-                pathLengthToMainContainer: null,
-                roadBuiltToRoom: null,
-                linkId: null
+                capacity: undefined,
+                harvestingSpots: undefined,
+                keeper: undefined,
+                pathLengthToMainContainer: undefined,
+                roadBuiltToRoom: undefined,
+                linkId: undefined,
+                containerId: undefined,
+                lairId: undefined
             };
         }
         return this.myRoom.memory.sources[this.id];
@@ -5171,6 +5497,33 @@ var MySource = (function () {
                 this._source = { time: Game.time, source: Game.getObjectById(this.id) };
             //trace.stop();
             return this._source.source;
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Object.defineProperty(MySource.prototype, "container", {
+        get: function () {
+            if (this.link || this.hasKeeper)
+                return null;
+            if ((this._container == null || this._container.time < Game.time) && this.room) {
+                if (this.memory.containerId) {
+                    var container = Game.getObjectById(this.memory.containerId);
+                    if (container == null)
+                        this.memory.containerId = null;
+                    this._container = { time: Game.time, container: container };
+                }
+                if (this.memory.containerId == null) {
+                    var container = this.source.pos.findInRange(FIND_STRUCTURES, 1, { filter: function (s) { return s.structureType == STRUCTURE_CONTAINER; } })[0];
+                    if (container) {
+                        this.memory.containerId = container.id;
+                        this._container = { time: Game.time, container: container };
+                    }
+                }
+            }
+            if (this._container && this.room)
+                return this._container.container;
+            else
+                return null;
         },
         enumerable: true,
         configurable: true
@@ -5266,6 +5619,33 @@ var MySource = (function () {
         enumerable: true,
         configurable: true
     });
+    Object.defineProperty(MySource.prototype, "keeper", {
+        get: function () {
+            var _this = this;
+            if (this.room && (this._keeper == null || this._keeper.time < Game.time)) {
+                if (this.memory.lairId)
+                    var lair = Game.getObjectById(this.memory.lairId);
+                if (!lair) {
+                    lair = this.source.pos.findInRange(FIND_HOSTILE_STRUCTURES, 5, { filter: function (s) { return s.structureType == STRUCTURE_KEEPER_LAIR; } })[0];
+                    this.memory.lairId = lair.id;
+                }
+                var creepInfo = _.filter(this.myRoom.hostileScan.keepers, function (k) { return k.pos.inRangeTo(_this.pos, 5); })[0];
+                this._keeper = {
+                    time: Game.time,
+                    keeper: {
+                        lair: lair,
+                        creep: creepInfo ? creepInfo.creep : null
+                    }
+                };
+            }
+            if (this._keeper)
+                return this._keeper.keeper;
+            else
+                return null;
+        },
+        enumerable: true,
+        configurable: true
+    });
     Object.defineProperty(MySource.prototype, "hasKeeper", {
         get: function () {
             //let trace = this.tracer.start('Property keeper');
@@ -5301,7 +5681,6 @@ var MySource = (function () {
     });
     Object.defineProperty(MySource.prototype, "pathLengthToDropOff", {
         get: function () {
-            var trace = this.tracer.start('Property pathLengthToMainContainer');
             if ((this._pathLengthToMainContainer == null || this._pathLengthToMainContainer.time + 500 < Game.time) && this.source)
                 if (this.memory.pathLengthToMainContainer && this.memory.pathLengthToMainContainer.time + 500 < Game.time) {
                     this._pathLengthToMainContainer = this.memory.pathLengthToMainContainer;
@@ -5313,7 +5692,6 @@ var MySource = (function () {
                     };
                     this.memory.pathLengthToMainContainer = this._pathLengthToMainContainer;
                 }
-            trace.stop();
             if (this._pathLengthToMainContainer == null)
                 return 50;
             else
@@ -5384,12 +5762,6 @@ var MyMineral = (function () {
     function MyMineral(myRoom, id) {
         this.myRoom = myRoom;
         this.id = id;
-        if (MyMineral.staticTracer == null) {
-            MyMineral.staticTracer = new Tracer('MyMineral');
-            Colony.tracers.push(MyMineral.staticTracer);
-        }
-        //this.tracer = new Tracer('MySource ' + id);
-        this.tracer = MyMineral.staticTracer;
     }
     Object.defineProperty(MyMineral.prototype, "memory", {
         get: function () {
@@ -5405,13 +5777,8 @@ var MyMineral = (function () {
                 id: this.id,
                 amount: mineral.mineralAmount,
                 refreshTime: mineral.ticksToRegeneration ? mineral.ticksToRegeneration + Game.time : null,
-                keeper: null,
-                pathLengthToTerminal: null,
                 pos: mineral.pos,
-                terminalRoadBuiltTo: null,
                 resource: mineral.mineralType,
-                hasExtractor: null,
-                harvestingSpots: null
             };
         }
         return this.myRoom.memory.myMineral;
@@ -5425,9 +5792,7 @@ var MyMineral = (function () {
     });
     Object.defineProperty(MyMineral.prototype, "mineral", {
         get: function () {
-            var trace = this.tracer.start('Property mineral');
             var mineral = Game.getObjectById(this.id);
-            trace.stop();
             return mineral;
         },
         enumerable: true,
@@ -5438,6 +5803,40 @@ var MyMineral = (function () {
             if (this._pos == null || this._pos.time < Game.time)
                 this._pos = { time: Game.time, pos: RoomPos.fromObj(this.memory.pos) };
             return this._pos.pos;
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Object.defineProperty(MyMineral.prototype, "usable", {
+        get: function () {
+            return !this.hasKeeper || this.maxHarvestingSpots > 1 && _.size(this.myRoom.mainRoom.managers.labManager.myLabs) > 1;
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Object.defineProperty(MyMineral.prototype, "keeper", {
+        get: function () {
+            var _this = this;
+            if (this.room && (this._keeper == null || this._keeper.time < Game.time)) {
+                if (this.memory.lairId)
+                    var lair = Game.getObjectById(this.memory.lairId);
+                if (!lair) {
+                    lair = this.mineral.pos.findInRange(FIND_HOSTILE_STRUCTURES, 5, { filter: function (s) { return s.structureType == STRUCTURE_KEEPER_LAIR; } })[0];
+                    this.memory.lairId = lair.id;
+                }
+                var creepInfo = _.filter(this.myRoom.hostileScan.keepers, function (k) { return k.pos.inRangeTo(_this.pos, 5); })[0];
+                this._keeper = {
+                    time: Game.time,
+                    keeper: {
+                        lair: lair,
+                        creep: creepInfo ? creepInfo.creep : null
+                    }
+                };
+            }
+            if (this._keeper)
+                return this._keeper.keeper;
+            else
+                return null;
         },
         enumerable: true,
         configurable: true
@@ -5485,7 +5884,6 @@ var MyMineral = (function () {
     });
     Object.defineProperty(MyMineral.prototype, "pathLengthToDropOff", {
         get: function () {
-            var trace = this.tracer.start('Property pathLengthToMainContainer');
             if ((this._pathLengthToTerminal == null || this._pathLengthToTerminal.time + 500 < Game.time) && this.mineral)
                 if (this.memory.pathLengthToTerminal && this.memory.pathLengthToTerminal.time + 500 < Game.time) {
                     this._pathLengthToTerminal = this.memory.pathLengthToTerminal;
@@ -5497,7 +5895,6 @@ var MyMineral = (function () {
                     };
                     this.memory.pathLengthToTerminal = this._pathLengthToTerminal;
                 }
-            trace.stop();
             if (this._pathLengthToTerminal == null)
                 return 50;
             else
@@ -5794,8 +6191,7 @@ var CreepInfo = (function () {
 var HostileScan = (function () {
     function HostileScan(myRoom) {
         this.myRoom = myRoom;
-        //if (this.myRoom.room)
-        //this.refreshCreeps();
+        this.creeps_get = profiler.registerFN(this.creeps_get, 'HostileScan.creeps');
         if (this._allCreeps && this._allCreeps.time + 500 < Game.time)
             this._allCreeps = null;
     }
@@ -5821,13 +6217,16 @@ var HostileScan = (function () {
         enumerable: true,
         configurable: true
     });
+    HostileScan.prototype.creeps_get = function () {
+        if (this.allCreeps == null)
+            return null;
+        if (this._creeps == null || this._creeps.time < Game.time)
+            this._creeps = { time: Game.time, creeps: _.indexBy(_.filter(this.allCreeps, function (c) { return c.owner != 'Source Keeper'; }), function (c) { return c.id; }) };
+        return this._creeps.creeps;
+    };
     Object.defineProperty(HostileScan.prototype, "creeps", {
         get: function () {
-            if (this.allCreeps == null)
-                return null;
-            if (this._creeps == null || this._creeps.time < Game.time)
-                this._creeps = { time: Game.time, creeps: _.indexBy(_.filter(this.allCreeps, function (c) { return c.owner != 'Source Keeper'; }), function (c) { return c.id; }) };
-            return this._creeps.creeps;
+            return this.creeps_get();
         },
         enumerable: true,
         configurable: true
@@ -5875,7 +6274,6 @@ var HostileScan = (function () {
 }());
 /// <reference path="../sources/mySource.ts" />
 /// <reference path="../sources/myMineral.ts" />
-/// <reference path="../../tracer.ts" />
 /// <reference path="../structures/myContainer.ts" />
 /// <reference path="./hostileScan.ts" />
 var MyRoom = (function () {
@@ -5884,13 +6282,6 @@ var MyRoom = (function () {
         this._room = { time: -1, room: null };
         this._mySources = null;
         this._mainRoom = null;
-        this._exits = null;
-        if (MyRoom.staticTracer == null) {
-            MyRoom.staticTracer = new Tracer('MyRoom');
-            Colony.tracers.push(MyRoom.staticTracer);
-        }
-        //this.tracer = new Tracer('MySource ' + id);
-        this.tracer = MyRoom.staticTracer;
         this.memory.name = name;
         this.hostileScan = new HostileScan(this);
         this.refresh(true);
@@ -5908,21 +6299,21 @@ var MyRoom = (function () {
         if (Colony.memory.rooms[this.name] == null)
             Colony.memory.rooms[this.name] = {
                 name: this.name,
-                containers: null,
-                sources: null,
-                hostileScan: null,
-                foreignOwner: null,
-                foreignReserver: null,
-                lastScanTime: null,
-                mainRoomDistanceDescriptions: null,
-                mainRoomName: null,
-                hasController: null,
-                controllerPosition: null,
-                travelMatrix: null,
-                compressedTravelMatrix: null,
-                myMineral: null,
-                repairStructures: null,
-                emergencyRepairStructures: null,
+                containers: undefined,
+                sources: undefined,
+                hostileScan: undefined,
+                foreignOwner: undefined,
+                foreignReserver: undefined,
+                lastScanTime: undefined,
+                mainRoomDistanceDescriptions: undefined,
+                mainRoomName: undefined,
+                hasController: undefined,
+                controllerPosition: undefined,
+                travelMatrix: undefined,
+                compressedTravelMatrix: undefined,
+                myMineral: undefined,
+                repairStructures: undefined,
+                emergencyRepairStructures: undefined,
             };
         return Colony.memory.rooms[this.name];
     };
@@ -5937,30 +6328,34 @@ var MyRoom = (function () {
         configurable: true
     });
     Object.defineProperty(MyRoom.prototype, "repairStructures", {
-        //private _repairStructures: { time: number, structures: Structure[] };
+        //private _repairStructures: { time: number, structures: { [id: string]: RepairStructure } };
         get: function () {
             var _this = this;
-            if (this.memory.repairStructures == null || this.memory.repairStructures.time + 20 < Game.time) {
+            if (this.memory.repairStructures == null || this.memory.repairWalls == null || this.memory.repairStructures.time + 500 < Game.time || this.memory.repairWalls.time + 500 < Game.time) {
                 if (this.room) {
-                    var structures = _.take(_.sortBy(_.map(this.room.find(FIND_STRUCTURES, { filter: function (s) { return s.hits < s.hitsMax && (_this.name == _this.mainRoom.name || s.structureType != STRUCTURE_CONTAINER); } }), function (s) { return { id: s.id, hits: s.hits, hitsMax: s.hitsMax, pos: s.pos, structureType: s.structureType }; }), function (x) { return x.hits; }), 25);
-                    this.memory.repairStructures = { time: Game.time, structures: structures };
+                    var structures = _.map(this.room.find(FIND_STRUCTURES, { filter: function (s) { return s.hits < s.hitsMax && s.structureType != STRUCTURE_ROAD && s.structureType != STRUCTURE_CONTAINER || s.hits < 0.5 * s.hitsMax && (s.structureType != STRUCTURE_CONTAINER || !_.any(_this.mySources, function (x) { return x.hasKeeper; })); } }), function (s) { return { id: s.id, hits: s.hits, hitsMax: s.hitsMax, pos: s.pos, structureType: s.structureType }; });
+                    var nonWalls = _.indexBy(_.filter(structures, function (s) { return s.structureType != STRUCTURE_WALL && s.structureType != STRUCTURE_RAMPART; }), function (x) { return x.id; });
+                    var walls = _.indexBy(_.filter(structures, function (s) { return s.structureType == STRUCTURE_WALL || s.structureType == STRUCTURE_RAMPART; }), function (x) { return x.id; });
+                    this.memory.repairStructures = { time: Game.time, structures: nonWalls };
+                    this.memory.repairWalls = { time: Game.time, structures: walls };
                 }
-                else
-                    this.memory.repairStructures = { time: Game.time, structures: [] };
             }
-            return this.memory.repairStructures.structures;
+            if (this.memory.repairStructures)
+                return _.any(this.memory.repairStructures.structures) ? this.memory.repairStructures.structures : this.memory.repairWalls.structures;
+            else
+                return {};
         },
         enumerable: true,
         configurable: true
     });
     Object.defineProperty(MyRoom.prototype, "emergencyRepairStructures", {
-        //private _emergencyRepairs: { time: number, structures: Structure[] };
         get: function () {
-            if (this.memory.emergencyRepairStructures == null || this.repairStructures == null || this.memory.emergencyRepairStructures.time < this.memory.repairStructures.time) {
+            this.repairStructures;
+            if (this._emergencyRepairStructures == null || this._emergencyRepairStructures.time + 10 < Game.time) {
                 var structures = _.filter(this.repairStructures, RepairManager.emergencyTargetDelegate);
-                this.memory.emergencyRepairStructures = { time: Game.time, structures: structures };
+                this._emergencyRepairStructures = { time: Game.time, structures: structures };
             }
-            return this.memory.emergencyRepairStructures.structures;
+            return this._emergencyRepairStructures.structures;
         },
         enumerable: true,
         configurable: true
@@ -6056,20 +6451,6 @@ var MyRoom = (function () {
         enumerable: true,
         configurable: true
     });
-    Object.defineProperty(MyRoom.prototype, "exits", {
-        get: function () {
-            if (this._exits == null) {
-                this._exits = {};
-                var exits = Game.map.describeExits(this.name);
-                if (exits != null)
-                    for (var exitDirection in exits)
-                        this._exits[exitDirection] = exits[exitDirection];
-            }
-            return this._exits;
-        },
-        enumerable: true,
-        configurable: true
-    });
     Object.defineProperty(MyRoom.prototype, "creepAvoidanceMatrix", {
         get: function () {
             if (this.travelMatrix === false)
@@ -6097,9 +6478,6 @@ var MyRoom = (function () {
                 else if (this.room) {
                     this._travelMatrix = { time: Game.time, matrix: this.createTravelMatrix() };
                     this.memory.travelMatrix = { time: this._travelMatrix.time, matrix: this._travelMatrix.matrix.serialize() };
-                    this.memory.compressedTravelMatrix = {
-                        time: Game.time, matrix: MyCostMatrix.compress(this._travelMatrix.matrix)
-                    };
                 }
                 else
                     return new PathFinder.CostMatrix();
@@ -6110,8 +6488,10 @@ var MyRoom = (function () {
         configurable: true
     });
     MyRoom.prototype.recreateTravelMatrix = function () {
+        if (!this.room)
+            return;
         this.memory.travelMatrix = { time: Game.time, matrix: this.createTravelMatrix().serialize() };
-        this.memory.compressedTravelMatrix = { time: Game.time, matrix: MyCostMatrix.compress(this._travelMatrix.matrix) };
+        //this.memory.compressedTravelMatrix = { time: Game.time, matrix: MyCostMatrix.compress(this._travelMatrix.matrix) };
         this._travelMatrix = { time: Game.time, matrix: this.createTravelMatrix() };
     };
     MyRoom.prototype.createTravelMatrix = function () {
@@ -6129,7 +6509,7 @@ var MyRoom = (function () {
             for (var x = -5; x <= 5; x++) {
                 for (var y = -5; y <= 5; y++) {
                     if (Game.map.getTerrainAt(pos.x + x, pos.y + y, _this.name) != 'wall')
-                        costMatrix.set(pos.x + x, pos.y + y, 200 - Math.abs(x * y));
+                        costMatrix.set(pos.x + x, pos.y + y, 100);
                 }
             }
         });
@@ -6137,12 +6517,13 @@ var MyRoom = (function () {
             filter: function (s) { return (OBSTACLE_OBJECT_TYPES.indexOf(s.structureType) >= 0) || s.structureType == STRUCTURE_PORTAL || (s.structureType == STRUCTURE_RAMPART && s.isPublic == false && s.my == false); }
         }), function (structure) {
             costMatrix.set(structure.pos.x, structure.pos.y, 255);
-            for (var x = -1; x <= 1; x++) {
-                for (var y = -1; y <= 1; y++) {
-                    if (Game.map.getTerrainAt(structure.pos.x + x, structure.pos.y + y, _this.name) != 'wall')
-                        costMatrix.set(structure.pos.x + x, structure.pos.y + y, costMatrix.get(structure.pos.x + x, structure.pos.y + y) + 5);
+            if (structure.structureType != STRUCTURE_WALL && structure.structureType != STRUCTURE_RAMPART)
+                for (var x = -1; x <= 1; x++) {
+                    for (var y = -1; y <= 1; y++) {
+                        if (Game.map.getTerrainAt(structure.pos.x + x, structure.pos.y + y, _this.name) != 'wall')
+                            costMatrix.set(structure.pos.x + x, structure.pos.y + y, costMatrix.get(structure.pos.x + x, structure.pos.y + y) + 5);
+                    }
                 }
-            }
         });
         _.forEach(this.room.find(FIND_CONSTRUCTION_SITES, {
             filter: function (s) { return OBSTACLE_OBJECT_TYPES.indexOf(s.structureType) >= 0 || s.structureType == STRUCTURE_CONTROLLER; }
@@ -6197,7 +6578,7 @@ var MyRoom = (function () {
     MyRoom.prototype.refresh = function (force) {
         if (force === void 0) { force = false; }
         var room = this.room;
-        if (this.memory.lastScanTime + 100 < Game.time || force) {
+        if (this.memory.lastScanTime == null || this.memory.lastScanTime + 100 < Game.time || force) {
             if (this.memory.myMineral == null && room) {
                 var mineral = room.find(FIND_MINERALS)[0];
                 if (mineral)
@@ -6207,13 +6588,14 @@ var MyRoom = (function () {
                 this.myMineral = new MyMineral(this, this.memory.myMineral.id);
             if (room == null)
                 return;
-            this.memory.foreignOwner = room.controller != null && room.controller.owner != null && room.controller.owner.username != Colony.myName;
+            this.memory.foreignOwner = room.controller != null && room.controller.owner != null && !room.controller.my;
             this.memory.foreignReserver = room.controller != null && room.controller.reservation != null && room.controller.reservation.username != Colony.myName;
             this.memory.lastScanTime = Game.time;
             this.memory.hasController = this.room.controller != null;
             if (this.room.controller)
                 this.memory.controllerPosition = this.room.controller.pos;
             this.mySources;
+            this.travelMatrix;
         }
     };
     return MyRoom;
@@ -6225,6 +6607,7 @@ var Scout = (function (_super) {
         _super.call(this, creep);
         this.memory = creep.memory;
         this.memory.autoFlee = true;
+        this.myTick = profiler.registerFN(this.myTick, 'Scout.tick');
     }
     Scout.prototype.myTick = function () {
         try {
@@ -6337,10 +6720,9 @@ var ArmyManager = (function () {
 /// <reference path="../components/rooms/myRoom.ts" />
 /// <reference path="../components/creeps/scout/scout.ts" />
 /// <reference path="./military/armyManager.ts" />
-/// <reference path="../tracer.ts" />
 var Colony;
 (function (Colony) {
-    Colony.tracers = [];
+    Colony.profiler = require('screeps-profiler');
     Colony.mainRooms = {};
     var rooms = {};
     Colony.claimingManagers = {};
@@ -6363,6 +6745,16 @@ var Colony;
         }
     }
     Colony.getRoom = getRoom;
+    var _creepsByMainRoomName;
+    function getCreeps(mainRoomName) {
+        if (_creepsByMainRoomName == null || _creepsByMainRoomName.time < Game.time)
+            _creepsByMainRoomName = { time: Game.time, creeps: _.groupBy(_.filter(Game.creeps, function (c) { return !c.memory.handledByColony; }), function (c) { return c.memory.mainRoomName; }) };
+        if (_creepsByMainRoomName.creeps[mainRoomName])
+            return _creepsByMainRoomName.creeps[mainRoomName];
+        else
+            return [];
+    }
+    Colony.getCreeps = getCreeps;
     var allRoomsLoaded = false;
     function getAllRooms() {
         if (!allRoomsLoaded) {
@@ -6396,8 +6788,9 @@ var Colony;
     function shouldSendScout(roomName) {
         var myRoom = getRoom(roomName);
         var result = (myRoom != null && myRoom.memory.lastScanTime + 500 < Game.time)
-            && (!Game.map.isRoomProtected(roomName)
-                && (myRoom == null || !myRoom.mainRoom)
+            && (
+            //!Game.map.isRoomProtected(roomName)
+            (myRoom == null || !myRoom.mainRoom)
                 && !(_.any(forbidden, function (x) { return x == roomName; }))
                 && (myRoom == null
                     || !myRoom.requiresDefense
@@ -6428,22 +6821,28 @@ var Colony;
     Colony.spawnCreep = spawnCreep;
     function createScouts() {
         var scouts = _.filter(Game.creeps, function (c) { return c.memory.role == 'scout' && c.memory.handledByColony == true && c.memory.targetPosition != null; });
-        var roomNames = _.map(_.uniq(_.filter(Colony.memory.rooms, function (x) { return x.mainRoomName != null && !Colony.mainRooms[x.mainRoomName].spawnManager.isBusy && !Game.map.isRoomProtected(x.name); })), function (x) { return x.name; });
+        var roomNames = _.map(_.uniq(_.filter(Colony.memory.rooms, function (x) { return x.mainRoomName != null && !Colony.mainRooms[x.mainRoomName].spawnManager.isBusy; } /*&& !Game.map.isRoomProtected(x.name)*/ /*&& !Game.map.isRoomProtected(x.name)*/)), function (x) { return x.name; });
         for (var _i = 0, roomNames_1 = roomNames; _i < roomNames_1.length; _i++) {
-            var name_1 = roomNames_1[_i];
-            var myRoom = getRoom(name_1);
-            var exits = myRoom.exits;
-            if (Memory['exits'] == null)
-                Memory['exits'] = {};
-            var _loop_10 = function(exitDirection) {
-                Memory['exits'][myRoom.name] = exits;
-                var targetRoomName = exits[exitDirection];
-                if (_.filter(scouts, function (c) { return c.memory.targetPosition.roomName == targetRoomName; }).length == 0 && shouldSendScout(targetRoomName)) {
-                    myRoom.mainRoom.spawnManager.addToQueue(['move'], { handledByColony: true, role: 'scout', mainRoomName: null, targetPosition: { x: 25, y: 25, roomName: targetRoomName } });
+            var roomName = roomNames_1[_i];
+            var myRoom = Colony.getRoom(roomName);
+            if (Colony.memory.exits == null)
+                Colony.memory.exits = {};
+            if (!Colony.memory.exits[roomName]) {
+                Colony.memory.exits[roomName] = {};
+                for (var direction in Game.map.describeExits(roomName))
+                    Colony.memory.exits[roomName][direction] = Game.map.describeExits(roomName)[direction];
+            }
+            var _loop_7 = function(direction) {
+                var exit = Colony.memory.exits[roomName][direction];
+                if (Colony.memory.rooms[exit].mainRoomName)
+                    return { value: void 0 };
+                if (_.filter(scouts, function (c) { return c.memory.targetPosition.roomName == exit; }).length == 0 && shouldSendScout(exit)) {
+                    myRoom.mainRoom.spawnManager.addToQueue(['move'], { handledByColony: true, role: 'scout', mainRoomName: null, targetPosition: { x: 25, y: 25, roomName: exit } });
                 }
             };
-            for (var exitDirection in exits) {
-                _loop_10(exitDirection);
+            for (var direction in Colony.memory.exits[roomName]) {
+                var state_7 = _loop_7(direction);
+                if (typeof state_7 === "object") return state_7.value;
             }
         }
     }
@@ -6452,6 +6851,12 @@ var Colony;
     }
     Colony.requestCreep = requestCreep;
     function initialize(memory) {
+        Colony.createScouts = Colony.profiler.registerFN(Colony.createScouts, 'Colony.createScouts');
+        Colony.getRoom = Colony.profiler.registerFN(Colony.getRoom, 'Colony.getRoom');
+        Colony.requestCreep = Colony.profiler.registerFN(Colony.requestCreep, 'Colony.requestCreep');
+        Colony.spawnCreep = Colony.profiler.registerFN(Colony.spawnCreep, 'Colony.spawnCreep');
+        Colony.tick = Colony.profiler.registerFN(Colony.tick, 'Colony.tick');
+        Colony.calculateDistances = Colony.profiler.registerFN(Colony.calculateDistances, 'Colony.calculateDistances');
         Colony.memory = Memory['colony'];
         Colony.myName = _.map(Game.spawns, function (s) { return s; })[0].owner.username;
         if (memory.rooms == null)
@@ -6483,40 +6888,42 @@ var Colony;
     }
     Colony.initialize = initialize;
     function calculateDistances(myRoom) {
-        if (myRoom == null)
-            return;
-        for (var mainIdx in Colony.mainRooms) {
-            var mainRoom = Colony.mainRooms[mainIdx];
-            var routeResult = Game.map.findRoute(myRoom.name, mainRoom.name, {
-                routeCallback: function (roomName, fromRoomName) {
-                    var myRoom = getRoom(roomName);
-                    if (myRoom == null)
-                        return 2;
-                    else if (myRoom.memory.foreignReserver)
-                        return 2;
-                    else if (myRoom.memory.foreignOwner)
-                        return Infinity;
-                    else
-                        return 1;
-                }
-            });
-            if (routeResult === ERR_NO_PATH)
-                var distance = 9999;
-            else
-                var distance = routeResult.length;
-            if (myRoom.memory.mainRoomDistanceDescriptions == null)
-                myRoom.memory.mainRoomDistanceDescriptions = {};
-            myRoom.memory.mainRoomDistanceDescriptions[mainRoom.name] = { roomName: mainRoom.name, distance: distance };
+        if (myRoom == null) {
+            if (Game.time % 10 == 0 && Game.cpu.bucket > 2000) {
+                var roomNames = _.map(Colony.memory.rooms, function (x) { return x.name; });
+                var idx = ~~((Game.time % (roomNames.length * 10)) / 10);
+                var myRoom_1 = getRoom(roomNames[idx]);
+                calculateDistances(myRoom_1);
+            }
         }
-        var mainRoomCandidates = _.sortBy(_.map(_.filter(myRoom.memory.mainRoomDistanceDescriptions, function (x) { return x.distance <= 1; }), function (y) { return { distance: y.distance, mainRoom: Colony.mainRooms[y.roomName] }; }), function (z) { return [z.distance.toString(), (10 - z.mainRoom.room.controller.level).toString()].join('_'); });
-        //if (mainRoomCandidates.length > 0 && !myRoom.memory.foreignOwner && (mainRoomCandidates[0].distance <= 1 || mainRoomCandidates[0].mainRoom.room.controller.level >= 6)) {
-        //    myRoom.mainRoom = mainRoomCandidates[0].mainRoom;
-        //    myRoom.memory.mainRoomName = mainRoomCandidates[0].mainRoom.name;
-        //}
-        //else {
-        //    myRoom.mainRoom = null;
-        //}
+        else {
+            for (var mainIdx in Colony.mainRooms) {
+                var mainRoom = Colony.mainRooms[mainIdx];
+                var routeResult = Game.map.findRoute(myRoom.name, mainRoom.name, {
+                    routeCallback: function (roomName, fromRoomName) {
+                        var myRoom = getRoom(roomName);
+                        if (myRoom == null)
+                            return 2;
+                        else if (myRoom.memory.foreignReserver)
+                            return 2;
+                        else if (myRoom.memory.foreignOwner)
+                            return Infinity;
+                        else
+                            return 1;
+                    }
+                });
+                if (routeResult === ERR_NO_PATH)
+                    var distance = 9999;
+                else
+                    var distance = routeResult.length;
+                if (myRoom.memory.mainRoomDistanceDescriptions == null)
+                    myRoom.memory.mainRoomDistanceDescriptions = {};
+                myRoom.memory.mainRoomDistanceDescriptions[mainRoom.name] = { roomName: mainRoom.name, distance: distance };
+            }
+            var mainRoomCandidates = _.sortBy(_.map(_.filter(myRoom.memory.mainRoomDistanceDescriptions, function (x) { return x.distance <= 1; }), function (y) { return { distance: y.distance, mainRoom: Colony.mainRooms[y.roomName] }; }), function (z) { return [z.distance.toString(), (10 - z.mainRoom.room.controller.level).toString()].join('_'); });
+        }
     }
+    Colony.calculateDistances = calculateDistances;
     function handleClaimingManagers() {
         if (Memory['trace'])
             var startCpu = Game.cpu.getUsed();
@@ -6546,66 +6953,18 @@ var Colony;
         Colony.memory = Memory['colony'];
         if (Colony.memory.traceThreshold == null)
             Colony.memory.traceThreshold = 2;
-        var startCpu;
-        var endCpu;
-        if (Memory['verbose'])
-            console.log('ColonyHandler.tick');
-        if (Memory['trace'])
-            startCpu = Game.cpu.getUsed();
-        if (Game.time % 10 == 0 && Game.cpu.bucket > 2000) {
-            var roomNames = _.map(Colony.memory.rooms, function (x) { return x.name; });
-            var idx = ~~((Game.time % (roomNames.length * 10)) / 10);
-            var myRoom = getRoom(roomNames[idx]);
-            calculateDistances(myRoom);
-        }
-        if (Memory['trace']) {
-            endCpu = Game.cpu.getUsed();
-            if ((endCpu - startCpu) > Colony.memory.traceThreshold)
-                console.log('Colony.Calculate distances to MainRooms: ' + (endCpu - startCpu).toFixed(2));
-        }
-        //if (Memory['trace'])
-        //    startCpu = Game.cpu.getUsed();
-        //for (let roomName in Memory.rooms) {
-        //    getRoom(roomName);
-        //}
-        //if (Memory['trace']) {
-        //    endCpu = Game.cpu.getUsed();
-        //    if ((endCpu - startCpu) > Colony.memory.traceThreshold)
-        //        console.log('Colony: Query all rooms ' + (endCpu - startCpu).toFixed(2));
-        //}
+        calculateDistances();
         handleClaimingManagers();
-        if (Game.time % 100 == 0) {
-            if (Memory['trace'])
-                startCpu = Game.cpu.getUsed();
-            createScouts();
-            if (Memory['trace']) {
-                endCpu = Game.cpu.getUsed();
-                if ((endCpu - startCpu) > Colony.memory.traceThreshold)
-                    console.log('Colony: Create Scouts ' + (endCpu - startCpu).toFixed(2));
-            }
-        }
-        for (var roomName in Colony.mainRooms) {
-            if (Memory['trace'])
-                startCpu = Game.cpu.getUsed();
-            Colony.mainRooms[roomName].tick();
-            if (Memory['trace']) {
-                endCpu = Game.cpu.getUsed();
-                if ((endCpu - startCpu) > Colony.memory.traceThreshold)
-                    console.log('Colony: MainRoom [' + Colony.mainRooms[roomName].name + '.tick() ' + (endCpu - startCpu).toFixed(2));
-            }
-        }
+        createScouts();
+        _.forEach(_.sortByOrder(_.values(Colony.mainRooms), [function (mainRoom) { return _.any(mainRoom.connectedRooms, function (myRoom) { return _.any(myRoom.mySources, function (s) { return s.hasKeeper; }); }) ? 0 : 1; }, function (mainRoom) { return mainRoom.room.controller.level; }], ['asc', 'desc']), function (mainRoom) {
+            if (Game.cpu.bucket - Game.cpu.getUsed() > 200)
+                mainRoom.tick();
+        });
         var creeps = _.filter(Game.creeps, function (c) { return c.memory.handledByColony; });
-        if (Memory['trace'])
-            startCpu = Game.cpu.getUsed();
         for (var idx in creeps) {
             var creep = creeps[idx];
             if (creep.memory.role == 'scout')
                 new Scout(creep).tick();
-        }
-        if (Memory['trace']) {
-            endCpu = Game.cpu.getUsed();
-            if ((endCpu - startCpu) > Colony.memory.traceThreshold)
-                console.log('Colony: Handle scouts ' + (endCpu - startCpu).toFixed(2));
         }
         if ((Game.time % 2000 == 0) && Game.cpu.bucket > 9000 || Memory['forceReassignment'] == true || Memory['forceReassignment'] == 'true') {
             new RoomAssignmentHandler().assignRooms();
@@ -6695,9 +7054,9 @@ var GameManager;
         console.log('Booting: ' + (endCpu.toFixed(2)));
         console.log();
         console.log('Boot tracers :');
-        for (var idx in Colony.tracers) {
-            Colony.tracers[idx].print();
-        }
+        //for (let idx in Colony.tracers) {
+        //    Colony.tracers[idx].print();
+        //}
     }
     GameManager.globalBootstrap = globalBootstrap;
     function loop() {
@@ -6707,41 +7066,50 @@ var GameManager;
         //if (a == 1)
         //    return;
         var startCpu = Game.cpu.getUsed();
-        for (var name in Memory.creeps) {
-            if (!Game.creeps[name]) {
-                delete Memory.creeps[name];
+        if (Game.time % 100 == 0)
+            for (var name in Memory.creeps) {
+                if (!Game.creeps[name]) {
+                    delete Memory.creeps[name];
+                }
             }
-        }
         if (Memory['verbose'])
             console.log('MainLoop');
         Colony.tick();
         console.log();
         console.log('Loop tracers :');
-        for (var idx in Colony.tracers) {
-            Colony.tracers[idx].print();
-            Colony.tracers[idx].reset();
-        }
+        //for (let idx in Colony.tracers) {
+        //    Colony.tracers[idx].print();
+        //    Colony.tracers[idx].reset();
+        //}
         var endCpu = Game.cpu.getUsed();
         console.log('Time: ' + Game.time + ' Measured CPU: ' + (endCpu - startCpu).toFixed(2) + ', CPU: ' + endCpu.toFixed(2) + ' Bucket: ' + Game.cpu.bucket);
         if (Memory['cpuStat'] == null)
             Memory['cpuStat'] = [];
-        Memory['cpuStat'].push(endCpu);
-        if (Memory['cpuStat'].length > 100)
-            Memory['cpuStat'].shift();
-        console.log('100Avg: ' + (_.sum(Memory['cpuStat']) / Memory['cpuStat'].length).toFixed(2) + ' CPU');
+        //Memory['cpuStat'].push(endCpu);
+        //if (Memory['cpuStat'].length > 100)
+        //    (<Array<number>>Memory['cpuStat']).shift();
+        //console.log('100Avg: ' + (_.sum(Memory['cpuStat']) / Memory['cpuStat'].length).toFixed(2) + ' CPU');
     }
     GameManager.loop = loop;
 })(GameManager || (GameManager = {}));
 /// <reference path="../game-manager.ts" />
+var profiler = require('screeps-profiler');
+//Object.prototype.getName = function () {
+//    var funcNameRegex = /function (.{1,})\(/;
+//    var results = (funcNameRegex).exec((this).constructor.toString());
+//    return (results && results.length > 1) ? results[1] : "";
+//};
 /*
 * Singleton object. Since GameManager doesn't need multiple instances we can use it as singleton object.
 */
 // Any modules that you use that modify the game's prototypes should be require'd 
 // before you require the profiler. 
-//var profiler = require('screeps-profiler');
 // This line monkey patches the global prototypes. 
-//profiler.enable();
+if (Memory['profilerActive'] == true)
+    profiler.enable();
 GameManager.globalBootstrap();
+function deleteNulls() {
+}
 // This doesn't look really nice, but Screeps' system expects this method in main.js to run the application.
 // If we have this line, we can make sure that globals bootstrap and game loop work.
 // http://support.screeps.com/hc/en-us/articles/204825672-New-main-loop-architecture
@@ -6750,8 +7118,17 @@ module.exports.loop = function () {
         console.log('CPU:' + Game.cpu.getUsed() + ' Bucket: ' + Game.cpu.bucket);
         return;
     }
-    //profiler.wrap(function () {
-    console.log();
-    GameManager.loop();
-    //});
+    //console.log('Before parse: CPU:' + Game.cpu.getUsed() + ' Bucket: ' + Game.cpu.bucket);
+    //var myMemory = JSON.parse((<any>RawMemory).get());
+    //console.log('After parse: CPU:' + Game.cpu.getUsed() + ' Bucket: ' + Game.cpu.bucket);
+    if (Memory['profilerActive'] == true) {
+        profiler.wrap(function () {
+            console.log();
+            GameManager.loop();
+        });
+    }
+    else {
+        console.log();
+        GameManager.loop();
+    }
 };

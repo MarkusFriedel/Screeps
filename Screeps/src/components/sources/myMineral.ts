@@ -4,8 +4,7 @@
         return this.accessMemory();
     }
 
-    public static staticTracer: Tracer;
-    public tracer: Tracer;
+    
 
     private accessMemory() {
         if (this.myRoom.memory.myMineral == null) {
@@ -14,13 +13,9 @@
                 id: this.id,
                 amount: mineral.mineralAmount,
                 refreshTime: mineral.ticksToRegeneration ? mineral.ticksToRegeneration + Game.time : null,
-                keeper: null,
-                pathLengthToTerminal: null,
                 pos: mineral.pos,
-                terminalRoadBuiltTo: null,
                 resource: mineral.mineralType,
-                hasExtractor: null,
-                harvestingSpots:null
+
             };
         }
 
@@ -28,12 +23,7 @@
     }
 
     constructor(public myRoom: MyRoom, public id: string) {
-        if (MyMineral.staticTracer == null) {
-            MyMineral.staticTracer = new Tracer('MyMineral');
-            Colony.tracers.push(MyMineral.staticTracer);
-        }
-        //this.tracer = new Tracer('MySource ' + id);
-        this.tracer = MyMineral.staticTracer;
+        
     }
 
     public get room() {
@@ -41,9 +31,7 @@
     }
 
     public get mineral() {
-        let trace = this.tracer.start('Property mineral');
         let mineral = Game.getObjectById<Mineral>(this.id);
-        trace.stop();
         return mineral;
     }
 
@@ -52,6 +40,33 @@
         if (this._pos == null || this._pos.time < Game.time)
             this._pos = { time: Game.time, pos: RoomPos.fromObj(this.memory.pos) }
         return this._pos.pos;
+    }
+
+    public get usable() {
+        return !this.hasKeeper || this.maxHarvestingSpots > 1 && _.size(this.myRoom.mainRoom.managers.labManager.myLabs) > 1;
+    }
+
+    private _keeper: { time: number, keeper: KeeperInterface };
+    public get keeper() {
+        if (this.room && (this._keeper == null || this._keeper.time < Game.time)) {
+            if (this.memory.lairId)
+                var lair = Game.getObjectById<StructureKeeperLair>(this.memory.lairId);
+            if (!lair) {
+                lair = this.mineral.pos.findInRange<StructureKeeperLair>(FIND_HOSTILE_STRUCTURES, 5, { filter: (s: Structure) => s.structureType == STRUCTURE_KEEPER_LAIR })[0];
+                this.memory.lairId = lair.id;
+            }
+            let creepInfo = _.filter(this.myRoom.hostileScan.keepers, k => k.pos.inRangeTo(this.pos, 5))[0];
+            this._keeper = {
+                time: Game.time,
+                keeper: {
+                    lair: lair,
+                    creep: creepInfo ? creepInfo.creep : null
+                }
+            };
+        }
+        if (this._keeper)
+            return this._keeper.keeper;
+        else return null;
     }
 
     public get hasKeeper(): boolean {
@@ -88,7 +103,6 @@
 
     _pathLengthToTerminal: { time: number, length: number };
     public get pathLengthToDropOff() {
-        let trace = this.tracer.start('Property pathLengthToMainContainer');
         if ((this._pathLengthToTerminal == null || this._pathLengthToTerminal.time + 500 < Game.time) && this.mineral)
             if (this.memory.pathLengthToTerminal && this.memory.pathLengthToTerminal.time + 500 < Game.time) {
                 this._pathLengthToTerminal = this.memory.pathLengthToTerminal;
@@ -100,7 +114,6 @@
                 };
                 this.memory.pathLengthToTerminal = this._pathLengthToTerminal;
             }
-        trace.stop();
 
         if (this._pathLengthToTerminal == null)
             return 50;

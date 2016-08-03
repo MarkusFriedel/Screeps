@@ -2,7 +2,7 @@
 /// <reference path="../creeps/towerFiller/towerFiller.ts" />
 /// <reference path="./manager.ts" />
 
-class TowerManager extends Manager implements TowerManagerInterface {
+class TowerManager implements TowerManagerInterface {
     public get memory(): TowerManagerMemory {
         return this.accessMemory();
     }
@@ -25,21 +25,14 @@ class TowerManager extends Manager implements TowerManagerInterface {
         return this._creeps.creeps;
     }
 
-    private static _staticTracer: Tracer;
-    public static get staticTracer(): Tracer {
-        if (TowerManager._staticTracer == null) {
-            TowerManager._staticTracer = new Tracer('TowerManager');
-            Colony.tracers.push(TowerManager._staticTracer);
-        }
-        return TowerManager._staticTracer;
-    }
+   
 
     constructor(public mainRoom: MainRoom) {
-        super(TowerManager.staticTracer);
+        this.preTick = profiler.registerFN(this.preTick, 'TowerManager.preTick');
 
     }
 
-    public _preTick() {
+    public preTick() {
         if (this.mainRoom.spawnManager.isBusy)
             return;
         if ((this.mainRoom.towers.length == 0 || this.mainRoom.mainContainer == null) || (_.all(this.mainRoom.towers, x => x.energy >= 0.5 * x.energyCapacity) && _.size(this.mainRoom.myRoom.hostileScan.creeps)==0))
@@ -49,7 +42,7 @@ class TowerManager extends Manager implements TowerManagerInterface {
         }
     }
 
-    public _tick() {
+    public tick() {
         this.creeps.forEach((c) => new TowerFiller(c, this.mainRoom).tick());
     }
 }

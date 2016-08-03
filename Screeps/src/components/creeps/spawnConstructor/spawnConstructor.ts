@@ -5,6 +5,7 @@ class SpawnConstructor extends MyCreep {
 
     constructor(creep: Creep) {
         super(creep);
+        this.myTick = profiler.registerFN(this.myTick, 'SpawnConstructor.tick');
     }
 
     myTick() {

@@ -3,14 +3,14 @@
     export function getDefinition(maxEnergy: number) {
         let body = new Body();
 
-        let remainingEnergy = Math.min(maxEnergy, 1500);
+        let remainingEnergy = Math.min(maxEnergy, 700);
 
-        var basicModulesCount = ~~(remainingEnergy / 330); //work,carry,move
+        var basicModulesCount = ~~(remainingEnergy / 140); //work,carry,move
         body.attack = basicModulesCount;
-        body.ranged_attack = basicModulesCount;
+        body.tough = basicModulesCount;
         body.move = 2 * basicModulesCount;
 
-        remainingEnergy = remainingEnergy - 330 * basicModulesCount;
+        remainingEnergy = remainingEnergy - 140 * basicModulesCount;
 
         while (remainingEnergy >= (BODYPART_COST.attack + BODYPART_COST.move) && body.getBody().length <= 48) {
             body.attack++; body.move++;

@@ -1,5 +1,4 @@
-﻿/// <reference path="../../tracer.ts" />
-/// <reference path="../../memoryObject.ts" />
+﻿/// <reference path="../../memoryObject.ts" />
 /// <reference path="../../helpers.ts" />
 
 class MySource implements MySourceInterface {
@@ -8,10 +7,10 @@ class MySource implements MySourceInterface {
         return this.accessMemory();
     }
 
-    public static staticTracer: Tracer;
+
 
     private memoryInitialized = false;
-    public tracer: Tracer;
+
 
     private accessMemory() {
         if (this.myRoom.memory.sources == null)
@@ -20,13 +19,14 @@ class MySource implements MySourceInterface {
             this.myRoom.memory.sources[this.id] = {
                 id: this.id,
                 pos: this.source.pos,
-                capacity: null,
-                harvestingSpots: null,
-                keeper: null,
-                pathLengthToMainContainer:null,
-                roadBuiltToRoom: null,
-                linkId:null
-                
+                capacity: undefined,
+                harvestingSpots: undefined,
+                keeper: undefined,
+                pathLengthToMainContainer: undefined,
+                roadBuiltToRoom: undefined,
+                linkId: undefined,
+                containerId: undefined,
+                lairId: undefined
             }
         }
         return this.myRoom.memory.sources[this.id];
@@ -51,6 +51,30 @@ class MySource implements MySourceInterface {
             this._source = { time: Game.time, source: Game.getObjectById<Source>(this.id) }
         //trace.stop();
         return this._source.source;
+    }
+
+    private _container: { time: number, container: StructureContainer };
+    public get container() {
+        if (this.link || this.hasKeeper)
+            return null;
+        if ((this._container == null || this._container.time < Game.time) && this.room) {
+            if (this.memory.containerId) {
+                let container = Game.getObjectById<StructureContainer>(this.memory.containerId);
+                if (container == null)
+                    this.memory.containerId = null;
+                this._container = { time: Game.time, container: container };
+            }
+            if (this.memory.containerId == null) {
+                let container = this.source.pos.findInRange<StructureContainer>(FIND_STRUCTURES, 1, { filter: (s: Structure) => s.structureType == STRUCTURE_CONTAINER })[0];
+                if (container) {
+                    this.memory.containerId = container.id;
+                    this._container = { time: Game.time, container: container };
+                }
+            }
+        }
+        if (this._container && this.room)
+            return this._container.container;
+        else return null;
     }
 
     //private _sourceDropOffContainer: { time: number, sourceDropOffContainer: { id: string, pos: RoomPosition } };
@@ -141,6 +165,29 @@ class MySource implements MySourceInterface {
         return !this.hasKeeper || this.maxHarvestingSpots > 1 && _.size(this.myRoom.mainRoom.managers.labManager.myLabs) > 1;
     }
 
+    private _keeper: { time: number, keeper: KeeperInterface };
+    public get keeper() {
+        if (this.room && (this._keeper == null || this._keeper.time < Game.time)) {
+            if (this.memory.lairId)
+                var lair = Game.getObjectById<StructureKeeperLair>(this.memory.lairId);
+            if (!lair) {
+                lair = this.source.pos.findInRange<StructureKeeperLair>(FIND_HOSTILE_STRUCTURES, 5, { filter: (s: Structure) => s.structureType == STRUCTURE_KEEPER_LAIR })[0];
+                this.memory.lairId = lair.id;
+            }
+            let creepInfo = _.filter(this.myRoom.hostileScan.keepers, k => k.pos.inRangeTo(this.pos, 5))[0];
+            this._keeper = {
+                time: Game.time,
+                keeper: {
+                    lair: lair,
+                    creep: creepInfo ? creepInfo.creep : null
+                }
+            };
+        }
+        if (this._keeper)
+            return this._keeper.keeper;
+        else return null;
+    }
+
     public get hasKeeper(): boolean {
         //let trace = this.tracer.start('Property keeper');
         if (this.memory.keeper != null || !this.room) {
@@ -166,7 +213,6 @@ class MySource implements MySourceInterface {
     }
     _pathLengthToMainContainer: { time: number, length: number };
     public get pathLengthToDropOff() {
-        let trace = this.tracer.start('Property pathLengthToMainContainer');
         if ((this._pathLengthToMainContainer == null || this._pathLengthToMainContainer.time + 500 < Game.time) && this.source)
             if (this.memory.pathLengthToMainContainer && this.memory.pathLengthToMainContainer.time + 500 < Game.time) {
                 this._pathLengthToMainContainer = this.memory.pathLengthToMainContainer;
@@ -178,7 +224,6 @@ class MySource implements MySourceInterface {
                 };
                 this.memory.pathLengthToMainContainer = this._pathLengthToMainContainer;
             }
-        trace.stop();
 
         if (this._pathLengthToMainContainer == null)
             return 50;
@@ -246,15 +291,11 @@ class MySource implements MySourceInterface {
     }
 
     constructor(public id: string, public myRoom: MyRoom) {
-        if (MySource.staticTracer == null) {
-            MySource.staticTracer = new Tracer('MySource');
-            Colony.tracers.push(MySource.staticTracer);
-        }
-        //this.tracer = new Tracer('MySource ' + id);
-        this.tracer = MySource.staticTracer;
 
 
-        this.accessMemory();
+
+        this.hasKeeper;
+        this.maxHarvestingSpots;
     }
 
     getHarvestingSpots(source) {

@@ -4,8 +4,21 @@ class KeeperBuster extends MyCreep {
 
     public get memory(): KeeperBusterMemory { return this.creep.memory; }
 
+    public get harvestingSitesToDefend() {
+        return _.filter(_.values<HarvestingSiteInterface>(this.myRoom.mySources).concat(this.myRoom.myMineral), s => s.usable && s.keeper);
+    }
+
+    public get keeperCreeps() {
+        return _.map(_.filter(this.harvestingSitesToDefend, s => s.keeper.creep), s => s.keeper.creep);
+    }
+
+    public get keeperLairs() {
+        return _.map(this.harvestingSitesToDefend, s => s.keeper.lair);
+    }
+
     constructor(public mainRoom: MainRoom, public creep: Creep) {
         super(creep);
+        this.myTick = profiler.registerFN(this.myTick, 'KeeperBuster.tick');
     }
 
     public myTick() {
@@ -19,17 +32,19 @@ class KeeperBuster extends MyCreep {
 
         if (this.memory.targetId != null) {
             var keeper = Game.getObjectById<Creep>(this.memory.targetId);
-            if (keeper == null || keeper.hits<=100)
+            if (keeper == null || keeper.hits <= 100) {
                 this.memory.targetId = null;
+                keeper = null;
+            }
         }
         if (keeper == null) {
-            let keepers = _.filter(this.myRoom.hostileScan.creeps, c => c.owner == 'Invader');
+            let keepers = _.map(_.filter(this.myRoom.hostileScan.creeps, c => c.owner == 'Invader'), c => c.creep);
             if (keepers.length == 0)
-                keepers = _.map(this.myRoom.hostileScan.keepers, x => x);
-            let keeperInfo = _.sortBy(keepers, x => this.creep.pos.findPathTo(x.pos).length)[0];
-            if (keeperInfo) {
-                keeper = keeperInfo.creep;
-                this.memory.targetId = keeperInfo.id;
+                keepers = _.filter(this.keeperCreeps, x => x.hits > 100);
+            keeper = _.sortBy(keepers, x => this.creep.pos.findPathTo(x.pos).length)[0];
+
+            if (keeper) {
+                this.memory.targetId = keeper.id;
             }
         }
         if (keeper) {
@@ -38,14 +53,13 @@ class KeeperBuster extends MyCreep {
         }
 
         else {
-            let keepers = _.map(this.myRoom.hostileScan.keepers, k => k.creep);
-            let keeperCreep = _.filter(keepers, k => k.ticksToLive > 200 && _.any(keepers, k2 => k2.ticksToLive > 200 && k2 != k && k.ticksToLive > k2.ticksToLive - 100 && k.ticksToLive < k2.ticksToLive + 100))[0];
+            let keeperCreep = _.filter(this.keeperCreeps, k => k.ticksToLive < this.creep.ticksToLive - 50 && _.any(this.keeperCreeps, k2 => k2.id != k.id && k2.ticksToLive >= k.ticksToLive && k2.ticksToLive < k.ticksToLive + 300))[0];
             if (keeperCreep) {
-                let closestByTime = _.sortBy(_.filter(keepers, k => k != keeperCreep), k => Math.abs(keeperCreep.ticksToLive - k.ticksToLive))[0];
+                let closestByTime = _.sortBy(_.filter(this.keeperCreeps, k => k.id != keeperCreep.id && keeperCreep.ticksToLive < k.ticksToLive), k => k.ticksToLive)[0];
                 if (!this.creep.pos.inRangeTo(keeperCreep.pos, 3))
                     this.creep.moveTo(keeperCreep);
                 this.creep.say('WAIT');
-                if (closestByTime.ticksToLive == 200)
+                if (closestByTime.ticksToLive == 300)
                     this.creep.rangedAttack(keeperCreep);
             }
 
@@ -54,15 +68,23 @@ class KeeperBuster extends MyCreep {
                 if (this.creep.rangedAttack(creep) == ERR_NOT_IN_RANGE)
                     this.creep.moveTo(creep);
             }
+
+
             else {
-                let nextKeeperLair = _.sortBy(this.myRoom.room.find<KeeperLair>(FIND_HOSTILE_STRUCTURES, {
-                    filter: (x: Structure) => x.structureType == STRUCTURE_KEEPER_LAIR
-                }), lair => lair.ticksToSpawn)[0];
-                if (nextKeeperLair && !this.creep.pos.inRangeTo(nextKeeperLair.pos, 3)) {
-                    this.creep.moveTo(nextKeeperLair);
+                let ticksUntilNextKeeperAttack = _.min(_.map(this.harvestingSitesToDefend, x => x.keeper.creep ? x.keeper.creep.ticksToLive + 300 : 0 + x.keeper.lair.ticksToSpawn));
+
+                if (ticksUntilNextKeeperAttack + 100 > this.creep.ticksToLive) {
+                    this.recycle();
+                }
+                else {
+                    let nextKeeperLair = _.sortBy(this.keeperLairs, lair => lair.ticksToSpawn)[0];
+                    if (nextKeeperLair && !this.creep.pos.inRangeTo(nextKeeperLair.pos, 4)) {
+                        this.creep.moveTo(nextKeeperLair);
+                    }
+                    //}
                 }
             }
-        }
 
+        }
     }
 }

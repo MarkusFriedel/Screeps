@@ -77,9 +77,16 @@
             body.push(WORK);
         for (let i = 0; i < this.heal; i++)
             body.push(HEAL);
-        for (let i = 0; i < this.carry; i++)
+
+        let combinedCarryMoveCount = Math.min(this.carry, this.move);
+        for (let i = 0; i < combinedCarryMoveCount; i++) {
             body.push(CARRY);
-        for (let i = 0; i < this.move; i++)
+            body.push(MOVE);
+        }
+
+        for (let i = 0; i < this.carry - combinedCarryMoveCount; i++)
+            body.push(CARRY);
+        for (let i = 0; i < this.move - combinedCarryMoveCount; i++)
             body.push(MOVE);
 
         return body;

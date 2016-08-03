@@ -2,7 +2,7 @@
 /// <reference path="../creeps/repairer/repairer.ts" />
 /// <reference path="./manager.ts" />
 
-class RepairManager extends Manager implements RepairManagerInterface {
+class RepairManager implements RepairManagerInterface {
 
     public get memory(): RepairManagerMemory {
         return this.accessMemory();
@@ -42,7 +42,7 @@ class RepairManager extends Manager implements RepairManagerInterface {
     }
 
     public static forceStopRepairDelegate(s: RepairStructure): boolean {
-        return s.hits >= s.hitsMax || s.hits>2000000;
+        return s.hits >= s.hitsMax || s.hits > 2000000;
         //return (s.structureType == STRUCTURE_WALL || s.structureType == STRUCTURE_RAMPART) && s.hits > 600000 || (s.hits >= s.hitsMax);
     }
 
@@ -61,40 +61,29 @@ class RepairManager extends Manager implements RepairManagerInterface {
 
     maxCreeps = 2;
 
-    private static _staticTracer: Tracer;
-    public static get staticTracer(): Tracer {
-        if (RepairManager._staticTracer == null) {
-            RepairManager._staticTracer = new Tracer('RepairManager');
-            Colony.tracers.push(RepairManager._staticTracer);
-        }
-        return RepairManager._staticTracer;
-    }
+   
 
     constructor(public mainRoom: MainRoom) {
-        super(RepairManager.staticTracer);
-
+        this.preTick = profiler.registerFN(this.preTick, 'RepairManager.preTick');
     }
 
-    public _preTick() {
+    public preTick(myRoom: MyRoomInterface) {
         if (this.mainRoom.spawnManager.isBusy || !this.mainRoom.mainContainer)
             return;
-        for (let idx in this.mainRoom.allRooms) {
-            let myRoom = this.mainRoom.allRooms[idx];
-
-            if (myRoom.name == myRoom.mainRoom.name || myRoom.room && _.filter(myRoom.repairStructures, s => RepairManager.targetDelegate(s)).length>0) {
+ 
+            if (myRoom.name == myRoom.mainRoom.name || myRoom.room && _.filter(myRoom.repairStructures, s => RepairManager.targetDelegate(s)).length > 0) {
 
                 let roomCreeps = _.filter(this.creeps, x => x.memory.roomName == myRoom.name);
                 if (roomCreeps.length < (myRoom.name == this.mainRoom.name ? Math.min(1, _.size(this.mainRoom.sources)) : 1)) {
-                    let definition = (myRoom.name == myRoom.mainRoom.name) ? RepairerDefinition.getDefinition(this.mainRoom.maxSpawnEnergy).getBody() : [WORK,WORK, CARRY, CARRY,CARRY,CARRY, MOVE, MOVE,MOVE];
+                    let definition = RepairerDefinition.getDefinition(this.mainRoom.maxSpawnEnergy).getBody();
 
                     this.mainRoom.spawnManager.addToQueue(definition, { role: 'repairer', roomName: myRoom.name, state: RepairerState.Refilling }, 1);
                 }
-            }
 
         }
     }
 
-    public _tick() {
+    public tick() {
         this.creeps.forEach((c) => new Repairer(c, this.mainRoom).tick());
     }
 }

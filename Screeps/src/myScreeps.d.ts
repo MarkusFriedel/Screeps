@@ -2,6 +2,10 @@
 
 declare var BODYPARTS_ALL: Array<string>;
 
+interface Object {
+    getName(): string;
+}
+
 interface IStructure {
     id: String;
     pos: Room;
@@ -34,6 +38,10 @@ interface ColonyMemory {
     boostPowers: { [power: string]: { bodyPart: string, resources: Array<{ resource: string, factor: number }> } };
     active: boolean;
     armyManager: ArmyManagerMemory;
+    exits: {
+        [roomName: string]: { [direction: string]: string }
+    };
+    creepIdx?: number;
 }
 
 interface ReactionManagerMemory {
@@ -49,23 +57,24 @@ interface TowerManagerMemory {
 
 interface MainRoomMemory {
     name: string;
-    mainPosition: RoomPositionMemory;
-    spawnManager: SpawnManagerMemory;
-    constructionManager: ConstructionManagerMemory;
-    repairManager: RepairManagerMemory;
-    upgradeManager: UpgradeManagerMemory;
-    spawnFillManager: SpawnFillManagerMemory;
-    energyHarvestingManager: EnergyHarvestingManagerMemory;
-    defenseManager: DefenseManagerMemory;
-    reservationManager: ReservationManagerMemory;
-    roadConstructionManager: RoadConstructionManagerMemory;
-    towerManager: TowerManagerMemory;
-    mainContainerId: { time: number, id: string };
-    labManager: LabManagerMemory;
-    terminalManager: TerminalManagerMemory;
-    extractorContainerId: { time: number, id: string };
-    myObserver: MyObserverMemory;
-    harvestingActive: boolean;
+    mainPosition?: RoomPositionMemory;
+    spawnManager?: SpawnManagerMemory;
+    constructionManager?: ConstructionManagerMemory;
+    repairManager?: RepairManagerMemory;
+    upgradeManager?: UpgradeManagerMemory;
+    spawnFillManager?: SpawnFillManagerMemory;
+    energyHarvestingManager?: EnergyHarvestingManagerMemory;
+    defenseManager?: DefenseManagerMemory;
+    reservationManager?: ReservationManagerMemory;
+    roadConstructionManager?: RoadConstructionManagerMemory;
+    sourceKeeperManager?: SourceKeeperManagerMemory;
+    towerManager?: TowerManagerMemory;
+    mainContainerId?: { time: number, id: string };
+    labManager?: LabManagerMemory;
+    terminalManager?: TerminalManagerMemory;
+    extractorContainerId?: { time: number, id: string };
+    myObserver?: MyObserverMemory;
+    harvestingActive?: boolean;
 
 }
 
@@ -79,31 +88,36 @@ interface LabManagerMemory {
     labs: { [id: string]: LabMemory };
 }
 
-interface MyMineralMemory {
+interface HarvestingSiteMemory {
     id: string;
     pos: RoomPositionMemory;
-    amount: number;
-    refreshTime: number;
-    keeper: boolean;
-    terminalRoadBuiltTo: string;
-    //containerId: { time: number, id: string };
-    pathLengthToTerminal: { time: number, length: number };
-    resource: string;
-    hasExtractor: { time: number, hasExtractor: boolean };
-    harvestingSpots: number;
+    keeper?: boolean;
+    lairId?: string;
+    harvestingSpots?: number;
+    roadBuiltToRoom?: string;
 }
 
-interface MySourceMemory {
-    id: string;
-    pos: RoomPositionMemory;
+interface MyMineralMemory extends HarvestingSiteMemory {
+    
+    amount: number;
+    refreshTime: number;
+    terminalRoadBuiltTo?: string;
+    //containerId: { time: number, id: string };
+    pathLengthToTerminal?: { time: number, length: number };
+    resource: string;
+    hasExtractor?: { time: number, hasExtractor: boolean };
+}
+
+interface MySourceMemory extends HarvestingSiteMemory {
+    
     capacity: number;
-    keeper: boolean;
-    harvestingSpots: number;
-    roadBuiltToRoom: string;
+    
+    
     //hasSourceDropOff: boolean;
     linkId: { time: number, id: string };
     //dropOffStructure: cachedProperty<{ id: string, pos: RoomPosition }>;
     //sourceDropOffContainer: cachedProperty<{ id: string, pos: RoomPosition }>;
+    containerId: string;
     pathLengthToMainContainer: { time: number, length: number };
 }
 
@@ -130,18 +144,19 @@ interface MyRoomMemory {
     containers: {
         [id: string]: MyContainerMemory;
     }
-    mainRoomName: string;
+    mainRoomName?: string;
     foreignOwner: boolean;
     foreignReserver: boolean;
     hostileScan: HostileScanMemory;
     mainRoomDistanceDescriptions: MainRoomDistanceDescriptions;
     hasController: boolean;
     controllerPosition: RoomPosition;
-    travelMatrix: { time: number, matrix: number[] };
-    compressedTravelMatrix: { time: number, matrix: CompressedCostMatrix };
-    myMineral: MyMineralMemory;
-    repairStructures: { time: number, structures: Array<RepairStructure> };
-    emergencyRepairStructures: { time: number, structures: Array<RepairStructure> };
+    travelMatrix?: { time: number, matrix: number[] };
+    compressedTravelMatrix?: { time: number, matrix: CompressedCostMatrix };
+    myMineral?: MyMineralMemory;
+    repairStructures?: { time: number, structures: { [id: string]: RepairStructure } };
+    repairWalls?: { time: number, structures: { [id: string]: RepairStructure } };
+    emergencyRepairStructures?: { time: number, structures: Array<RepairStructure> };
 }
 
 interface HostilesInformationMemory {
@@ -162,7 +177,9 @@ interface DefenseManagerMemory {
 
 interface EnergyHarvestingManagerMemory {
     debug: boolean,
-    verbose: boolean
+    verbose: boolean,
+    sleepUntil?: { [sourceId: string]: number, sleepUntil?: number };
+    creepCounts?: { [sourceId: string]:  {harvesters:number, carriers:number} };
 }
 
 interface RepairTarget {
@@ -189,6 +206,7 @@ interface SpawnManagerMemory {
     queue: any;
     debug: boolean;
     verbose: boolean;
+    sleepingUntil?: number;
 }
 
 interface UpgradeManagerMemory {
@@ -203,6 +221,15 @@ interface RoadConstructionManagerMemory {
     remainingPath: RoomPosition[];
 }
 
+interface PathMovement {
+    path: RoomPosition[];
+    ops: number;
+    target: {
+        pos: RoomPosition;
+        range: number;
+    };
+}
+
 interface CreepMemory {
     mainRoomName?: string;
     handledByColony?: boolean;
@@ -210,7 +237,9 @@ interface CreepMemory {
     path?: { path: RoomPosition[], ops: number };
     autoFlee?: boolean;
     fleeing?: boolean;
-    requiredBoosts?: { [compound: string]: { compound: string, amount: number } }
+    requiredBoosts?: { [compound: string]: { compound: string, amount: number } };
+    pathMovement?: PathMovement;
+    recycle?: { spawnId: string };
 }
 
 interface ScoutMemory extends CreepMemory {
@@ -273,6 +302,7 @@ interface RepairerMemory extends CreepMemory {
 interface ConstructorMemory extends CreepMemory {
     targetId: string;
     targetPosition: RoomPositionMemory;
+    fillupContainerId: string;
 }
 
 interface ReserverMemory extends CreepMemory {
@@ -345,7 +375,7 @@ interface InvasionManagerMemory {
     verbose: boolean;
 }
 
-interface MyResourceInterface {
+interface HarvestingSiteInterface {
     id: string;
     room: Room;
     hasKeeper: boolean;
@@ -353,23 +383,34 @@ interface MyResourceInterface {
     roadBuiltToRoom: string;
     pathLengthToDropOff: number;
     myRoom: MyRoomInterface;
+    keeper: KeeperInterface;
+    usable: boolean;
 }
 
-interface MyMineralInterface extends MyResourceInterface {
+interface MyMineralInterface extends HarvestingSiteInterface {
     mineral: Mineral;
     amount: number;
     refreshTime: number;
     hasExtractor: boolean;
     resource: string;
     maxHarvestingSpots: number;
+    
 }
 
-interface MySourceInterface extends MyResourceInterface {
+interface MySourceInterface extends HarvestingSiteInterface {
     source: Source;
     capacity: number;
     link: Link,
+    container: StructureContainer;
     maxHarvestingSpots: number;
     rate: number;
+    
+
+}
+
+interface KeeperInterface {
+    lair: StructureKeeperLair;
+    creep: Creep;
 }
 
 interface MyContainerInterface {
@@ -390,14 +431,13 @@ interface MyRoomInterface {
     canHarvest: boolean;
     refresh();
     closestMainRoom: MainRoomInterface;
-    exits: ExitDescription;
     hostileScan: HostileScanInterface;
     requiresDefense: boolean;
     hasController: boolean;
     controllerPosition: RoomPosition;
     travelMatrix: CostMatrix | boolean;
     resourceDrops: Resource[];
-    repairStructures: Array<RepairStructure>;
+    repairStructures: { [id: string]: RepairStructure };
     myMineral: MyMineralInterface;
     emergencyRepairStructures: Array<RepairStructure>;
     creepAvoidanceMatrix: CostMatrix | boolean;
@@ -691,8 +731,12 @@ interface KeeperBusterMemory extends CreepMemory {
     targetId: string;
 }
 
+interface SourceKeeperManagerMemory {
+    sleepUntil?: { [roomName: string]: number };
+}
+
 interface SourceKeeperManagerInterface {
-    preTick();
+    preTick(myRoom: MyRoomInterface);
     tick();
 }
 
@@ -755,4 +799,28 @@ interface ArmyWarriorMemory extends ArmyCreepMemory {
 
 interface ArmyDismantlerMemory extends ArmyCreepMemory {
 
+}
+
+declare const enum CarrierState {
+    Pickup = 1,
+    Delivery = 2
+}
+
+interface CarrierMemory extends CreepMemory {
+    sourceRoomName: string;
+    targetRoomName: string;
+    state: CarrierState;
+
+}
+
+interface LabCarrierMemory extends CreepMemory {
+    idleUntil: number;
+}
+
+interface TerminalFillerMemory extends CreepMemory {
+    idleUntil: number;
+}
+
+interface SpawnFillerMemory extends CreepMemory {
+    targetStructureId: string;
 }

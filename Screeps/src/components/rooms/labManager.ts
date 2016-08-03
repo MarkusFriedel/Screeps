@@ -3,7 +3,7 @@
 /// <reference path="../creeps/labCarrier/labCarrier.ts" />
 /// <reference path="./manager.ts" />
 
-class LabManager extends Manager implements LabManagerInterface {
+class LabManager implements LabManagerInterface {
 
     public get memory(): LabManagerMemory {
         return this.accessMemory();
@@ -52,7 +52,7 @@ class LabManager extends Manager implements LabManagerInterface {
     public get myLabs() {
         //let trace = this.tracer.start("Property mylabs");
         if (this._myLabs == null || this._myLabs.time + 500 < Game.time) {
-            let labs = this.mainRoom.room.find<StructureLab>(FIND_MY_STRUCTURES, { filter: (s: StructureLab) => s.structureType == STRUCTURE_LAB && s.isActive() });
+            let labs = this.mainRoom.room.find<StructureLab>(FIND_MY_STRUCTURES, { filter: (s: StructureLab) => s.structureType == STRUCTURE_LAB });
             this._myLabs = { time: Game.time, myLabs: _.indexBy(_.map(labs, l => new MyLab(this, l.id)), x => x.id) };
         }
 
@@ -84,18 +84,11 @@ class LabManager extends Manager implements LabManagerInterface {
         return this._publish.publish;
     }
 
-    private static _staticTracer: Tracer;
-    public static get staticTracer(): Tracer {
-        if (LabManager._staticTracer == null) {
-            LabManager._staticTracer = new Tracer('LabManager');
-            Colony.tracers.push(LabManager._staticTracer);
-        }
-        return LabManager._staticTracer;
-    }
+   
 
     constructor(public mainRoom: MainRoom) {
-        super(LabManager.staticTracer);
         Colony.reactionManager.registerLabManager(this);
+        this.preTick = profiler.registerFN(this.preTick, 'LabManager.preTick');
     }
 
     private bestLabForReaction(resource: string): { lab: MyLab, requiredLabs: number } {
@@ -133,7 +126,7 @@ class LabManager extends Manager implements LabManagerInterface {
 
 
 
-    public _preTick() {
+    public preTick() {
         if (this.mainRoom.spawnManager.isBusy)
             return;
         if (_.any(this.myLabs, x => x.memory.mode != LabMode.available) && this.creeps.length == 0) {
@@ -144,8 +137,8 @@ class LabManager extends Manager implements LabManagerInterface {
 
 
 
-    public _tick() {
-        _.forEach(this.myLabs, x => x.tick());
+    public tick() {
+        
 
         this.requiredPublishs = [];
 
@@ -161,6 +154,9 @@ class LabManager extends Manager implements LabManagerInterface {
         this.restorePublishs();
 
         _.forEach(this.creeps, x => new LabCarrier(x, this).tick());
+
+
+        _.forEach(this.myLabs, x => x.tick());
     }
 
     private requiredPublishs: Array<string>;
@@ -182,7 +178,7 @@ class LabManager extends Manager implements LabManagerInterface {
                 lab.memory.resource = resource;
                 continue;
             }
-            lab = _.filter(this.myLabs, l => _.all(this.myLabs, other => other.memory.reactionLabIds.indexOf(l.id) < 0))[0];
+            lab = _.filter(this.myLabs, l => !(l.memory.mode & LabMode.publish) && _.all(this.myLabs, other => other.id!=l.id && (!other.memory.reactionLabIds || other.memory.reactionLabIds.indexOf(l.id) < 0)))[0];
             if (lab) {
                 lab.backupPublish();
                 lab.memory.mode = LabMode.import | LabMode.publish;
@@ -190,7 +186,7 @@ class LabManager extends Manager implements LabManagerInterface {
                 lab.memory.reactionLabIds = [];
                 continue;
             }
-            lab = _.sortBy(_.filter(this.myLabs, l => ~(l.memory.mode & LabMode.publish)), l => l.lab.mineralAmount)[0];
+            lab = _.sortBy(_.filter(this.myLabs, l => !(l.memory.mode & LabMode.publish)), l => l.lab.mineralAmount)[0];
             if (lab) {
                 lab.backupPublish();
                 lab.memory.mode = LabMode.import | LabMode.publish;

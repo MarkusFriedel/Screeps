@@ -1,13 +1,11 @@
-﻿class Upgrader {
+﻿/// <reference path="../myCreep.ts" />
 
-    creep: Creep;
-    mainRoom: MainRoom;
+class Upgrader extends MyCreep {
 
-    constructor(creep: Creep, mainRoom: MainRoom) {
-        this.creep = creep;
 
-        this.mainRoom = mainRoom;
-
+    constructor(public creep: Creep,public mainRoom: MainRoom) {
+        super(creep);
+        this.myTick = profiler.registerFN(this.myTick, 'Upgrader.tick');
     }
 
     upgrade() {
@@ -17,7 +15,34 @@
             this.creep.moveTo(this.creep.room.controller);
     }
 
-    public tick() {
+    refill() {
+        let link = _.map(_.filter(this.mainRoom.links, x => x.nearController == true), x => x.link)[0];
+
+        if (link) {
+            if (link.transferEnergy(this.creep) == ERR_NOT_IN_RANGE)
+                this.creep.moveTo(link);
+        }
+        else {
+            var mainContainer = this.mainRoom.mainContainer;
+            if (mainContainer != null) {
+                if (mainContainer.store.energy > this.mainRoom.maxSpawnEnergy * 2)
+                    if (this.creep.withdraw(mainContainer, RESOURCE_ENERGY) == ERR_NOT_IN_RANGE)
+                        this.creep.moveTo(mainContainer);
+            }
+            else {
+                if (this.mainRoom.spawnManager.isIdle) {
+                    for (var spawnName in Game.spawns) {
+                        var spawn = Game.spawns[spawnName];
+                    }
+
+                    if (spawn.transferEnergy(this.creep) == ERR_NOT_IN_RANGE)
+                        this.creep.moveTo(spawn);
+                }
+            }
+        }
+    }
+
+    public myTick() {
 
         if (this.creep.carry.energy >= _.sum(this.creep.body, x => x.type == WORK ? 1 : 0)) {
             this.upgrade();
@@ -27,36 +52,13 @@
                 return;
             
             let resources = _.filter(Colony.getRoom(this.creep.room.name).resourceDrops, r => r.resourceType == RESOURCE_ENERGY);
-            let energy = _.filter(resources, r => (r.pos.x-this.creep.pos.x)**2+(r.pos.y-this.creep.pos.y)**2 <=1)[0];
+            let energy = _.filter(resources, r => r.pos.isNearTo(this.creep.pos))[0];
             if (energy != null && this.creep.carry.energy < this.creep.carryCapacity) {
                 this.creep.pickup(energy);
             }
             else {
 
-                let link = _.map(_.filter(this.mainRoom.links, x => x.nearController == true), x => x.link)[0];
-
-                if (link) {
-                    if (link.transferEnergy(this.creep) == ERR_NOT_IN_RANGE)
-                        this.creep.moveTo(link);
-                }
-                else {
-                    var mainContainer = this.mainRoom.mainContainer;
-                    if (mainContainer != null) {
-                        if (mainContainer.store.energy > this.mainRoom.maxSpawnEnergy * 2)
-                            if (this.creep.withdraw(mainContainer, RESOURCE_ENERGY) == ERR_NOT_IN_RANGE)
-                                this.creep.moveTo(mainContainer);
-                    }
-                    else {
-                        if (this.mainRoom.spawnManager.isIdle) {
-                            for (var spawnName in Game.spawns) {
-                                var spawn = Game.spawns[spawnName];
-                            }
-
-                            if (spawn.transferEnergy(this.creep) == ERR_NOT_IN_RANGE)
-                                this.creep.moveTo(spawn);
-                        }
-                    }
-                }
+                this.refill();
             }
         }
     }
