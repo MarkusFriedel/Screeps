@@ -47,9 +47,10 @@
         if (this.tower.energy < this.tower.energyCapacity / 2)
             return false;
 
-        var repairTarget = this.mainRoom.myRoom.emergencyRepairStructures[0];
-        
+        var repairTargets = this.mainRoom.myRoom.emergencyRepairStructures;
+        var repairTarget = _.sortBy(repairTargets, x => x.hits)[0];
 
+        console.log('Tower: Repair ' + repairTargets.length+' repair targets');
 
         if (repairTarget != null) {
             let structure = Game.getObjectById<Structure>(repairTarget.id);
@@ -58,6 +59,9 @@
                 if (this.mainRoom.myRoom.repairStructures[repairTarget.id])
                     this.mainRoom.myRoom.repairStructures[repairTarget.id].hits = structure.hits;
                 return true;
+            }
+            else {
+                delete this.mainRoom.myRoom.memory.repairStructures[repairTarget.id];
             }
         }
         return false;

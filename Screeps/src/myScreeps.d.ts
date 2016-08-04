@@ -42,6 +42,7 @@ interface ColonyMemory {
         [roomName: string]: { [direction: string]: string }
     };
     creepIdx?: number;
+    useCompressedCostMatrix: boolean;
 }
 
 interface ReactionManagerMemory {
@@ -90,35 +91,36 @@ interface LabManagerMemory {
 
 interface HarvestingSiteMemory {
     id: string;
-    pos: RoomPositionMemory;
+    pos?: RoomPositionMemory;
     keeper?: boolean;
     lairId?: string;
+    lairPos?: RoomPosition;
     harvestingSpots?: number;
     roadBuiltToRoom?: string;
 }
 
 interface MyMineralMemory extends HarvestingSiteMemory {
     
-    amount: number;
-    refreshTime: number;
+    amount?: number;
+    refreshTime?: number;
     terminalRoadBuiltTo?: string;
     //containerId: { time: number, id: string };
     pathLengthToTerminal?: { time: number, length: number };
-    resource: string;
+    resource?: string;
     hasExtractor?: { time: number, hasExtractor: boolean };
 }
 
 interface MySourceMemory extends HarvestingSiteMemory {
     
-    capacity: number;
+    capacity?: number;
     
     
     //hasSourceDropOff: boolean;
-    linkId: { time: number, id: string };
+    linkId?: { time: number, id: string };
     //dropOffStructure: cachedProperty<{ id: string, pos: RoomPosition }>;
     //sourceDropOffContainer: cachedProperty<{ id: string, pos: RoomPosition }>;
-    containerId: string;
-    pathLengthToMainContainer: { time: number, length: number };
+    containerId?: string;
+    pathLengthToMainContainer?: { time: number, length: number };
 }
 
 interface MyContainerMemory {
@@ -151,8 +153,8 @@ interface MyRoomMemory {
     mainRoomDistanceDescriptions: MainRoomDistanceDescriptions;
     hasController: boolean;
     controllerPosition: RoomPosition;
-    travelMatrix?: { time: number, matrix: number[] };
-    compressedTravelMatrix?: { time: number, matrix: CompressedCostMatrix };
+    costMatrix?: { time: number, matrix: number[] };
+    compressedCostMatrix?: { time: number, matrix: CompressedCostMatrix };
     myMineral?: MyMineralMemory;
     repairStructures?: { time: number, structures: { [id: string]: RepairStructure } };
     repairWalls?: { time: number, structures: { [id: string]: RepairStructure } };
@@ -264,6 +266,7 @@ declare const enum SourceCarrierState {
 interface SourceCarrierMemory extends CreepMemory {
     sourceId: string;
     state: SourceCarrierState;
+    energyId: string;
 }
 
 
@@ -385,6 +388,7 @@ interface HarvestingSiteInterface {
     myRoom: MyRoomInterface;
     keeper: KeeperInterface;
     usable: boolean;
+    lairPosition: RoomPosition;
 }
 
 interface MyMineralInterface extends HarvestingSiteInterface {
@@ -405,8 +409,9 @@ interface MySourceInterface extends HarvestingSiteInterface {
     maxHarvestingSpots: number;
     rate: number;
     
-
 }
+
+
 
 interface KeeperInterface {
     lair: StructureKeeperLair;
@@ -435,14 +440,15 @@ interface MyRoomInterface {
     requiresDefense: boolean;
     hasController: boolean;
     controllerPosition: RoomPosition;
-    travelMatrix: CostMatrix | boolean;
     resourceDrops: Resource[];
     repairStructures: { [id: string]: RepairStructure };
+    repairWalls: { [id: string]: RepairStructure };
     myMineral: MyMineralInterface;
     emergencyRepairStructures: Array<RepairStructure>;
     creepAvoidanceMatrix: CostMatrix | boolean;
-    recreateTravelMatrix();
-
+    recreateCostMatrix();
+    reloadRepairStructures(hitsFactor: number);
+    getCustomMatrix(opts?: CostMatrixOpts): CostMatrix | boolean;
 }
 
 interface SpawnQueueItem {
@@ -536,11 +542,12 @@ interface InvasionManagerInterface {
 }
 
 interface ConstructionManagerInterface {
-
+    constructions: ConstructionSite[];
 }
 
 interface RepairManagerInterface {
-
+    creeps: Array<Creep>;
+    
 }
 interface UpgradeManagerInterface {
 
@@ -778,6 +785,15 @@ declare const enum ArmyMission {
     Attack = 3
 }
 
+interface MyPowerBankInterface {
+
+}
+
+interface MyPowerBankMemory {
+    id: string;
+    pos: RoomPosition;
+}
+
 interface ArmyMemory {
     id: number;
     state: ArmyState;
@@ -785,8 +801,14 @@ interface ArmyMemory {
     rallyPoint: RoomPosition;
 }
 
+interface MissionPowerHarvestingMemory {
+    
+
+}
+
 interface ArmyCreepMemory extends CreepMemory {
     armyId: number;
+    followingCreepId: string;
 }
 
 interface ArmyHealerMemory extends ArmyCreepMemory {
@@ -823,4 +845,10 @@ interface TerminalFillerMemory extends CreepMemory {
 
 interface SpawnFillerMemory extends CreepMemory {
     targetStructureId: string;
+}
+
+interface CostMatrixOpts {
+    ignoreAllKeepers?: boolean;
+    ignoreKeeperSourceId?: string;
+    avoidCreeps?: boolean;
 }

@@ -54,10 +54,9 @@ class SourceCarrier extends MyCreep {
             return;
         }
 
+
         if (this.memory.state == null || this.memory.state == SourceCarrierState.Deliver && this.creep.carry.energy == 0 && this.creep.carryCapacity > 0 && !(this.mainRoom.name == this.creep.room.name && this.creep.hits < this.creep.hitsMax)) {
 
-            this.memory.path = PathFinder.search(this.creep.pos, { pos: this.mySource.pos, range: 2 }, { roomCallback: Colony.getTravelMatrix, plainCost: 2, swampCost: 2, maxOps:5000 });
-            this.memory.path.path.unshift(this.creep.pos);
             this.memory.state = SourceCarrierState.Pickup;
             if (this.creep.ticksToLive < 3 * this.mySource.pathLengthToDropOff)
                 this.recycle();
@@ -65,37 +64,42 @@ class SourceCarrier extends MyCreep {
         }
         else if (this.memory.state == SourceCarrierState.Pickup && (_.sum(this.creep.carry) >= (this.creep.hits == this.creep.hitsMax ? 1 : 0.5) * this.creep.carryCapacity || this.creep.ticksToLive < 1.5 * this.mySource.pathLengthToDropOff)) {
 
-            this.memory.path = PathFinder.search(this.creep.pos, { pos: this.mainRoom.energyDropOffStructure.pos, range: 3 }, { roomCallback: Colony.getTravelMatrix, plainCost: 2, swampCost: 10, maxOps:5000 });
-            this.memory.path.path.unshift(this.creep.pos);
-            this.memory.state = SourceCarrierState.Deliver;
+             this.memory.state = SourceCarrierState.Deliver;
         }
 
         if (this.memory.state == SourceCarrierState.Pickup) {
-            if (!this.pickUpEnergy()) {
-                if (this.memory.path.path.length > 2) {
-                    this.moveByPath();
-                }
-                else if (this.creep.room.name != this.mySource.pos.roomName) {
-                    this.memory.path = PathFinder.search(this.creep.pos, { pos: this.mySource.pos, range: 1 }, { roomCallback: Colony.getTravelMatrix, plainCost: 2, swampCost: 2 });
-                    this.memory.path.path.unshift(this.creep.pos);
-                    this.moveByPath();
+            if (this.memory.energyId && Game.getObjectById(this.memory.energyId)) {
+                let energy = Game.getObjectById<Resource>(this.memory.energyId);
+                if (this.creep.pickup(energy) == ERR_NOT_IN_RANGE)
+                    this.moveTo({ pos: energy.pos, range: 1 }, {
+                        roomCallback: Colony.getCustomMatrix({ ignoreKeeperSourceId: this.mySource.id, avoidCreeps:true })
+                    });
+            }
 
-                }
-                else if (this.mySource.container && !this.creep.pos.isNearTo(this.mySource.container) || !this.mySource.container && !this.creep.pos.inRangeTo(this.mySource.pos, 2)) {
+            else if (!this.creep.pos.inRangeTo(this.mySource.pos, 2) && !this.pickUpEnergy(3) || !this.pickUpEnergy()) {
+                if (this.mySource.container && !this.creep.pos.inRangeTo(this.mySource.container.pos,2) || !this.mySource.container && !this.creep.pos.inRangeTo(this.mySource.pos, 3)) {
                     if (this.mySource.container)
-                        this.creep.moveTo(this.mySource.container);
+                        this.moveTo({ pos: this.mySource.container.pos, range: 1 }, {
+                            roomCallback: Colony.getCustomMatrix({ ignoreKeeperSourceId: this.mySource.id })
+                        });
                     else
-                        this.creep.moveTo(this.mySource.pos);
+                        this.moveTo({ pos: this.mySource.pos, range: 2 }, {
+                            roomCallback: Colony.getCustomMatrix({ ignoreKeeperSourceId: this.mySource.id })
+                        });
                 }
                 else if (this.mySource.container) {
                     if (this.creep.withdraw(this.mySource.container, RESOURCE_ENERGY) == ERR_NOT_IN_RANGE)
-                        this.creep.moveTo(this.mySource.container);
+                        this.moveTo({ pos: this.mySource.container.pos, range: 1 }, {
+                            roomCallback: Colony.getCustomMatrix({ ignoreKeeperSourceId: this.mySource.id })
+                        });
                     let energy = _.filter(this.myRoom.resourceDrops, r => r.resourceType == RESOURCE_ENERGY && r.pos.inRangeTo(this.creep.pos, 1))[0];
                     if (energy)
                         this.creep.pickup(energy);
                 }
                 else {
-                    this.pickUpEnergy(4);
+                    let energy = _.filter(this.myRoom.resourceDrops, r => r.resourceType == RESOURCE_ENERGY && r.pos.inRangeTo(this.creep.pos, 4))[0];
+                    if (energy)
+                        this.memory.energyId = energy.id;
                 }
 
 
@@ -113,24 +117,19 @@ class SourceCarrier extends MyCreep {
             if (!this.mainRoom.energyDropOffStructure) {
                 return;
             }
-            if (this.memory.path.path.length > 2) {
-                this.moveByPath();
-            }
             else {
+                this.pickUpEnergy(1);
+
                 let result = this.creep.transfer(this.mainRoom.energyDropOffStructure, RESOURCE_ENERGY)
                 if (result == ERR_NOT_IN_RANGE)
-                    this.creep.moveTo(this.mainRoom.energyDropOffStructure);
+                    this.moveTo({ pos: this.mainRoom.energyDropOffStructure.pos, range: 3 }, {
+                        roomCallback: Colony.getCustomMatrix({ ignoreKeeperSourceId: this.mySource.id }),
+                        plainCost: 2,
+                        swampCost:5
+                    });
                 else if (result == ERR_FULL)
                     this.creep.drop(RESOURCE_ENERGY);
             }
         }
-
-
-        //if (this.creep.carry.energy < this.creep.carryCapacity && !(this.creep.carry.energy > this.creep.carryCapacity / 2 && this.creep.room.name == this.mainRoom.name))
-        //    this.pickUpNew();
-        //else
-        //    this.deliverNew();
-
-
     }
 }

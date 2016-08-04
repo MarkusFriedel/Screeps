@@ -571,12 +571,12 @@ class MainRoom implements MainRoomInterface {
             _.forEach(_.sortByOrder(this.allRooms, [r => _.any(r.mySources, s => s.hasKeeper ? 1 : 0), r => r.memory.mainRoomDistanceDescriptions[this.name].distance, r => _.size(r.mySources)], ['asc', 'asc', 'desc']), myRoom => {
                 this.managers.reservationManager.preTick(myRoom);
                 if (this.mainContainer && this.mainContainer.store.energy > 50000)
-                    this.managers.repairManager.preTick(myRoom);
+                    try { this.managers.repairManager.preTick(myRoom) } catch (e) { console.log(e.stack); }
                 this.managers.sourceKeeperManager.preTick(myRoom);
                 this.managers.energyHarvestingManager.preTick(myRoom);
                 this.managers.mineralHarvestingManager.preTick(myRoom);
                 if (this.mainContainer && this.mainContainer.store.energy <= 50000)
-                    this.managers.repairManager.preTick(myRoom);
+                    try { this.managers.repairManager.preTick(myRoom) } catch (e) { console.log(e.stack); }
             });
         }
 
@@ -584,21 +584,24 @@ class MainRoom implements MainRoomInterface {
 
         this.managers.constructionManager.preTick();
 
-        this.managers.upgradeManager.preTick();
+        if (this.managers.upgradeManager.creeps.length > 0)
+            this.managers.upgradeManager.preTick();
 
         this.managers.carrierManager.preTick();
     }
 
     tickCreeps() {
+        this.managers.repairManager.tick();
+        this.managers.constructionManager.tick();
         this.managers.energyHarvestingManager.tick();
         this.managers.sourceKeeperManager.tick();
         this.managers.reservationManager.tick();
         this.managers.spawnFillManager.tick();
         this.managers.linkFillerManager.tick();
 
-        this.managers.constructionManager.tick();
 
-        this.managers.repairManager.tick();
+
+
         this.managers.upgradeManager.tick();
         this.managers.defenseManager.tick();
 
@@ -614,6 +617,8 @@ class MainRoom implements MainRoomInterface {
         let startCpu = Game.cpu.getUsed();
         console.log();
         console.log('MainRoom ' + this.name + ': ' + this.creeps.length + ' creeps');
+
+        //_.forEach(this.allRooms, r => console.log('&nbsp;Room: ' + r.name + ': RepairTargets: ' + _.size(r.repairStructures)));
 
         if (Memory['verbose'])
             console.log('SpawnRoomHandler.tick');
@@ -636,7 +641,7 @@ class MainRoom implements MainRoomInterface {
         this.spawnManager.spawn();
 
         //this.room.find<Tower>(FIND_MY_STRUCTURES, { filter: (x: Structure) => x.structureType == STRUCTURE_TOWER }).forEach(x => new MyTower(x, this).tick());
-        if (this.myRoom.hostileScan.creeps)
+        if (_.size(this.myRoom.hostileScan.creeps) > 0)
             _.forEach(this.towers, t => new MyTower(t, this).tick());
         else if (this.towers.length > 0)
             new MyTower(this.towers[0], this).tick();

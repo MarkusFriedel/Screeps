@@ -108,7 +108,7 @@ class EnergyHarvestingManager implements EnergyHarvestingManagerInterface {
 
     private createCreep(sourceInfo: MySourceInterface, spawnManager: SpawnManagerInterface) {
         //var harvesters = _.filter(this.harvesterCreeps, (c) => (<EnergyHarvesterMemory>c.memory).sourceId == sourceInfo.id);
-        if (this.harvesterCreeps.length != 0 && this.sourceCarrierCreeps.length != 0 && this.memory.creepCounts && this.memory.creepCounts[sourceInfo.id] && this.memory.creepCounts[sourceInfo.id].harvesters == this.harvesterCreeps.length && this.memory.creepCounts[sourceInfo.id].carriers == this.sourceCarrierCreeps.length) {
+        if (this.harvestersBySource[sourceInfo.id] && this.harvestersBySource[sourceInfo.id].length != 0 && (this.carriersBySource[sourceInfo.id] && this.carriersBySource[sourceInfo.id].length != 0 || sourceInfo.link) && this.memory.creepCounts && this.memory.creepCounts[sourceInfo.id] && this.memory.creepCounts[sourceInfo.id].harvesters <= this.harvestersBySource[sourceInfo.id].length && (sourceInfo.link || this.memory.creepCounts[sourceInfo.id].carriers <= this.carriersBySource[sourceInfo.id].length)) {
             if (!this.memory.sleepUntil)
                 this.memory.sleepUntil = {};
             this.memory.sleepUntil[sourceInfo.id] = Game.time + 10;
@@ -132,7 +132,7 @@ class EnergyHarvestingManager implements EnergyHarvestingManagerInterface {
             }
 
             if (sourceInfo.link == null && this.mainRoom.mainContainer) {
-                let miningRate = Math.min(Math.ceil(harvesterRequirements.body.energyHarvestingRate * harvesterRequirements.count / (sourceInfo.hasKeeper ? 2 : 1)), Math.ceil(sourceInfo.capacity / 300) * 1) * (sourceInfo.hasKeeper ? 1.1 : 1);
+                let miningRate = Math.min(Math.ceil(harvesterRequirements.body.energyHarvestingRate * harvesterRequirements.count / (sourceInfo.hasKeeper ? 2 : 1)), Math.ceil(sourceInfo.capacity / 300) * 1) * (sourceInfo.hasKeeper ? 1.2 : 1);
 
                 //var sourceCarriers = _.filter(this.sourceCarrierCreeps, (c) => (<SourceCarrierMemory>c.memory).sourceId == sourceInfo.id);
                 let sourceCarriers = this.carriersBySource[sourceInfo.id];
@@ -142,7 +142,7 @@ class EnergyHarvestingManager implements EnergyHarvestingManagerInterface {
             }
         }
 
-        if (!(harvesterCount > 0 || carrierCount > 0)) {
+        if (harvesterRequirements.count==0 || harvesterCount == 0 && carrierCount == 0) {
             if (!this.memory.sleepUntil)
                 this.memory.sleepUntil = {};
             this.memory.sleepUntil[sourceInfo.id] = Game.time + 10;
@@ -165,9 +165,9 @@ class EnergyHarvestingManager implements EnergyHarvestingManagerInterface {
 
         let spawnManager: SpawnManagerInterface = null;
 
-        if (this.mainRoom.mainContainer && this.mainRoom.mainContainer.store.energy >= 800000 || _.sum(this.mainRoom.mainContainer.store) == this.mainRoom.mainContainer.storeCapacity && _.filter(this.mainRoom.myRoom.resourceDrops, r => r.resourceType == RESOURCE_ENERGY && this.mainRoom.mainContainer.pos.isNearTo(r.pos)))
+        if (this.mainRoom.mainContainer && this.mainRoom.mainContainer.store.energy >= 800000)
             this.mainRoom.harvestingActive = false;
-        else if (!this.mainRoom.mainContainer || this.mainRoom.mainContainer.store.energy < 500000)
+        else if (!this.mainRoom.mainContainer || this.mainRoom.mainContainer.store.energy < 300000)
             this.mainRoom.harvestingActive = true;
 
 
@@ -181,10 +181,6 @@ class EnergyHarvestingManager implements EnergyHarvestingManagerInterface {
 
         if (spawnManager == null || spawnManager.isBusy)
             return;
-
-
-
-
 
         let sources = _.filter(myRoom.mySources, s => s.usable && (!this.memory.sleepUntil || !this.memory.sleepUntil[s.id] || this.memory.sleepUntil[s.id] < Game.time) && (this.mainRoom.harvestingActive || s.myRoom.name == this.mainRoom.name));
 

@@ -60,7 +60,7 @@ class MineralHarvestingManager implements MineralHarvestingManagerInterface {
                 //console.log('MineralHarvestingManager.checkCreeps - 3');
                 if (harvesters.length == 0) {
                     //      console.log('MineralHarvestingManager.checkCreeps - 4');
-                    let definition = MineralHarvesterDefinition.getDefinition(this.mainRoom.maxSpawnEnergy, myMineral);
+                    let definition = MineralHarvesterDefinition.getDefinition(this.mainRoom.maxSpawnEnergy, myMineral, this.mainRoom.managers.labManager.availablePublishResources);
                     this.mainRoom.spawnManager.addToQueue(definition.body.getBody(), { role: 'mineralHarvester', mineralId: myMineral.id }, definition.count);
                 }
 

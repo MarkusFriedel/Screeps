@@ -65,7 +65,7 @@ class RoadConstructionManager  implements RoadConstructionManagerInterface {
             if (_.size(Game.constructionSites) == 100)
                 return;
             let mySource = sources[sourceIdx];
-            _.forEach(this.mainRoom.allRooms, room => room.recreateTravelMatrix());
+            _.forEach(this.mainRoom.allRooms, room => room.recreateCostMatrix());
             let path = PathFinder.search(this.mainRoom.mainContainer.pos, { pos: mySource.pos, range: 1 }, { plainCost: 2, swampCost: 3, roomCallback: Colony.getTravelMatrix, maxOps:10000 });
             this.constructRoad(path.path, 0);
             
@@ -76,7 +76,7 @@ class RoadConstructionManager  implements RoadConstructionManagerInterface {
             if (_.size(Game.constructionSites) == 100)
                 return;
             if (this.mainRoom.terminal) {
-                _.forEach(this.mainRoom.allRooms, room => room.recreateTravelMatrix());
+                _.forEach(this.mainRoom.allRooms, room => room.recreateCostMatrix());
                 let path = PathFinder.search(this.mainRoom.terminal.pos, { pos: myMineral.pos, range: 1 }, { plainCost: 2, swampCost: 3, roomCallback: Colony.getTravelMatrix, maxOps: 10000 });
                 this.constructRoad(path.path, 0);
                 myMineral.roadBuiltToRoom = this.mainRoom.name;

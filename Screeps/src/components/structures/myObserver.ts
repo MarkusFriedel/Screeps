@@ -70,6 +70,12 @@
                 Colony.memory.exits[roomName][direction] = Game.map.describeExits(roomName)[direction];
         }
 
+        let parsed = /^[WE]([0-9]+)[NS]([0-9]+)$/.exec(roomName);
+        let isHighway = (<any>parsed[1] % 10 === 0) || (<any>parsed[2] % 10 === 0);
+
+        if (isHighway)
+            return true;
+
         for (let direction in Colony.memory.exits[roomName]) {
             let exit = Colony.memory.exits[roomName][direction];
             if (Colony.memory.rooms[exit] && Colony.memory.rooms[exit].mainRoomName) {

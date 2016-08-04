@@ -46,7 +46,7 @@ class SourceKeeperManager implements SourceKeeperManagerInterface {
 
 
 
-        if (!(myRoom.myMineral.usable && myRoom.myMineral.hasKeeper && (!myRoom.myMineral.keeper.creep || myRoom.myMineral.keeper.creep.hits > 100) || _.any(myRoom.mySources, s => s.usable && s.hasKeeper && (!s.keeper.creep || s.keeper.creep.hits > 100)))) {
+        if (!(myRoom.myMineral.usable && myRoom.myMineral.hasKeeper && myRoom.myMineral.keeper && (!myRoom.myMineral.keeper.creep || myRoom.myMineral.keeper.creep.hits > 100) || _.any(myRoom.mySources, s => s.usable && s.hasKeeper && s.keeper&&(!s.keeper.creep || s.keeper.creep.hits > 100)))) {
             this.sleep(myRoom);
             return;
         }
@@ -75,6 +75,7 @@ class SourceKeeperManager implements SourceKeeperManagerInterface {
                     targetId: undefined,
                     recycle: undefined
                 }
+                console.log('Trying to build KeeperBuster');
 
                 this.mainRoom.spawnManager.addToQueue(definition.getBody(), memory);
             }

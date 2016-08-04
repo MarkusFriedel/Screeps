@@ -40,12 +40,16 @@ function deleteNulls() {
 // If we have this line, we can make sure that globals bootstrap and game loop work.
 // http://support.screeps.com/hc/en-us/articles/204825672-New-main-loop-architecture
 module.exports.loop = function () {
-    console.log('Tick Start CPU:' + Game.cpu.getUsed() + ' Bucket: ' + Game.cpu.bucket);
+    let startCPU = Game.cpu.getUsed()
+    console.log();
+    console.log();
+    console.log('Tick Start CPU:' + startCPU.toFixed(2));
 
     if (!Memory['colony'].active) {
         
         return;
     }
+    console.log('Deserialize memory: ' + (Game.cpu.getUsed() - startCPU).toFixed(2));
 
     
 

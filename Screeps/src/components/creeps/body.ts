@@ -79,13 +79,14 @@
             body.push(HEAL);
 
         let combinedCarryMoveCount = Math.min(this.carry, this.move);
+        for (let i = 0; i < this.carry - combinedCarryMoveCount; i++)
+            body.push(CARRY);
         for (let i = 0; i < combinedCarryMoveCount; i++) {
             body.push(CARRY);
             body.push(MOVE);
         }
 
-        for (let i = 0; i < this.carry - combinedCarryMoveCount; i++)
-            body.push(CARRY);
+        
         for (let i = 0; i < this.move - combinedCarryMoveCount; i++)
             body.push(MOVE);
 

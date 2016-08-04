@@ -1,29 +1,35 @@
-﻿class MyMineral  {
+﻿class MyMineral {
 
     private get memory(): MyMineralMemory {
         return this.accessMemory();
     }
 
-    
+
 
     private accessMemory() {
         if (this.myRoom.memory.myMineral == null) {
             let mineral = Game.getObjectById<Mineral>(this.id);
-            this.myRoom.memory.myMineral = {
-                id: this.id,
-                amount: mineral.mineralAmount,
-                refreshTime: mineral.ticksToRegeneration ? mineral.ticksToRegeneration + Game.time : null,
-                pos: mineral.pos,
-                resource: mineral.mineralType,
+            if (mineral)
+                this.myRoom.memory.myMineral = {
+                    id: this.id,
+                    amount: mineral.mineralAmount,
+                    refreshTime: mineral.ticksToRegeneration ? mineral.ticksToRegeneration + Game.time : undefined,
+                    pos: mineral.pos,
+                    resource: mineral.mineralType,
 
-            };
+                };
+            else {
+                this.myRoom.memory.myMineral = {
+                    id: this.id
+                };
+            }
         }
 
         return this.myRoom.memory.myMineral;
     }
 
     constructor(public myRoom: MyRoom, public id: string) {
-        
+
     }
 
     public get room() {
@@ -53,7 +59,10 @@
                 var lair = Game.getObjectById<StructureKeeperLair>(this.memory.lairId);
             if (!lair) {
                 lair = this.mineral.pos.findInRange<StructureKeeperLair>(FIND_HOSTILE_STRUCTURES, 5, { filter: (s: Structure) => s.structureType == STRUCTURE_KEEPER_LAIR })[0];
-                this.memory.lairId = lair.id;
+                if (lair) {
+                    this.memory.lairId = lair.id;
+                    this.memory.lairPos = lair.pos;
+                }
             }
             let creepInfo = _.filter(this.myRoom.hostileScan.keepers, k => k.pos.inRangeTo(this.pos, 5))[0];
             this._keeper = {
@@ -121,6 +130,13 @@
             return this._pathLengthToTerminal.length;
     }
 
+    public get lairPosition() {
+        if (!this.memory.lairPos && this.keeper && this.keeper.lair)
+            this.memory.lairPos = this.keeper.lair.pos;
+        return RoomPos.fromObj(this.memory.lairPos);
+    }
+
+
     public get amount() {
         if (this.mineral)
             this.memory.amount = this.mineral.mineralAmount;
@@ -175,7 +191,7 @@
 
     public get hasExtractor() {
         if ((this.memory.hasExtractor == null || this.memory.hasExtractor.time + 100 < Game.time) && this.room) {
-            let extractor = _.filter(this.pos.lookFor<StructureExtractor>(LOOK_STRUCTURES), s => s.structureType == STRUCTURE_EXTRACTOR &&  (s.my && s.isActive() || s.owner == null))[0];
+            let extractor = _.filter(this.pos.lookFor<StructureExtractor>(LOOK_STRUCTURES), s => s.structureType == STRUCTURE_EXTRACTOR && (s.my && s.isActive() || s.owner == null))[0];
             this.memory.hasExtractor = { time: Game.time, hasExtractor: extractor != null };
         }
         if (this.memory.hasExtractor)

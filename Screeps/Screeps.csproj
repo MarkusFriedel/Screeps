@@ -32,6 +32,7 @@
     <TypeScriptCompile Include="src\colony\colony.ts" />
     <TypeScriptCompile Include="src\colony\military\armyManager.ts" />
     <TypeScriptCompile Include="src\colony\military\army.ts" />
+    <TypeScriptCompile Include="src\colony\powerBanks\powerBankManager.ts" />
     <TypeScriptCompile Include="src\components\creeps\carrier\carrier.ts" />
     <TypeScriptCompile Include="src\components\creeps\keeperBuster\keeperBuster.ts" />
     <TypeScriptCompile Include="src\components\creeps\keeperBuster\keeperBusterDefinition.ts" />
@@ -107,6 +108,7 @@
     <TypeScriptCompile Include="src\components\structures\myLab.ts" />
     <TypeScriptCompile Include="src\components\structures\myLink.ts" />
     <TypeScriptCompile Include="src\components\structures\myObserver.ts" />
+    <TypeScriptCompile Include="src\components\structures\myPowerBank.ts" />
     <TypeScriptCompile Include="src\components\structures\myTower.ts" />
     <TypeScriptCompile Include="src\config\config.ts" />
     <TypeScriptCompile Include="src\game-manager.ts" />

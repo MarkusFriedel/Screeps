@@ -42,12 +42,12 @@ class RepairManager implements RepairManagerInterface {
     }
 
     public static forceStopRepairDelegate(s: RepairStructure): boolean {
-        return s.hits >= s.hitsMax || s.hits > 2000000;
+        return s.hits >= s.hitsMax;// || s.hits > 2000000;
         //return (s.structureType == STRUCTURE_WALL || s.structureType == STRUCTURE_RAMPART) && s.hits > 600000 || (s.hits >= s.hitsMax);
     }
 
     public static targetDelegate(s: RepairStructure): boolean {
-        return (s.structureType != STRUCTURE_RAMPART && s.structureType != STRUCTURE_WALL && s.hits < 0.5 * s.hitsMax || (s.structureType == STRUCTURE_RAMPART || s.structureType == STRUCTURE_WALL) && s.hits < 500000) && s.hits < s.hitsMax
+        return (s.structureType != STRUCTURE_RAMPART && s.structureType != STRUCTURE_WALL && s.hits < s.hitsMax || (s.structureType == STRUCTURE_RAMPART || s.structureType == STRUCTURE_WALL) && s.hits < 100000) && s.hits < s.hitsMax
     }
 
     public static emergencyTargetDelegate(s: RepairStructure): boolean {
@@ -71,7 +71,7 @@ class RepairManager implements RepairManagerInterface {
         if (this.mainRoom.spawnManager.isBusy || !this.mainRoom.mainContainer)
             return;
  
-            if (myRoom.name == myRoom.mainRoom.name || myRoom.room && _.filter(myRoom.repairStructures, s => RepairManager.targetDelegate(s)).length > 0) {
+            if (myRoom.name == myRoom.mainRoom.name || myRoom.room && _.size(myRoom.repairStructures)> 0) {
 
                 let roomCreeps = _.filter(this.creeps, x => x.memory.roomName == myRoom.name);
                 if (roomCreeps.length < (myRoom.name == this.mainRoom.name ? Math.min(1, _.size(this.mainRoom.sources)) : 1)) {

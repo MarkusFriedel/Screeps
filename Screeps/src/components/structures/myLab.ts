@@ -121,14 +121,16 @@
 
     public tick() {
         //console.log('myLab.tick try room: ' + this.labManager.mainRoom.name);
-        try {
-            if (this.memory.mode & LabMode.reaction && this.lab && this.lab.cooldown == 0 && this.memory.reactionLabIds.length == 2 && (this.lab.mineralType == this.memory.resource || this.lab.mineralAmount == 0)) {
-                if (_.all(this.memory.reactionLabIds, x => this.labManager.myLabs[x].lab != null && this.labManager.myLabs[x].lab.mineralType == this.labManager.myLabs[x].memory.resource && this.labManager.myLabs[x].lab.mineralAmount >= LAB_COOLDOWN)) {
-                    this.lab.runReaction(this.labManager.myLabs[this.memory.reactionLabIds[0]].lab, this.labManager.myLabs[this.memory.reactionLabIds[1]].lab);
+        if (Game.time % LAB_COOLDOWN == 0) {
+            try {
+                if (this.memory.mode & LabMode.reaction && this.lab && this.lab.cooldown == 0 && this.memory.reactionLabIds.length == 2 && (this.lab.mineralType == this.memory.resource || this.lab.mineralAmount == 0)) {
+                    if (_.all(this.memory.reactionLabIds, x => this.labManager.myLabs[x].lab != null && this.labManager.myLabs[x].lab.mineralType == this.labManager.myLabs[x].memory.resource && this.labManager.myLabs[x].lab.mineralAmount >= LAB_COOLDOWN)) {
+                        this.lab.runReaction(this.labManager.myLabs[this.memory.reactionLabIds[0]].lab, this.labManager.myLabs[this.memory.reactionLabIds[1]].lab);
+                    }
                 }
+            } catch (e) {
+                console.log(e.stack);
             }
-        } catch (e) {
-            console.log(e.stack);
         }
     }
 

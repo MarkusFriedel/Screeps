@@ -35,7 +35,7 @@ class TowerManager implements TowerManagerInterface {
     public preTick() {
         if (this.mainRoom.spawnManager.isBusy)
             return;
-        if ((this.mainRoom.towers.length == 0 || this.mainRoom.mainContainer == null) || (_.all(this.mainRoom.towers, x => x.energy >= 0.5 * x.energyCapacity) && _.size(this.mainRoom.myRoom.hostileScan.creeps)==0))
+        if ((this.mainRoom.towers.length == 0 || this.mainRoom.mainContainer == null) || (_.all(this.mainRoom.towers, x => x.energy > 0.5 * x.energyCapacity) && _.size(this.mainRoom.myRoom.hostileScan.creeps)==0))
             return;
         if (this.creeps.length < 1) {
             this.mainRoom.spawnManager.addToQueue(TowerFillerDefinition.getDefinition(this.mainRoom.maxSpawnEnergy, this.mainRoom.towers.length).getBody(), { role: 'towerFiller' }, 1);

@@ -72,7 +72,7 @@ class SpawnFiller extends MyCreep {
         else {
 
 
-            if (this.creep.carry.energy == 0) {
+            if (this.creep.carry.energy == 0 || this.creep.room.energyAvailable == this.creep.room.energyCapacityAvailable) {
                 this.memory.targetStructureId = null;
                 this.refill();
             }

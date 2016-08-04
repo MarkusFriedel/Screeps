@@ -18,15 +18,7 @@ class MySource implements MySourceInterface {
         if (this.myRoom.memory.sources[this.id] == null) {
             this.myRoom.memory.sources[this.id] = {
                 id: this.id,
-                pos: this.source.pos,
-                capacity: undefined,
-                harvestingSpots: undefined,
-                keeper: undefined,
-                pathLengthToMainContainer: undefined,
-                roadBuiltToRoom: undefined,
-                linkId: undefined,
-                containerId: undefined,
-                lairId: undefined
+                pos: this.source.pos
             }
         }
         return this.myRoom.memory.sources[this.id];
@@ -165,6 +157,12 @@ class MySource implements MySourceInterface {
         return !this.hasKeeper || this.maxHarvestingSpots > 1 && _.size(this.myRoom.mainRoom.managers.labManager.myLabs) > 1;
     }
 
+    public get lairPosition() {
+        if (!this.memory.lairPos && this.keeper && this.keeper.lair)
+            this.memory.lairPos = this.keeper.lair.pos;
+        return RoomPos.fromObj(this.memory.lairPos);
+    }   
+
     private _keeper: { time: number, keeper: KeeperInterface };
     public get keeper() {
         if (this.room && (this._keeper == null || this._keeper.time < Game.time)) {
@@ -172,7 +170,10 @@ class MySource implements MySourceInterface {
                 var lair = Game.getObjectById<StructureKeeperLair>(this.memory.lairId);
             if (!lair) {
                 lair = this.source.pos.findInRange<StructureKeeperLair>(FIND_HOSTILE_STRUCTURES, 5, { filter: (s: Structure) => s.structureType == STRUCTURE_KEEPER_LAIR })[0];
-                this.memory.lairId = lair.id;
+                if (lair) {
+                    this.memory.lairId = lair.id;
+                    this.memory.lairPos = lair.pos;
+                }
             }
             let creepInfo = _.filter(this.myRoom.hostileScan.keepers, k => k.pos.inRangeTo(this.pos, 5))[0];
             this._keeper = {

@@ -25,8 +25,7 @@ class MyRoom implements MyRoomInterface {
                 mainRoomName: undefined,
                 hasController: undefined,
                 controllerPosition: undefined,
-                travelMatrix: undefined,
-                compressedTravelMatrix: undefined,
+                compressedCostMatrix: undefined,
                 myMineral: undefined,
                 repairStructures: undefined,
                 emergencyRepairStructures: undefined,
@@ -45,29 +44,43 @@ class MyRoom implements MyRoomInterface {
         else return null;
     }
 
-    //private _repairStructures: { time: number, structures: { [id: string]: RepairStructure } };
-    public get repairStructures(): { [id: string]: RepairStructure } {
-        if (this.memory.repairStructures == null || this.memory.repairWalls == null || this.memory.repairStructures.time + 500 < Game.time || this.memory.repairWalls.time + 500 < Game.time) {
-            if (this.room) {
-                let structures = _.map(this.room.find<Structure>(FIND_STRUCTURES, { filter: (s: Structure) => s.hits < s.hitsMax && s.structureType != STRUCTURE_ROAD && s.structureType != STRUCTURE_CONTAINER || s.hits < 0.5 * s.hitsMax && (s.structureType != STRUCTURE_CONTAINER || !_.any(this.mySources, x => x.hasKeeper)) }), s => <RepairStructure>{ id: s.id, hits: s.hits, hitsMax: s.hitsMax, pos: s.pos, structureType: s.structureType });
-                let nonWalls = _.indexBy(_.filter(structures, s => s.structureType != STRUCTURE_WALL && s.structureType != STRUCTURE_RAMPART), x => x.id);
-                let walls = _.indexBy(_.filter(structures, s => s.structureType == STRUCTURE_WALL || s.structureType == STRUCTURE_RAMPART), x => x.id);
-                this.memory.repairStructures = { time: Game.time, structures: nonWalls };
-                this.memory.repairWalls = { time: Game.time, structures: walls };
-
-            }
+    public get repairWalls(): { [id: string]: RepairStructure } {
+        if (this.memory.repairWalls == null || this.memory.repairWalls.time + 1450 < Game.time) {
+            this.reloadRepairStructures(0.5);
         }
-        if (this.memory.repairStructures)
-            return _.any(this.memory.repairStructures.structures) ? this.memory.repairStructures.structures : this.memory.repairWalls.structures;
+        if (this.memory.repairWalls)
+            return this.memory.repairWalls.structures;
         else
             return {};
     }
 
+    public get repairStructures(): { [id: string]: RepairStructure } {
+        if (this.memory.repairStructures == null || this.memory.repairStructures.time + 1450 < Game.time) {
+            this.reloadRepairStructures(0.5);
+        }
+        if (this.memory.repairStructures)
+            return this.memory.repairStructures.structures;
+        else
+            return {};
+    }
+
+    public reloadRepairStructures(hitsFactor: number) {
+        if (this.room) {
+            let structures = _.map(this.room.find<Structure>(FIND_STRUCTURES, { filter: (s: Structure) => s.hits < s.hitsMax && s.structureType != STRUCTURE_ROAD && s.structureType != STRUCTURE_CONTAINER || s.hits < hitsFactor * s.hitsMax && s.hits <= s.hitsMax - 500 && (s.structureType != STRUCTURE_CONTAINER || !_.any(this.mySources, x => x.hasKeeper)) }), s => <RepairStructure>{ id: s.id, hits: s.hits, hitsMax: s.hitsMax, pos: s.pos, structureType: s.structureType });
+            let nonWalls = _.indexBy(_.filter(structures, s => s.structureType != STRUCTURE_WALL && s.structureType != STRUCTURE_RAMPART || s.hits < 10000), x => x.id);
+            let walls = _.indexBy(_.filter(structures, s => s.structureType == STRUCTURE_WALL || s.structureType == STRUCTURE_RAMPART), x => x.id);
+            this.memory.repairStructures = { time: Game.time, structures: nonWalls };
+            this.memory.repairWalls = { time: Game.time, structures: walls };
+
+        }
+    }
+
     private _emergencyRepairStructures: { time: number, structures: RepairStructure[] };
     public get emergencyRepairStructures() {
-        this.repairStructures;
-        if (this._emergencyRepairStructures == null || this._emergencyRepairStructures.time+10<Game.time) {
+        if (this._emergencyRepairStructures == null || this._emergencyRepairStructures.time + 10 < Game.time) {
             let structures = _.filter(this.repairStructures, RepairManager.emergencyTargetDelegate);
+            if (structures.length == 0)
+                structures = _.filter(this.repairWalls, RepairManager.emergencyTargetDelegate);
             this._emergencyRepairStructures = { time: Game.time, structures: structures }
         }
 
@@ -151,7 +164,9 @@ class MyRoom implements MyRoomInterface {
     }
 
     constructor(public name: string) {
-       
+
+        this.getCustomMatrix = profiler.registerFN(this.getCustomMatrix, 'MyRoom.getCustomMatrix');
+
         this.memory.name = name;
 
         this.hostileScan = new HostileScan(this);
@@ -161,50 +176,137 @@ class MyRoom implements MyRoomInterface {
 
     }
 
+
+
+
+
+
+    private costMatrixSetArea(costMatrix: CostMatrix, pos: RoomPosition, range: number, value: number) {
+        for (let x = -range; x <= range; x++) {
+            for (let y = -range; y <= range; y++) {
+                if (Game.map.getTerrainAt(pos.x + x, pos.y + y, this.name) != 'wall' && costMatrix.get(pos.x + x, pos.y + x) < 255) {
+                    if (value < 255) {
+                        let currentCosts = costMatrix.get(pos.x + x, pos.y + y);
+                        if (currentCosts > 0)
+                            var terrainValue = currentCosts;
+                        else if (Game.map.getTerrainAt(pos) == 'plain')
+                            terrainValue = 2;
+                        else
+                            terrainValue = 5;
+                        costMatrix.set(pos.x + x, pos.y + y, Math.min(value * terrainValue, 254));
+                    }
+                    else
+                        costMatrix.set(pos.x + x, pos.y + y, Math.max(value, costMatrix.get(pos.x + x, pos.y + y)));
+                }
+            }
+        }
+    }
+
+
+    private _costMatrix: { time: number, matrix: CostMatrix };
+    public get costMatrix(): CostMatrix | boolean {
+        if (this.memory.foreignOwner) {
+            delete this.memory.costMatrix;
+            delete this.memory.compressedCostMatrix;
+            return false;
+        }
+
+        if (Colony.memory.useCompressedCostMatrix)
+            delete this.memory.costMatrix;
+        else
+            delete this.memory.compressedCostMatrix;
+
+        if (this._costMatrix == null || this._costMatrix.time + 200 < Game.time) {
+            if (Colony.memory.useCompressedCostMatrix) {
+                if ((this.memory.compressedCostMatrix == null || this.memory.compressedCostMatrix.time + 200 < Game.time) && this.room) {
+                    this.recreateCostMatrix();
+                }
+                else if (this.memory.compressedCostMatrix != null) {
+                    this._costMatrix = { time: this.memory.compressedCostMatrix.time, matrix: MyCostMatrix.decompress(this.memory.compressedCostMatrix.matrix) };
+                }
+            }
+            else {
+                if ((this.memory.costMatrix == null || this.memory.costMatrix.time + 200 < Game.time) && this.room) {
+                    this.recreateCostMatrix();
+                }
+                else if (this.memory.costMatrix != null) {
+                    this._costMatrix = { time: this.memory.costMatrix.time, matrix: PathFinder.CostMatrix.deserialize(this.memory.costMatrix.matrix) };
+                }
+            }
+        }
+        if (this._costMatrix)
+            return this._costMatrix.matrix;
+        else
+            return new PathFinder.CostMatrix();
+    }
+
     private _creepAvoidanceMatrix: { time: number, matrix: CostMatrix };
     public get creepAvoidanceMatrix(): CostMatrix | boolean {
-        if (this.travelMatrix === false)
+        if (this.costMatrix === false)
             return false;
         if (!this.room)
-            return this.travelMatrix;
+            return this.costMatrix;
         if (this._creepAvoidanceMatrix == null || this._creepAvoidanceMatrix.time < Game.time && this.room) {
-            let matrix = (<CostMatrix>this.travelMatrix).clone();
+            let matrix = (<CostMatrix>this.costMatrix).clone();
             _.forEach(this.room.find<Creep>(FIND_CREEPS), c => matrix.set(c.pos.x, c.pos.y, 255));
             this._creepAvoidanceMatrix = { time: Game.time, matrix: matrix }
         }
         return this._creepAvoidanceMatrix.matrix;
     }
 
-    private _travelMatrix: { time: number, matrix: CostMatrix };
-    public get travelMatrix(): CostMatrix | boolean {
-        if (this.memory.foreignOwner)
+    public getCustomMatrix(opts?: CostMatrixOpts): CostMatrix | boolean {
+        if (this.costMatrix === false)
             return false;
-        if (this._travelMatrix == null || this._travelMatrix.time + 200 < Game.time && this.room) {
-            if (this.memory.travelMatrix && (!this.room || this.memory.travelMatrix.time + 200 >= Game.time)) {
-                this._travelMatrix = { time: this.memory.travelMatrix.time, matrix: PathFinder.CostMatrix.deserialize(this.memory.travelMatrix.matrix) };
+
+        let costMatrix = (opts && opts.avoidCreeps) ? (<CostMatrix>this.creepAvoidanceMatrix) : (<CostMatrix>this.costMatrix);
+
+        let customMatrix: CostMatrix = null;
+        if (opts && !opts.ignoreAllKeepers) {
+
+            let keeperSources = _.filter(this.mySources, s => s.hasKeeper);
+            if (keeperSources.length > 0) {
+                if (!customMatrix)
+                    customMatrix = costMatrix.clone();
+
+                let sourcesToAvoid = _.filter(keeperSources, s => s.id != opts.ignoreKeeperSourceId);
+
+                let sourcePositions = _.map(sourcesToAvoid, s => s.pos);
+
+                let lairPositions = _.map(_.filter(sourcesToAvoid, s => s.lairPosition), s => s.lairPosition);
+
+                if (this.myMineral && this.myMineral.hasKeeper && this.myMineral.id != opts.ignoreKeeperSourceId) {
+                    sourcePositions.push(this.myMineral.pos);
+                    if (this.myMineral.lairPosition)
+                        lairPositions.push(this.myMineral.lairPosition);
+                }
+
+                let protectedPositions = sourcePositions.concat(lairPositions);
+
+                let ignoreSourcePositions = _.map(sourcesToAvoid, s => s.pos);
+                let ignoreLairPositions = _.map(_.filter(sourcesToAvoid, s => s.lairPosition), s => s.lairPosition);
+
+                _.forEach(protectedPositions, pos => { this.costMatrixSetArea(customMatrix, pos, 5, 50) });
+
+                _.forEach(ignoreSourcePositions, pos => { this.costMatrixSetArea(customMatrix, pos, 5, 10) });
+                _.forEach(ignoreLairPositions, pos => { this.costMatrixSetArea(customMatrix, pos, 5, 5) });
             }
-            else if (this.room) {
-                this._travelMatrix = { time: Game.time, matrix: this.createTravelMatrix() };
-                this.memory.travelMatrix = { time: this._travelMatrix.time, matrix: this._travelMatrix.matrix.serialize() };
-                //this.memory.compressedTravelMatrix = {
-                //    time: Game.time, matrix: MyCostMatrix.compress(this._travelMatrix.matrix)
-                //};
-            }
-            else
-                return new PathFinder.CostMatrix();
         }
-        return this._travelMatrix.matrix;
+        return customMatrix || costMatrix;
     }
 
-    public recreateTravelMatrix() {
+    public recreateCostMatrix() {
         if (!this.room)
             return;
-        this.memory.travelMatrix = { time: Game.time, matrix: this.createTravelMatrix().serialize() };
+        let costMatrix = this.createCostMatrix();
+        if (Colony.memory.useCompressedCostMatrix)
+            this.memory.compressedCostMatrix = { time: Game.time, matrix: MyCostMatrix.compress(costMatrix) };
+        else
+            this.memory.costMatrix = { time: Game.time, matrix: costMatrix.serialize() };
         //this.memory.compressedTravelMatrix = { time: Game.time, matrix: MyCostMatrix.compress(this._travelMatrix.matrix) };
-        this._travelMatrix = { time: Game.time, matrix: this.createTravelMatrix() };
+        this._costMatrix = { time: Game.time, matrix: costMatrix };
     }
 
-    private createTravelMatrix(): CostMatrix {
+    private createCostMatrix(): CostMatrix {
         let costMatrix = new PathFinder.CostMatrix();
 
         _.forEach(this.room.find<ConstructionSite>(FIND_STRUCTURES, { filter: (s: ConstructionSite) => s.structureType == STRUCTURE_ROAD }), structure => {
@@ -214,18 +316,6 @@ class MyRoom implements MyRoomInterface {
             costMatrix.set(structure.pos.x, structure.pos.y, 1);
         });
 
-
-        let keeperPositions = _.map(this.room.find<KeeperLair>(FIND_HOSTILE_STRUCTURES, { filter: (s: OwnedStructure) => s.structureType == STRUCTURE_KEEPER_LAIR }), x => x.pos);
-        let protectedPositions = keeperPositions.concat(_.map(_.flatten(_.map(keeperPositions, x => x.findInRange<Source | Mineral>(FIND_SOURCES, 5).concat(x.findInRange<Source | Mineral>(FIND_MINERALS, 4)))), x => x.pos));
-
-        _.forEach(protectedPositions, pos => {
-            for (let x = -5; x <= 5; x++) {
-                for (let y = -5; y <= 5; y++) {
-                    if (Game.map.getTerrainAt(pos.x + x, pos.y + y, this.name) != 'wall')
-                        costMatrix.set(pos.x + x, pos.y + y, 100);
-                }
-            }
-        });
 
         _.forEach(this.room.find<Structure>(FIND_STRUCTURES, {
             filter: (s: Structure) => (OBSTACLE_OBJECT_TYPES.indexOf(s.structureType) >= 0) || s.structureType == STRUCTURE_PORTAL || (s.structureType == STRUCTURE_RAMPART && (<StructureRampart>s).isPublic == false && (<StructureRampart>s).my == false)
@@ -318,8 +408,11 @@ class MyRoom implements MyRoomInterface {
 
 
             this.mySources;
+            if (this.myMineral && this.myMineral.resource == null)
+                delete this.memory.myMineral;
+            this.myMineral;
 
-            this.travelMatrix;
+            this.costMatrix;
         }
     }
 }

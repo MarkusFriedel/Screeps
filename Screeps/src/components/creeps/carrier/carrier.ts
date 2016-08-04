@@ -42,7 +42,7 @@ class Carrier extends MyCreep {
 
             this.createPickupPath(pickupRoom);
 
-            if (this.creep.ticksToLive < 3 * this.memory.path.path.length) {
+            if (this.creep.ticksToLive < 4 * this.memory.path.path.length) {
                 this.recycle();
                 return;
             }

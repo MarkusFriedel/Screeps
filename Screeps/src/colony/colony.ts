@@ -5,6 +5,8 @@
 /// <reference path="../components/rooms/myRoom.ts" />
 /// <reference path="../components/creeps/scout/scout.ts" />
 /// <reference path="./military/armyManager.ts" />
+/// <reference path="../helpers.ts" />
+/// <reference path="./powerBanks/powerBankManager.ts" />
 
 
 namespace Colony {
@@ -90,8 +92,19 @@ namespace Colony {
     export function getTravelMatrix(roomName: string) {
         let room = getRoom(roomName);
         if (room) {
-            return room.travelMatrix;
+            return room.getCustomMatrix();
         }
+        else return new PathFinder.CostMatrix();
+    }
+
+    export function getCustomMatrix(opts?: CostMatrixOpts) {
+        return function (roomName: string) {
+            let room = getRoom(roomName);
+            if (room) {
+                return room.getCustomMatrix(opts);
+            }
+            else return new PathFinder.CostMatrix();
+        };        
     }
 
     export function assignMainRoom(room: MyRoomInterface): MainRoomInterface {
@@ -177,6 +190,9 @@ namespace Colony {
         Colony.tick = profiler.registerFN(Colony.tick, 'Colony.tick');
         Colony.calculateDistances = profiler.registerFN(Colony.calculateDistances, 'Colony.calculateDistances');
 
+        MyCostMatrix.compress = profiler.registerFN(MyCostMatrix.compress, 'MyCostMatrix.compress');
+        MyCostMatrix.decompress = profiler.registerFN(MyCostMatrix.decompress, 'MyCostMatrix.decompress');
+
 
         Colony.memory = Memory['colony'];
         myName = _.map(Game.spawns, (s) => s)[0].owner.username;
@@ -260,7 +276,7 @@ namespace Colony {
 
         let flags = _.filter(Game.flags, (x) => x.memory.claim == true && !mainRooms[x.pos.roomName])
 
-        console.log("Claiming Manager: Found " + flags.length + " flags");
+        //console.log("Claiming Manager: Found " + flags.length + " flags");
 
         for (let idx in flags) {
             console.log('Claiming Manager: GCL: ' + Game.gcl.level);

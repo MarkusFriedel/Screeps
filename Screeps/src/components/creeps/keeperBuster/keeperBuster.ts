@@ -53,13 +53,13 @@ class KeeperBuster extends MyCreep {
         }
 
         else {
-            let keeperCreep = _.filter(this.keeperCreeps, k => k.ticksToLive < this.creep.ticksToLive - 50 && _.any(this.keeperCreeps, k2 => k2.id != k.id && k2.ticksToLive >= k.ticksToLive && k2.ticksToLive < k.ticksToLive + 300))[0];
+            let keeperCreep = _.filter(this.keeperCreeps, k => k.ticksToLive < this.creep.ticksToLive - 50 && _.any(this.keeperCreeps, k2 => k2.id != k.id && k2.ticksToLive >= k.ticksToLive && k2.ticksToLive < k.ticksToLive + 200))[0];
             if (keeperCreep) {
-                let closestByTime = _.sortBy(_.filter(this.keeperCreeps, k => k.id != keeperCreep.id && keeperCreep.ticksToLive < k.ticksToLive), k => k.ticksToLive)[0];
+                let closestByTime = _.sortBy(_.filter(this.keeperCreeps, k => k.id != keeperCreep.id && keeperCreep.ticksToLive <= k.ticksToLive), k => k.ticksToLive)[0];
                 if (!this.creep.pos.inRangeTo(keeperCreep.pos, 3))
                     this.creep.moveTo(keeperCreep);
                 this.creep.say('WAIT');
-                if (closestByTime.ticksToLive == 300)
+                if (closestByTime.ticksToLive == 200)
                     this.creep.rangedAttack(keeperCreep);
             }
 
@@ -73,12 +73,12 @@ class KeeperBuster extends MyCreep {
             else {
                 let ticksUntilNextKeeperAttack = _.min(_.map(this.harvestingSitesToDefend, x => x.keeper.creep ? x.keeper.creep.ticksToLive + 300 : 0 + x.keeper.lair.ticksToSpawn));
 
-                if (ticksUntilNextKeeperAttack + 100 > this.creep.ticksToLive) {
+                if (ticksUntilNextKeeperAttack>500 || ticksUntilNextKeeperAttack + 200 > this.creep.ticksToLive) {
                     this.recycle();
                 }
                 else {
                     let nextKeeperLair = _.sortBy(this.keeperLairs, lair => lair.ticksToSpawn)[0];
-                    if (nextKeeperLair && !this.creep.pos.inRangeTo(nextKeeperLair.pos, 4)) {
+                    if (nextKeeperLair && !this.creep.pos.inRangeTo(nextKeeperLair.pos, 5)) {
                         this.creep.moveTo(nextKeeperLair);
                     }
                     //}

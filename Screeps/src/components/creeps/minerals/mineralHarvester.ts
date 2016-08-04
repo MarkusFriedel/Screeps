@@ -54,30 +54,19 @@ class MineralHarvester extends MyCreep {
             return;
         }
 
-        if (this.memory.path == null) {
-            this.memory.path = PathFinder.search(this.creep.pos, { pos: this.myMineral.pos, range: 6 }, { roomCallback: Colony.getTravelMatrix, plainCost: 2, swampCost: 10 });
-            this.memory.path.path.unshift(this.creep.pos);
-        }
+        if (!this.creep.pos.isNearTo(this.myMineral.pos))
+            this.moveTo({
+                pos: this.myMineral.pos, range: 1
+            }, {
+                    plainCost: 2,
+                    swampCost: 5,
+                    roomCallback: Colony.getCustomMatrix({
+                        ignoreKeeperSourceId: this.myMineral.id
+                    })
 
-        if (this.memory.path.path.length > 2)
-            this.moveByPath();
-        else {
-            if (this.myMineral.pos.roomName != this.creep.room.name) {
-                this.creep.moveTo(this.myMineral.pos);
-            }
-            else if (!this.healed){
-                if (this.creep.harvest(this.myMineral.mineral) == ERR_NOT_IN_RANGE)
-                    this.creep.moveTo(this.myMineral.mineral);
+                });
+        else
+            this.creep.harvest(this.myMineral.mineral);
 
-                //if (this.creep.carry[this.myMineral.resource] > this.creep.carryCapacity - _.filter(this.creep.body, b => b.type == WORK).length) {
-                //    let carrier = _.filter(this.mainRoom.managers.mineralHarvestingManager.carrierCreeps, c => c.memory.mineralId == this.myMineral.id && c.memory.state == MineralCarrierState.Pickup && c.pos.isNearTo(this.creep.pos))[0];
-                //    if (carrier)
-                //        this.creep.transfer(carrier, RESOURCE_ENERGY);
-                //    else
-                //        this.creep.drop(RESOURCE_ENERGY);
-                //}
-            }
-
-        }
     }
 }

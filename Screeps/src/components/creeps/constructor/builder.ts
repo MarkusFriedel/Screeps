@@ -24,8 +24,10 @@ class Builder extends MyCreep {
             this.targetPosition = new RoomPosition(this.memory.targetPosition.x, this.memory.targetPosition.y, this.memory.targetPosition.roomName);
             if (Game.rooms[this.targetPosition.roomName] != null) {
                 let rampart = _.filter(this.targetPosition.lookFor<Structure>(LOOK_STRUCTURES), s => s.structureType == STRUCTURE_RAMPART && s.hits == 1)[0];
-                if (rampart)
-                    Colony.getRoom(this.targetPosition.roomName).repairStructures[rampart.id] = { id: rampart.id, pos: this.targetPosition, hits: rampart.hits, hitsMax: rampart.hitsMax, structureType: rampart.structureType };
+                if (rampart) {
+                    this.creep.say('RAMPART');
+                    Colony.getRoom(this.targetPosition.roomName).repairStructures[rampart.id] = { id: rampart.id, pos: this.targetPosition, hits: rampart.hits, hitsMax: 1000000, structureType: rampart.structureType };
+                }
                 this.targetPosition = null;
                 this.target = null;
                 this.memory.targetId = null;
@@ -84,15 +86,19 @@ class Builder extends MyCreep {
         //        this.creep.moveTo(this.mainRoom.room.controller);
         //}
         //else if 
-        if (_.size(Game.constructionSites)==0)
+        if (this.mainRoom.managers.constructionManager.constructions.length==0)
             this.recycle();
 
     }
 
     private fillUp() {
         if (!this.memory.fillupContainerId) {
-            let possbibleContainers = _.map(_.filter(this.myRoom.mySources, s => (s.hasKeeper == false || s.keeper.lair.ticksToSpawn > 100 || s.keeper.creep && s.keeper.creep.hits <= 100) && s.container), s => s.container);
-            let container = _.sortBy(possbibleContainers, x => x.pos.getRangeTo(this.creep.pos))[0];
+            if (this.creep.room.name == this.mainRoom.name)
+                var container = this.mainRoom.mainContainer;
+            else {
+                let possbibleContainers = _.map(_.filter(this.myRoom.mySources, s => (s.hasKeeper == false || s.keeper.lair.ticksToSpawn > 100 || s.keeper.creep && s.keeper.creep.hits <= 100) && s.container), s => s.container);
+                container = _.sortBy(possbibleContainers, x => x.pos.getRangeTo(this.creep.pos))[0];
+            }
             if (container) {
                 this.memory.fillupContainerId = container.id;
                 this.memory.path = PathFinder.search(this.creep.pos, { pos: container.pos, range: 3 }, { roomCallback: Colony.getTravelMatrix, plainCost: 1, swampCost: 5 });
