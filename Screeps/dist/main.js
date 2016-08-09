@@ -7940,7 +7940,9 @@ var GameManager;
     GameManager.loop = loop;
 })(GameManager || (GameManager = {}));
 /// <reference path="../game-manager.ts" />
-var profiler = require('screeps-profiler');
+var myMemory = Memory;
+if (myMemory['profilerActive'])
+    var profiler = require('screeps-profiler');
 //Object.prototype.getName = function () {
 //    var funcNameRegex = /function (.{1,})\(/;
 //    var results = (funcNameRegex).exec((this).constructor.toString());
@@ -7952,7 +7954,6 @@ var profiler = require('screeps-profiler');
 // Any modules that you use that modify the game's prototypes should be require'd 
 // before you require the profiler. 
 //var myMemory = JSON.parse(RawMemory.get());
-var myMemory = Memory;
 try {
     // This line monkey patches the global prototypes. 
     if (myMemory['profilerActive'] == true)

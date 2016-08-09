@@ -1,7 +1,10 @@
 /// <reference path="../game-manager.ts" />
 
+var myMemory = Memory;
+
 declare function require(string): any;
-var profiler = require('screeps-profiler');
+if (myMemory['profilerActive'])
+    var profiler = require('screeps-profiler');
 /**
  * Application bootstrap.
  * BEFORE CHANGING THIS FILE, make sure you read this:
@@ -25,7 +28,7 @@ declare var RawMemory: any;
 // Any modules that you use that modify the game's prototypes should be require'd 
 // before you require the profiler. 
 //var myMemory = JSON.parse(RawMemory.get());
-var myMemory = Memory
+
 
 try {
 
@@ -37,7 +40,7 @@ try {
 
 }
 catch (e) {
-    console.log(e ? e.stack: '');
+    console.log(e ? e.stack : '');
 }
 
 //RawMemory.set(JSON.stringify(myMemory));
@@ -53,11 +56,11 @@ module.exports.loop = function () {
     //myMemory = JSON.parse(RawMemory.get());
     myMemory = Memory;
     console.log('Deserialize memory: ' + (Game.cpu.getUsed() - startCPU).toFixed(2));
-    
-    
+
+
 
     if (!myMemory['colony'].active) {
-        
+
         return;
     }
 
