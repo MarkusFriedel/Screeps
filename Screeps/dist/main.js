@@ -471,7 +471,8 @@ var MyLink = (function () {
         this.mainRoom = mainRoom;
         this._link = { time: 0, link: null };
         this.id = link.id;
-        this.tick = profiler.registerFN(this.tick, 'MyLink.tick');
+        if (myMemory['profilerActive'])
+            this.tick = profiler.registerFN(this.tick, 'MyLink.tick');
         var surroundingStructures = mainRoom.room.lookForAtArea(LOOK_STRUCTURES, link.pos.y - 2, link.pos.x - 2, link.pos.y + 2, link.pos.x + 2, true);
         this.nextToStorage = _.any(surroundingStructures, function (x) { return x.structure.structureType == STRUCTURE_STORAGE; });
         this.nextToTower = _.any(surroundingStructures, function (x) { return x.structure.structureType == STRUCTURE_TOWER; });
@@ -3602,7 +3603,8 @@ var MyLab = (function () {
         this.id = id;
         this._connectedLabs = null;
         this._lab = null;
-        this.tick = profiler.registerFN(this.tick, 'MyLab.tick');
+        if (myMemory['profilerActive'])
+            this.tick = profiler.registerFN(this.tick, 'MyLab.tick');
     }
     Object.defineProperty(MyLab.prototype, "memory", {
         get: function () {
@@ -4362,7 +4364,8 @@ var MyTower = (function () {
 var MyObserver = (function () {
     function MyObserver(mainRoom) {
         this.mainRoom = mainRoom;
-        this.tick = profiler.registerFN(this.tick, 'MyObserver.tick');
+        if (myMemory['profilerActive'])
+            this.tick = profiler.registerFN(this.tick, 'MyObserver.tick');
     }
     Object.defineProperty(MyObserver.prototype, "memory", {
         get: function () {
@@ -6848,7 +6851,8 @@ var CreepInfo = (function () {
 var HostileScan = (function () {
     function HostileScan(myRoom) {
         this.myRoom = myRoom;
-        this.creeps_get = profiler.registerFN(this.creeps_get, 'HostileScan.creeps');
+        if (myMemory['profilerActive'])
+            this.creeps_get = profiler.registerFN(this.creeps_get, 'HostileScan.creeps');
         if (this._allCreeps && this._allCreeps.time + 500 < Game.time)
             this._allCreeps = null;
     }
@@ -7651,10 +7655,12 @@ var Colony;
     Colony.spawnCreep = spawnCreep;
     function createScouts() {
         var scouts = _.filter(Game.creeps, function (c) { return c.memory.role == 'scout' && c.memory.handledByColony == true && c.memory.targetPosition != null; });
-        var roomNames = _.map(_.uniq(_.filter(Colony.memory.rooms, function (x) { return x.mrn != null && !Colony.mainRooms[x.mrn].spawnManager.isBusy; } /*&& !Game.map.isRoomProtected(x.name)*/ /*&& !Game.map.isRoomProtected(x.name)*/)), function (x) { return x.name; });
+        var roomNames = _.map(_.uniq(_.filter(Colony.memory.rooms, function (x) { return x.mrn != null && Colony.mainRooms[x.mrn] && !Colony.mainRooms[x.mrn].spawnManager.isBusy && !Game.map.isRoomProtected(x.name); })), function (x) { return x.name; });
         for (var _i = 0, roomNames_1 = roomNames; _i < roomNames_1.length; _i++) {
             var roomName = roomNames_1[_i];
             var myRoom = Colony.getRoom(roomName);
+            if (!myRoom || !myRoom.mainRoom)
+                continue;
             if (Colony.memory.exits == null)
                 Colony.memory.exits = {};
             if (!Colony.memory.exits[roomName]) {

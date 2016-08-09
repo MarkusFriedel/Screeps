@@ -154,10 +154,12 @@ namespace Colony {
 
     export function createScouts() {
         let scouts = _.filter(Game.creeps, (c) => (<ScoutMemory>c.memory).role == 'scout' && (<ScoutMemory>c.memory).handledByColony == true && (<ScoutMemory>c.memory).targetPosition != null);
-        let roomNames = _.map(_.uniq(_.filter(memory.rooms, x => x.mrn != null && !mainRooms[x.mrn].spawnManager.isBusy /*&& !Game.map.isRoomProtected(x.name)*/)), x => x.name);
+        let roomNames = _.map(_.uniq(_.filter(memory.rooms, x => x.mrn != null && mainRooms[x.mrn] && !mainRooms[x.mrn].spawnManager.isBusy && !Game.map.isRoomProtected(x.name))), x => x.name);
 
         for (let roomName of roomNames) {
             let myRoom = Colony.getRoom(roomName);
+            if (!myRoom || !myRoom.mainRoom)
+                continue;
             if (Colony.memory.exits == null)
                 Colony.memory.exits = {};
 

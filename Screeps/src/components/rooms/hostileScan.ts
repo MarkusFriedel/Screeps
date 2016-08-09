@@ -46,7 +46,7 @@ class HostileScan implements HostileScanInterface {
 
     private _allCreeps: { time: number, creeps: { [id: string]: CreepInfoInterface } }
     public get allCreeps() {
-        if (this.myRoom.room && (this._allCreeps == null || this._allCreeps.time +10 < Game.time)) {
+        if (this.myRoom.room && (this._allCreeps == null || this._allCreeps.time + 10 < Game.time)) {
             this.refreshCreeps();
         }
         else if (this.memory.creeps) {
@@ -72,7 +72,8 @@ class HostileScan implements HostileScanInterface {
     }
 
     constructor(public myRoom: MyRoomInterface) {
-        this.creeps_get = profiler.registerFN(this.creeps_get, 'HostileScan.creeps');
+        if (myMemory['profilerActive'])
+            this.creeps_get = profiler.registerFN(this.creeps_get, 'HostileScan.creeps');
         if (this._allCreeps && this._allCreeps.time + 500 < Game.time)
             this._allCreeps = null;
     }

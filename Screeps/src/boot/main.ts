@@ -1,8 +1,11 @@
 /// <reference path="../game-manager.ts" />
 
-var myMemory = Memory;
+
 
 declare function require(string): any;
+
+var myMemory = Memory;
+
 if (myMemory['profilerActive'])
     var profiler = require('screeps-profiler');
 /**

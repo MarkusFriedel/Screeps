@@ -3,7 +3,7 @@
         return this.accessMemory();
     }
 
-   
+
 
 
     accessMemory() {
@@ -17,7 +17,8 @@
     }
 
     constructor(public mainRoom: MainRoom) {
-        this.tick = profiler.registerFN(this.tick, 'MyObserver.tick');
+        if (myMemory['profilerActive'])
+            this.tick = profiler.registerFN(this.tick, 'MyObserver.tick');
     }
 
     private _observer: { time: number, observer: Observer };

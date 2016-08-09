@@ -31,10 +31,11 @@
         return this._lab.lab;
     }
 
-    
+
 
     constructor(public labManager: LabManagerInterface, public id: string) {
-        this.tick = profiler.registerFN(this.tick, 'MyLab.tick');
+        if (myMemory['profilerActive'])
+            this.tick = profiler.registerFN(this.tick, 'MyLab.tick');
     }
 
     public backup() {
