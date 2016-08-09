@@ -104,29 +104,29 @@ class RoadConstructionManager  implements RoadConstructionManagerInterface {
 
 
     public tick() {
-        //try {
-        //    //if (Game.cpu.bucket < 2000)
-        //    //    return;
+        try {
+            //if (Game.cpu.bucket < 2000)
+            //    return;
             
-        //    if (this.memory.remainingPath && this.memory.remainingPath.length > 0) {
+            if (this.memory.remainingPath && this.memory.remainingPath.length > 0) {
 
-        //        let remainingPath = this.memory.remainingPath;
-        //        this.memory.remainingPath = null;
-        //        this.constructRoad(remainingPath);
+                let remainingPath = this.memory.remainingPath;
+                this.memory.remainingPath = null;
+                this.constructRoad(remainingPath);
                 
-        //    }
-        //    else if (Game.time % 50 == 0 && !(Game.time % 100 == 0)) {
-        //        //this.buildExtensionRoads();
-        //    }
-        //    else if (Game.time % 100 == 0 && !(Game.time % 200 == 0)) {
-        //        this.buildHarvestPaths();
-        //    }
-        //    else if (Game.time % 200 == 0) {
-        //        this.buildControllerRoad();
-        //    }
-        //}
-        //catch (e) {
-        //    console.log(e.stack);
-        //}
+            }
+            else if (Game.time % 50 == 0 && !(Game.time % 100 == 0)) {
+                //this.buildExtensionRoads();
+            }
+            else if (Game.time % 100 == 0 && !(Game.time % 200 == 0)) {
+                this.buildHarvestPaths();
+            }
+            else if (Game.time % 200 == 0) {
+                this.buildControllerRoad();
+            }
+        }
+        catch (e) {
+            console.log(e.stack);
+        }
     }
 }

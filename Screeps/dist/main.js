@@ -2066,7 +2066,7 @@ var Harvester = (function (_super) {
         return;
     };
     Harvester.prototype.tryConstruct = function () {
-        if (Game.time % 10 == 0) {
+        if (Game.time % 10 == 0 && this.mainRoom.room.controller.level >= 3) {
             if (!this.harvestingSite.hasKeeper && !this.harvestingSite.link && !this.mainRoom.harvestersShouldDeliver && this.harvestingSite.room && this.creep.pos.isNearTo(this.harvestingSite.pos) && !this.harvestingSite.container) {
                 var constructionSiteLook = _.filter(this.harvestingSite.room.lookForAtArea(LOOK_CONSTRUCTION_SITES, this.harvestingSite.pos.y - 1, this.harvestingSite.pos.x - 1, this.harvestingSite.pos.y + 1, this.harvestingSite.pos.x + 1, true), function (s) { return s.constructionSite.structureType == STRUCTURE_CONTAINER; })[0];
                 if (!constructionSiteLook) {
@@ -2832,27 +2832,26 @@ var RoadConstructionManager = (function () {
         this.constructRoad(path.path, 0);
     };
     RoadConstructionManager.prototype.tick = function () {
-        //try {
-        //    //if (Game.cpu.bucket < 2000)
-        //    //    return;
-        //    if (this.memory.remainingPath && this.memory.remainingPath.length > 0) {
-        //        let remainingPath = this.memory.remainingPath;
-        //        this.memory.remainingPath = null;
-        //        this.constructRoad(remainingPath);
-        //    }
-        //    else if (Game.time % 50 == 0 && !(Game.time % 100 == 0)) {
-        //        //this.buildExtensionRoads();
-        //    }
-        //    else if (Game.time % 100 == 0 && !(Game.time % 200 == 0)) {
-        //        this.buildHarvestPaths();
-        //    }
-        //    else if (Game.time % 200 == 0) {
-        //        this.buildControllerRoad();
-        //    }
-        //}
-        //catch (e) {
-        //    console.log(e.stack);
-        //}
+        try {
+            //if (Game.cpu.bucket < 2000)
+            //    return;
+            if (this.memory.remainingPath && this.memory.remainingPath.length > 0) {
+                var remainingPath = this.memory.remainingPath;
+                this.memory.remainingPath = null;
+                this.constructRoad(remainingPath);
+            }
+            else if (Game.time % 50 == 0 && !(Game.time % 100 == 0)) {
+            }
+            else if (Game.time % 100 == 0 && !(Game.time % 200 == 0)) {
+                this.buildHarvestPaths();
+            }
+            else if (Game.time % 200 == 0) {
+                this.buildControllerRoad();
+            }
+        }
+        catch (e) {
+            console.log(e.stack);
+        }
     };
     return RoadConstructionManager;
 }());

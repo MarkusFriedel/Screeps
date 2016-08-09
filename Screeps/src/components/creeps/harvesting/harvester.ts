@@ -82,7 +82,7 @@ class Harvester extends MyCreep<HarvesterMemory> {
     }
 
     private tryConstruct() {
-        if (Game.time % 10 == 0) {
+        if (Game.time % 10 == 0 && this.mainRoom.room.controller.level>=3) {
             if (!this.harvestingSite.hasKeeper && !this.harvestingSite.link && !this.mainRoom.harvestersShouldDeliver && this.harvestingSite.room && this.creep.pos.isNearTo(this.harvestingSite.pos) && !this.harvestingSite.container) {
                 let constructionSiteLook = _.filter(<LookAtResultWithPos[]>this.harvestingSite.room.lookForAtArea(LOOK_CONSTRUCTION_SITES, this.harvestingSite.pos.y - 1, this.harvestingSite.pos.x - 1, this.harvestingSite.pos.y + 1, this.harvestingSite.pos.x + 1, true), s => s.constructionSite.structureType == STRUCTURE_CONTAINER)[0];
                 if (!constructionSiteLook) {
