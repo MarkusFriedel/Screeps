@@ -92,7 +92,7 @@ class ConstructionManager implements ConstructionManagerInterface {
             else
                 maxCreeps = this.maxCreeps;
 
-            this.mainRoom.spawnManager.addToQueue(ConstructorDefinition.getDefinition(this.mainRoom.maxSpawnEnergy).getBody(), { role: 'builder', targetId: null, targetPosition: null }, Math.max(maxCreeps, _.size(_.filter(this.mainRoom.sources, x => !x.hasKeeper))) - this.creeps.length);
+            this.mainRoom.spawnManager.addToQueue(ConstructorDefinition.getDefinition(this.mainRoom.maxSpawnEnergy).getBody(), { role: 'builder', targetId: null, targetPosition: null }, Math.min(maxCreeps, _.size(_.filter(this.mainRoom.sources, x => !x.hasKeeper))) - this.creeps.length);
         }
     }
 
