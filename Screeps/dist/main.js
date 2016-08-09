@@ -5483,7 +5483,7 @@ var RoomAssignmentHandler = (function () {
             console.log('Assigning Rooms');
             _.forEach(this.rooms, function (x) { return x.mainRoom = null; });
             _.forEach(assignments, function (assignment) { return _.forEach(assignment.myRooms, function (myRoom) { return myRoom.mainRoom = assignment.mainRoom; }); });
-            _.forEach(_.filter(this.rooms, function (room) { return (!_.any(room.mySources, function (s) { return s.hasKeeper; }) || Colony.memory.harvestKeeperRooms) && room.mainRoom == null && _.any(room.memory.mrd, function (x) { return x.d == 1; }) && !room.memory.fO && !room.memory.fR; }), function (room) {
+            _.forEach(_.filter(this.rooms, function (room) { return _.size(room.mySources) > 0 && (!_.any(room.mySources, function (s) { return s.hasKeeper; }) || Colony.memory.harvestKeeperRooms) && room.mainRoom == null && _.any(room.memory.mrd, function (x) { return x.d == 1; }) && !room.memory.fO && !room.memory.fR; }), function (room) {
                 var mainRoom = _this.mainRooms[_.min(room.memory.mrd, function (x) { return x.d; }).n];
                 room.mainRoom = mainRoom;
             });

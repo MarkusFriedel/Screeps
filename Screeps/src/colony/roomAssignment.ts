@@ -188,7 +188,7 @@ class RoomAssignmentHandler implements RoomAssignmentHandlerInterface {
 
             _.forEach(assignments, (assignment) => _.forEach(assignment.myRooms, (myRoom) =>myRoom.mainRoom = assignment.mainRoom));
 
-            _.forEach(_.filter(this.rooms, room => (!_.any(room.mySources, s => s.hasKeeper) || Colony.memory.harvestKeeperRooms) && room.mainRoom == null && _.any(room.memory.mrd, x => x.d == 1) && !room.memory.fO && !room.memory.fR), room => {
+            _.forEach(_.filter(this.rooms, room => _.size(room.mySources)>0 && (!_.any(room.mySources, s => s.hasKeeper) || Colony.memory.harvestKeeperRooms) && room.mainRoom == null && _.any(room.memory.mrd, x => x.d == 1) && !room.memory.fO && !room.memory.fR), room => {
                 let mainRoom = this.mainRooms[_.min(room.memory.mrd, x => x.d).n];
                 room.mainRoom = mainRoom;
             });
