@@ -1590,6 +1590,7 @@ var EnergyHarvesterDefinition;
             body.move++;
             body.carry++;
         }
+        count = Math.ceil(mySource.rate / body.energyHarvestingRate);
         return { count: Math.min(mySource.maxHarvestingSpots, count), body: body };
     }
     function getMinerDefinition(maxEnergy, mySource, resources) {
@@ -1632,6 +1633,7 @@ var EnergyHarvesterDefinition;
         workBody.move += baseBody.move;
         workBody.heal += baseBody.heal;
         workBody.carry += baseBody.carry;
+        count = Math.ceil(mySource.rate / workBody.energyHarvestingRate);
         return { count: Math.min(count, mySource.maxHarvestingSpots), body: workBody };
     }
     function getDefinition(maxEnergy, mySource, needsToDeliver, resources) {

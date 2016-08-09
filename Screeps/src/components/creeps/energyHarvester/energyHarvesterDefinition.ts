@@ -24,6 +24,7 @@
             body.carry++;
         }
 
+        count = Math.ceil(mySource.rate / body.energyHarvestingRate);
 
         return { count: Math.min(mySource.maxHarvestingSpots, count), body: body };
     }
@@ -78,6 +79,8 @@
         workBody.move += baseBody.move;
         workBody.heal += baseBody.heal;
         workBody.carry += baseBody.carry;
+
+        count = Math.ceil(mySource.rate / workBody.energyHarvestingRate);
 
         return { count: Math.min(count, mySource.maxHarvestingSpots), body: workBody };
     }
