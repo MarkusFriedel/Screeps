@@ -517,8 +517,8 @@ class MainRoom implements MainRoomInterface {
             this.managers.towerManager.preTick();
             this.managers.labManager.preTick();
             this.managers.defenseManager.preTick();
-            if (this.mainContainer && this.mainContainer.store.energy > 10000 && this.managers.upgradeManager.creeps.length == 0)
-                this.managers.upgradeManager.preTick();
+            if (this.mainContainer && (this.mainContainer.store.energy > 10000 || this.mainContainer.structureType != STRUCTURE_STORAGE && _.sum(this.mainContainer.store) == this.mainContainer.storeCapacity) && this.managers.upgradeManager.creeps.length == 0)
+            this.managers.upgradeManager.preTick();
             if (!this.myRoom.requiresDefense)
                 _.forEach(_.sortByOrder(_.filter(this.allRooms, r => !r.requiresDefense), [r => _.any(r.mySources, s => s.hasKeeper ? 1 : 0), r => r.memory.mrd[this.name].d, r => _.size(r.mySources)], ['asc', 'asc', 'desc']), myRoom => {
                     this.managers.reservationManager.preTick(myRoom);
@@ -532,7 +532,7 @@ class MainRoom implements MainRoomInterface {
                 });
         }
 
-        
+
 
         this.managers.constructionManager.preTick();
 

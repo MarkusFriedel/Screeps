@@ -5234,8 +5234,8 @@ var MainRoom = (function () {
             this.managers.towerManager.preTick();
             this.managers.labManager.preTick();
             this.managers.defenseManager.preTick();
-            if (this.mainContainer && this.mainContainer.store.energy > 10000 && this.managers.upgradeManager.creeps.length == 0)
-                this.managers.upgradeManager.preTick();
+            //if (this.mainContainer && this.mainContainer.store.energy > 10000 && this.managers.upgradeManager.creeps.length == 0)
+            this.managers.upgradeManager.preTick();
             if (!this.myRoom.requiresDefense)
                 _.forEach(_.sortByOrder(_.filter(this.allRooms, function (r) { return !r.requiresDefense; }), [function (r) { return _.any(r.mySources, function (s) { return s.hasKeeper ? 1 : 0; }); }, function (r) { return r.memory.mrd[_this.name].d; }, function (r) { return _.size(r.mySources); }], ['asc', 'asc', 'desc']), function (myRoom) {
                     _this.managers.reservationManager.preTick(myRoom);
