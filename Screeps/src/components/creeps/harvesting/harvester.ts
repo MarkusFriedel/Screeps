@@ -104,6 +104,9 @@ class Harvester extends MyCreep<HarvesterMemory> {
         if (this.tryConstruct() || this.tryHeal())
             return;
 
+        if (!this.harvestingSite)
+            return;
+
         if (!this.healed && this.creep.pos.isNearTo(this.harvestingSite.pos))
             this.creep.harvest(this.harvestingSite.site);
 

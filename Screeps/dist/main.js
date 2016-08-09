@@ -2095,6 +2095,8 @@ var Harvester = (function (_super) {
     Harvester.prototype.stateHarvest = function () {
         if (this.tryConstruct() || this.tryHeal())
             return;
+        if (!this.harvestingSite)
+            return;
         if (!this.healed && this.creep.pos.isNearTo(this.harvestingSite.pos))
             this.creep.harvest(this.harvestingSite.site);
         var haveToDeliver = this.creep.carryCapacity > 0 && (this.harvestingSite.link || this.mainRoom.harvestersShouldDeliver) && _.sum(this.creep.carry) >= this.creep.carryCapacity - 2 * this.body.getHarvestingRate(this.harvestingSite.resourceType);
