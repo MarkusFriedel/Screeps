@@ -14,9 +14,9 @@
 
         if (body.costs > maxEnergy) {
             count = Math.ceil(body.costs / maxEnergy);
-            body.work = Math.ceil(body.work / count);
-            body.carry = Math.ceil(body.carry / count);
-            body.move = Math.ceil(body.move / count);
+            body.work = Math.floor(body.work / count);
+            body.carry = Math.floor(body.carry / count);
+            body.move = Math.floor(body.move / count);
         }
 
         if (body.costs + BODYPART_COST.carry + BODYPART_COST.move <= maxEnergy) {
@@ -31,7 +31,15 @@
     function getMinerDefinition(maxEnergy: number, mySource: MySourceInterface,resources?: {[resource: string]: number}) {
         let baseBody = new Body();
 
-        if (mySource.link || mySource.myRoom.mainRoom.harvestersShouldDeliver || !mySource.hasKeeper && !mySource.containerPosition)
+        if (maxEnergy == 300) {
+            baseBody.work = 2;
+            baseBody.move = 2;
+            return {
+                body: baseBody, count: mySource.rate / baseBody.energyHarvestingRate
+            };
+        }
+
+        if (mySource.link || !mySource.hasKeeper && !mySource.containerPosition)
             baseBody.carry = 2;
 
         if (mySource.hasKeeper) {
@@ -62,8 +70,8 @@
         let count = 1;
         if (workBody.costs > remainingEnergy) {
             count = Math.ceil(workBody.costs / maxEnergy);
-            workBody.work = Math.ceil(workBody.work / count);
-            workBody.move = Math.ceil(workBody.work / 2);
+            workBody.work = Math.floor(workBody.work / count);
+            workBody.move = Math.floor(workBody.work / 2);
             _.forEach(workBody.boosts, b => b.amount = Math.min(b.amount, workBody.work));
         }
 

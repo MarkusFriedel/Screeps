@@ -1224,3 +1224,7 @@ declare var BOOSTS: {
         }
     }
 };
+
+interface LookAtResultWithPos {
+    constructionSite: ConstructionSite;
+}

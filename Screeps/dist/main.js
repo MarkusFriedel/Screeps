@@ -768,6 +768,8 @@ var Builder = (function (_super) {
     Builder.prototype.fillUp = function () {
         var _this = this;
         if (!this.pickUpEnergy(3)) {
+            if (!this.mainRoom.mainContainer)
+                this.memory.fillupContainerId = this.mainRoom.spawns[0].id;
             if (!this.memory.fillupContainerId) {
                 if (this.creep.room.name == this.mainRoom.name)
                     var container = this.mainRoom.mainContainer;
@@ -1336,12 +1338,12 @@ var Upgrader = (function (_super) {
         else {
             var mainContainer = this.mainRoom.mainContainer;
             if (mainContainer != null) {
-                if (mainContainer.store.energy > this.mainRoom.maxSpawnEnergy * 2)
+                if (mainContainer.store.energy > this.mainRoom.maxSpawnEnergy * 2 || this.mainRoom.room.controller.ticksToDowngrade < 2000)
                     if (this.creep.withdraw(mainContainer, RESOURCE_ENERGY) == ERR_NOT_IN_RANGE)
                         this.creep.moveTo(mainContainer);
             }
             else {
-                if (this.mainRoom.spawnManager.isIdle) {
+                if (this.mainRoom.spawnManager.isIdle || this.mainRoom.room.controller.ticksToDowngrade < 2000) {
                     for (var spawnName in Game.spawns) {
                         var spawn = Game.spawns[spawnName];
                     }
@@ -1397,7 +1399,7 @@ var UpgradeManager = (function () {
     UpgradeManager.prototype.preTick = function () {
         if (this.mainRoom.spawnManager.isBusy)
             return;
-        if (this.mainRoom.mainContainer != null && this.mainRoom.room.energyAvailable == this.mainRoom.room.energyCapacityAvailable && (this.creeps.length == 0 && (this.mainRoom.mainContainer.structureType != STRUCTURE_STORAGE || this.mainRoom.mainContainer.store.energy >= 10000) || (this.mainRoom.mainContainer.store.energy == this.mainRoom.mainContainer.storeCapacity || this.mainRoom.mainContainer.store.energy > 150000 || this.mainRoom.mainContainer.store.energy > 100000 && this.mainRoom.room.controller.level < 6 || this.mainRoom.mainContainer.store.energy > 15000 && this.mainRoom.room.controller.level < 5) && this.creeps.length < 5 && this.mainRoom.room.controller.level < 8)) {
+        if ((this.mainRoom.room.controller.ticksToDowngrade < 2000 || this.mainRoom.mainContainer != null && this.mainRoom.room.energyAvailable == this.mainRoom.room.energyCapacityAvailable) && (this.creeps.length == 0 && (this.mainRoom.mainContainer.structureType != STRUCTURE_STORAGE || this.mainRoom.mainContainer.store.energy >= 10000) || (this.mainRoom.mainContainer.store.energy == this.mainRoom.mainContainer.storeCapacity || this.mainRoom.mainContainer.store.energy > 150000 || this.mainRoom.mainContainer.store.energy > 100000 && this.mainRoom.room.controller.level < 6 || this.mainRoom.mainContainer.store.energy > 15000 && this.mainRoom.room.controller.level < 5) && this.creeps.length < 5 && this.mainRoom.room.controller.level < 8)) {
             var definition = UpgraderDefinition.getDefinition(this.mainRoom.maxSpawnEnergy, _.any(this.mainRoom.links, function (x) { return x.nearController; }), this.mainRoom.room.controller.level == 8 ? 15 : 50, this.mainRoom.managers.labManager.availablePublishResources);
             this.mainRoom.spawnManager.addToQueue(definition.getBody(), { role: 'upgrader', requiredBoosts: definition.boosts }, 1);
         }
@@ -1580,9 +1582,9 @@ var EnergyHarvesterDefinition;
         var count = 1;
         if (body.costs > maxEnergy) {
             count = Math.ceil(body.costs / maxEnergy);
-            body.work = Math.ceil(body.work / count);
-            body.carry = Math.ceil(body.carry / count);
-            body.move = Math.ceil(body.move / count);
+            body.work = Math.floor(body.work / count);
+            body.carry = Math.floor(body.carry / count);
+            body.move = Math.floor(body.move / count);
         }
         if (body.costs + BODYPART_COST.carry + BODYPART_COST.move <= maxEnergy) {
             body.move++;
@@ -1592,7 +1594,14 @@ var EnergyHarvesterDefinition;
     }
     function getMinerDefinition(maxEnergy, mySource, resources) {
         var baseBody = new Body();
-        if (mySource.link || mySource.myRoom.mainRoom.harvestersShouldDeliver || !mySource.hasKeeper && !mySource.containerPosition)
+        if (maxEnergy == 300) {
+            baseBody.work = 2;
+            baseBody.move = 2;
+            return {
+                body: baseBody, count: mySource.rate / baseBody.energyHarvestingRate
+            };
+        }
+        if (mySource.link || !mySource.hasKeeper && !mySource.containerPosition)
             baseBody.carry = 2;
         if (mySource.hasKeeper) {
             baseBody.heal = 2;
@@ -1616,8 +1625,8 @@ var EnergyHarvesterDefinition;
         var count = 1;
         if (workBody.costs > remainingEnergy) {
             count = Math.ceil(workBody.costs / maxEnergy);
-            workBody.work = Math.ceil(workBody.work / count);
-            workBody.move = Math.ceil(workBody.work / 2);
+            workBody.work = Math.floor(workBody.work / count);
+            workBody.move = Math.floor(workBody.work / 2);
             _.forEach(workBody.boosts, function (b) { return b.amount = Math.min(b.amount, workBody.work); });
         }
         workBody.move += baseBody.move;
@@ -2457,11 +2466,11 @@ var DefenderDefinition;
     function getDefinition(maxEnergy) {
         var body = new Body();
         var remainingEnergy = Math.min(maxEnergy, 700);
-        var basicModulesCount = ~~(remainingEnergy / 140); //work,carry,move
+        var basicModulesCount = ~~(remainingEnergy / 190); //work,carry,move
         body.attack = basicModulesCount;
         body.tough = basicModulesCount;
         body.move = 2 * basicModulesCount;
-        remainingEnergy = remainingEnergy - 140 * basicModulesCount;
+        remainingEnergy = remainingEnergy - 190 * basicModulesCount;
         while (remainingEnergy >= (BODYPART_COST.attack + BODYPART_COST.move) && body.getBody().length <= 48) {
             body.attack++;
             body.move++;
@@ -5209,6 +5218,10 @@ var MainRoom = (function () {
     };
     MainRoom.prototype.checkCreeps = function () {
         var _this = this;
+        if (this.myRoom.requiresDefense && this.room.controller.level < 3)
+            return;
+        if (this.room.controller.ticksToDowngrade < 2000)
+            this.managers.upgradeManager.preTick();
         if (this.managers.spawnFillManager.creeps.length == 0 && this.mainContainer && this.mainContainer.store.energy >= this.maxSpawnEnergy * 2) {
             this.managers.spawnFillManager.preTick();
         }
@@ -5586,6 +5599,7 @@ var ClaimingManager = (function () {
         for (var idx = 0; idx < this.spawnConstructors.length; idx++) {
             var creep = this.spawnConstructors[idx];
             creep.memory.role = 'harvester';
+            creep.memory.sId = creep.memory.sourceId;
             creep.memory.doConstructions = true;
             creep.memory.handledByColony = false;
             creep.memory.mainRoomName = this.roomName;
@@ -7626,16 +7640,12 @@ var Colony;
     Colony.assignMainRoom = assignMainRoom;
     function shouldSendScout(roomName) {
         var myRoom = getRoom(roomName);
-        var result = (myRoom != null && myRoom.memory.lst + 500 < Game.time)
-            && (
-            //!Game.map.isRoomProtected(roomName)
-            (myRoom == null || !myRoom.mainRoom)
-                && !(_.any(forbidden, function (x) { return x == roomName; }))
-                && (myRoom == null
-                    || !myRoom.requiresDefense
-                        && !myRoom.memory.fO
-                        && !myRoom.memory.fR)
-                || (Game.time % 2000) == 0);
+        var result = (myRoom == null
+            || (!myRoom.mainRoom && !myRoom.memory.fO && !myRoom.memory.fR && (!myRoom.memory.lst || myRoom.memory.lst + 500 < Game.time))
+            || (!Game.map.isRoomProtected(roomName)
+                || !_.any(forbidden, function (x) { return x == roomName; }))
+                && ((myRoom == null || !myRoom.requiresDefense && !myRoom.memory.fO && !myRoom.memory.fR)
+                    || (Game.time % 2000) == 0));
         return result;
     }
     function spawnCreep(requestRoom, body, memory, count) {
@@ -7660,7 +7670,7 @@ var Colony;
     Colony.spawnCreep = spawnCreep;
     function createScouts() {
         var scouts = _.filter(Game.creeps, function (c) { return c.memory.role == 'scout' && c.memory.handledByColony == true && c.memory.targetPosition != null; });
-        var roomNames = _.map(_.uniq(_.filter(Colony.memory.rooms, function (x) { return x.mrn != null && Colony.mainRooms[x.mrn] && !Colony.mainRooms[x.mrn].spawnManager.isBusy && !Game.map.isRoomProtected(x.name); })), function (x) { return x.name; });
+        var roomNames = _.map(_.filter(Colony.memory.rooms, function (x) { return x.mrn != null && Colony.mainRooms[x.mrn] && !Colony.mainRooms[x.mrn].spawnManager.isBusy && !Game.map.isRoomProtected(x.name); }), function (x) { return x.name; });
         for (var _i = 0, roomNames_1 = roomNames; _i < roomNames_1.length; _i++) {
             var roomName = roomNames_1[_i];
             var myRoom = Colony.getRoom(roomName);
@@ -7675,7 +7685,7 @@ var Colony;
             }
             var _loop_7 = function(direction) {
                 var exit = Colony.memory.exits[roomName][direction];
-                if (Colony.memory.rooms[exit].mrn)
+                if (Colony.memory.rooms[exit] && Colony.memory.rooms[exit].mrn)
                     return { value: void 0 };
                 if (_.filter(scouts, function (c) { return c.memory.targetPosition.roomName == exit; }).length == 0 && shouldSendScout(exit)) {
                     myRoom.mainRoom.spawnManager.addToQueue(['move'], { handledByColony: true, role: 'scout', mainRoomName: null, targetPosition: { x: 25, y: 25, roomName: exit } });
@@ -7851,11 +7861,11 @@ var Colony;
                 if (mainRoom) {
                     //console.log('Dismantle flag MainRoom: ' + mainRoom.name);
                     if (_.filter(Game.creeps, function (x) { return x.memory.role == 'dismantler' && x.memory.targetRoomName == myRoom.name; }).length == 0) {
-                        mainRoom.spawnManager.addToQueue(['work', 'move'], { role: 'dismantler', targetRoomName: myRoom.name, mainRoomName: mainRoom.name });
+                        mainRoom.spawnManager.addToQueue([WORK, WORK, WORK, WORK, WORK, WORK, MOVE, MOVE, MOVE, MOVE, MOVE, MOVE], { role: 'dismantler', targetRoomName: myRoom.name, mainRoomName: mainRoom.name });
                     }
                 }
             }
-            else {
+            else if (!_.any(Game.creeps, function (c) { return c.memory.role == 'scout' && c.memory.targetPosition && c.memory.targetPosition.roomName == flag.pos.roomName; })) {
                 var mainRoom = _.min(Colony.mainRooms, function (mr) { return Game.map.getRoomLinearDistance(flag.pos.roomName, mr.name); });
                 mainRoom.spawnManager.addToQueue(['move'], { handledByColony: true, role: 'scout', mainRoomName: null, targetPosition: flag.pos });
             }

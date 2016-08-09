@@ -28,12 +28,12 @@ class Upgrader extends MyCreep<CreepMemory> {
         else {
             var mainContainer = this.mainRoom.mainContainer;
             if (mainContainer != null) {
-                if (mainContainer.store.energy > this.mainRoom.maxSpawnEnergy * 2)
+                if (mainContainer.store.energy > this.mainRoom.maxSpawnEnergy * 2 || this.mainRoom.room.controller.ticksToDowngrade<2000)
                     if (this.creep.withdraw(mainContainer, RESOURCE_ENERGY) == ERR_NOT_IN_RANGE)
                         this.creep.moveTo(mainContainer);
             }
             else {
-                if (this.mainRoom.spawnManager.isIdle) {
+                if (this.mainRoom.spawnManager.isIdle || this.mainRoom.room.controller.ticksToDowngrade < 2000) {
                     for (var spawnName in Game.spawns) {
                         var spawn = Game.spawns[spawnName];
                     }

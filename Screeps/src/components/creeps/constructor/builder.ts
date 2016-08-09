@@ -77,6 +77,8 @@ class Builder extends MyCreep<ConstructorMemory> {
 
     private fillUp() {
         if (!this.pickUpEnergy(3)) {
+            if (!this.mainRoom.mainContainer)
+                this.memory.fillupContainerId = this.mainRoom.spawns[0].id;
             if (!this.memory.fillupContainerId) {
                 if (this.creep.room.name == this.mainRoom.name)
                     var container = this.mainRoom.mainContainer;
@@ -94,7 +96,7 @@ class Builder extends MyCreep<ConstructorMemory> {
                 if (this.memory.path && this.memory.path.path.length > 2)
                     this.moveByPath();
                 else {
-                    let container = Game.getObjectById<Container>(this.memory.fillupContainerId);
+                    let container = Game.getObjectById<Container|Storage|Spawn>(this.memory.fillupContainerId);
                     if (this.creep.withdraw(container, RESOURCE_ENERGY) == ERR_NOT_IN_RANGE)
                         this.creep.moveTo(container);
                 }

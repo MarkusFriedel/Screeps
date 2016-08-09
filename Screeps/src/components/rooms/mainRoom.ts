@@ -499,6 +499,11 @@ class MainRoom implements MainRoomInterface {
     }
 
     checkCreeps() {
+        if (this.myRoom.requiresDefense && this.room.controller.level < 3)
+            return;
+
+        if (this.room.controller.ticksToDowngrade < 2000)
+            this.managers.upgradeManager.preTick();
         if (this.managers.spawnFillManager.creeps.length == 0 && this.mainContainer && this.mainContainer.store.energy >= this.maxSpawnEnergy * 2) {
             this.managers.spawnFillManager.preTick();
         }

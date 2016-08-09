@@ -20,6 +20,7 @@ class Scout extends MyCreep<ScoutMemory> {
                 let path = PathFinder.search(this.creep.pos, { pos: RoomPos.fromObj(this.memory.targetPosition), range: 10 }, { roomCallback: Colony.getTravelMatrix, plainCost: 1, swampCost: 1 });
                 path.path.unshift(this.creep.pos);
                 this.memory.path = path;
+                
             }
 
             if (this.moveByPath() == ERR_INVALID_ARGS)

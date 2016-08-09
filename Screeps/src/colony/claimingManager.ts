@@ -114,6 +114,7 @@ class ClaimingManager implements ClaimingManagerInterface {
         for (let idx = 0; idx < this.spawnConstructors.length; idx++) {
             let creep = this.spawnConstructors[idx];
             creep.memory.role = 'harvester';
+            creep.memory.sId = creep.memory.sourceId;
             creep.memory.doConstructions = true;
             creep.memory.handledByColony = false;
             creep.memory.mainRoomName = this.roomName;

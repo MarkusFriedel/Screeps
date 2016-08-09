@@ -130,6 +130,7 @@
     <Content Include="tsd.json" />
   </ItemGroup>
   <ItemGroup>
+    <Folder Include="dist\" />
     <Folder Include="src\colony\powerBanks\" />
     <Folder Include="src\shared\" />
   </ItemGroup>

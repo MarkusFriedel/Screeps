@@ -117,17 +117,12 @@ namespace Colony {
 
     function shouldSendScout(roomName): boolean {
         var myRoom = getRoom(roomName);
-        var result = (myRoom != null && myRoom.memory.lst + 500 < Game.time)
-            && (
-                //!Game.map.isRoomProtected(roomName)
-                (myRoom == null || !myRoom.mainRoom)
-                && !(_.any(forbidden, x => x == roomName))
-                && (
-                    myRoom == null
-                    || !myRoom.requiresDefense
-                    && !myRoom.memory.fO
-                    && !myRoom.memory.fR)
-                || (Game.time % 2000) == 0);
+        var result = (myRoom==null 
+            || (!myRoom.mainRoom && !myRoom.memory.fO && !myRoom.memory.fR && (!myRoom.memory.lst || myRoom.memory.lst + 500 < Game.time))
+            || (!Game.map.isRoomProtected(roomName)
+                || !_.any(forbidden, x => x == roomName))
+                && ((myRoom == null || !myRoom.requiresDefense && !myRoom.memory.fO && !myRoom.memory.fR)
+                || (Game.time % 2000) == 0));
 
         return result;
     }
@@ -154,7 +149,7 @@ namespace Colony {
 
     export function createScouts() {
         let scouts = _.filter(Game.creeps, (c) => (<ScoutMemory>c.memory).role == 'scout' && (<ScoutMemory>c.memory).handledByColony == true && (<ScoutMemory>c.memory).targetPosition != null);
-        let roomNames = _.map(_.uniq(_.filter(memory.rooms, x => x.mrn != null && mainRooms[x.mrn] && !mainRooms[x.mrn].spawnManager.isBusy && !Game.map.isRoomProtected(x.name))), x => x.name);
+        let roomNames = _.map(_.filter(memory.rooms, x => x.mrn != null && mainRooms[x.mrn] && !mainRooms[x.mrn].spawnManager.isBusy && !Game.map.isRoomProtected(x.name)), x => x.name);
 
         for (let roomName of roomNames) {
             let myRoom = Colony.getRoom(roomName);
@@ -172,7 +167,7 @@ namespace Colony {
 
             for (let direction in Colony.memory.exits[roomName]) {
                 let exit = Colony.memory.exits[roomName][direction];
-                if (memory.rooms[exit].mrn)
+                if (memory.rooms[exit] && memory.rooms[exit].mrn)
                     return;
                 if (_.filter(scouts, (c) => (<ScoutMemory>c.memory).targetPosition.roomName == exit).length == 0 && shouldSendScout(exit)) {
                     myRoom.mainRoom.spawnManager.addToQueue(['move'], <ScoutMemory>{ handledByColony: true, role: 'scout', mainRoomName: null, targetPosition: { x: 25, y: 25, roomName: exit } });
@@ -400,12 +395,12 @@ namespace Colony {
                 if (mainRoom) {
                     //console.log('Dismantle flag MainRoom: ' + mainRoom.name);
                     if (_.filter(Game.creeps, x => x.memory.role == 'dismantler' && (<ReserverMemory>x.memory).targetRoomName == myRoom.name).length == 0) {
-                        mainRoom.spawnManager.addToQueue(['work', 'move'], { role: 'dismantler', targetRoomName: myRoom.name, mainRoomName: mainRoom.name });
+                        mainRoom.spawnManager.addToQueue([WORK, WORK, WORK, WORK, WORK, WORK, MOVE, MOVE, MOVE, MOVE, MOVE, MOVE], { role: 'dismantler', targetRoomName: myRoom.name, mainRoomName: mainRoom.name });
                     }
                 }
 
             }
-            else {
+            else if (!_.any(Game.creeps, c => c.memory.role == 'scout' && c.memory.targetPosition && c.memory.targetPosition.roomName == flag.pos.roomName)) {
                 let mainRoom = _.min(mainRooms, mr => Game.map.getRoomLinearDistance(flag.pos.roomName, mr.name));
                 mainRoom.spawnManager.addToQueue(['move'], <ScoutMemory>{ handledByColony: true, role: 'scout', mainRoomName: null, targetPosition: flag.pos });
             }
