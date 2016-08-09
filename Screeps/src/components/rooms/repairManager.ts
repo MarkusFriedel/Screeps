@@ -75,7 +75,7 @@ class RepairManager implements RepairManagerInterface {
         if (this.mainRoom.spawnManager.isBusy || !this.mainRoom.mainContainer)
             return;
 
-        if (myRoom.name == myRoom.mainRoom.name || myRoom.room && _.size(myRoom.repairStructures) > 0) {
+        if (myRoom.name == myRoom.mainRoom.name && myRoom.room.controller.level>=3 || myRoom.room && _.size(myRoom.repairStructures) > 0) {
 
             let maxMainRoomCreeps = 1 + Math.max(0, this.mainRoom.room.controller.level - 8);
 

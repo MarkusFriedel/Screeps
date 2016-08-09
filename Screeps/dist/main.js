@@ -1244,7 +1244,7 @@ var RepairManager = (function () {
     RepairManager.prototype.preTick = function (myRoom) {
         if (this.mainRoom.spawnManager.isBusy || !this.mainRoom.mainContainer)
             return;
-        if (myRoom.name == myRoom.mainRoom.name || myRoom.room && _.size(myRoom.repairStructures) > 0) {
+        if (myRoom.name == myRoom.mainRoom.name && myRoom.room.controller.level >= 3 || myRoom.room && _.size(myRoom.repairStructures) > 0) {
             var maxMainRoomCreeps = 1 + Math.max(0, this.mainRoom.room.controller.level - 8);
             var roomCreeps = _.filter(this.creeps, function (x) { return x.memory.roomName == myRoom.name; });
             if (roomCreeps.length < (myRoom.name == this.mainRoom.name ? maxMainRoomCreeps : 1)) {
@@ -2511,6 +2511,9 @@ var Defender = (function (_super) {
                 }
                 this.moveByPath();
             }
+            else {
+                this.recycle();
+            }
         }
     };
     return Defender;
@@ -2542,7 +2545,10 @@ var DefenseManager = (function () {
     DefenseManager.prototype.preTick = function () {
         if (this.mainRoom.spawnManager.isBusy)
             return;
-        if (_.filter(this.mainRoom.allRooms, function (r) { return !r.memory.fO && !r.memory.fR && r.requiresDefense && r.canHarvest; }).length > 0 && this.creeps.length < this.maxCreeps) {
+        var defenderRequired = _.any(this.mainRoom.allRooms, function (r) { return !r.memory.fO && !r.memory.fR && r.requiresDefense && r.canHarvest; });
+        if (defenderRequired)
+            _.forEach(this.creeps, function (c) { return delete c.memory.recycle; });
+        if (defenderRequired && this.creeps.length < this.maxCreeps) {
             this.mainRoom.spawnManager.addToQueue(DefenderDefinition.getDefinition(this.mainRoom.maxSpawnEnergy).getBody(), { role: 'defender' }, this.maxCreeps - this.creeps.length, true);
         }
     };

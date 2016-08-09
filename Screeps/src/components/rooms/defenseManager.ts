@@ -28,7 +28,12 @@ class DefenseManager  implements DefenseManagerInterface {
     public preTick() {
         if (this.mainRoom.spawnManager.isBusy)
             return;
-        if (_.filter(this.mainRoom.allRooms, (r) => !r.memory.fO && !r.memory.fR && r.requiresDefense && r.canHarvest).length > 0 && this.creeps.length < this.maxCreeps) {
+
+        let defenderRequired = _.any(this.mainRoom.allRooms, (r) => !r.memory.fO && !r.memory.fR && r.requiresDefense && r.canHarvest);
+        if (defenderRequired)
+            _.forEach(this.creeps, c => delete c.memory.recycle);
+
+        if (defenderRequired && this.creeps.length < this.maxCreeps) {
             this.mainRoom.spawnManager.addToQueue(DefenderDefinition.getDefinition(this.mainRoom.maxSpawnEnergy).getBody(), { role: 'defender' }, this.maxCreeps - this.creeps.length,true);
         }
     }

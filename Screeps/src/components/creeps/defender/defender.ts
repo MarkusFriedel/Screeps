@@ -30,6 +30,9 @@ class Defender extends MyCreep<DefenderMemory> {
                 }
                 this.moveByPath();
             }
+            else {
+                this.recycle();
+            }
 
         }
     }
