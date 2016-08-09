@@ -2163,6 +2163,8 @@ var HarvestingCarrier = (function (_super) {
     });
     HarvestingCarrier.prototype.statePickup = function () {
         var _this = this;
+        if (!this.harvestingSite)
+            return;
         if (this.creep.fatigue > 0)
             return;
         var resource = _.filter(this.myRoom.resourceDrops, function (r) { return _this.creep.pos.inRangeTo(r.pos, 1); })[0];

@@ -26,6 +26,8 @@ class HarvestingCarrier extends MyCreep<HarvestingCarrierMemory> {
     }
 
     private statePickup() {
+        if (!this.harvestingSite)
+            return;
         if (this.creep.fatigue > 0)
             return;
         let resource = _.filter(this.myRoom.resourceDrops, r => this.creep.pos.inRangeTo(r.pos, 1))[0];
@@ -98,6 +100,7 @@ class HarvestingCarrier extends MyCreep<HarvestingCarrierMemory> {
 
 
     protected myTick() {
+        
         if (this.state == null || this.state == HarvestingCarrierState.deliver && _.sum(this.creep.carry) == 0) {
             if (this.creep.ticksToLive < 3 * this.harvestingSite.pathLengthToDropOff)
                 this.recycle();
