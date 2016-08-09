@@ -4147,6 +4147,12 @@ var KeeperBuster = (function (_super) {
             this.creep.moveTo(new RoomPosition(25, 25, this.memory.roomName));
             return;
         }
+        if (_.size(this.myRoom.hostileScan.creeps) > 0) {
+            var creep = _.sortBy(_.map(this.myRoom.hostileScan.creeps, function (x) { return x.creep; }), function (x) { return Math.pow((x.pos.x - _this.creep.pos.x), 2) + Math.pow((x.pos.y - _this.creep.pos.y), 2); })[0];
+            if (this.creep.rangedAttack(creep) == ERR_NOT_IN_RANGE)
+                this.creep.moveTo(creep);
+            return;
+        }
         if (this.memory.targetId != null) {
             var keeper = Game.getObjectById(this.memory.targetId);
             if (keeper == null || keeper.hits <= 100) {
@@ -4176,11 +4182,6 @@ var KeeperBuster = (function (_super) {
                 this.creep.say('WAIT');
                 if (closestByTime.ticksToLive == 200)
                     this.creep.rangedAttack(keeperCreep_1);
-            }
-            else if (_.size(this.myRoom.hostileScan.creeps) > 0) {
-                var creep = _.sortBy(_.map(this.myRoom.hostileScan.creeps, function (x) { return x.creep; }), function (x) { return Math.pow((x.pos.x - _this.creep.pos.x), 2) + Math.pow((x.pos.y - _this.creep.pos.y), 2); })[0];
-                if (this.creep.rangedAttack(creep) == ERR_NOT_IN_RANGE)
-                    this.creep.moveTo(creep);
             }
             else {
                 var ticksUntilNextKeeperAttack = _.min(_.map(this.harvestingSitesToDefend, function (x) { return x.keeper.creep ? x.keeper.creep.ticksToLive + 300 : 0 + x.keeper.lair.ticksToSpawn; }));
@@ -5364,7 +5365,7 @@ var RoomAssignment = (function () {
 var RoomAssignmentHandler = (function () {
     function RoomAssignmentHandler() {
         var _this = this;
-        this.forbidden = [];
+        this.forbidden = Colony.memory.forbiddenRooms || [];
         this.assignments = {};
         this.roomsToAssign = {};
         this.rooms = Colony.getAllRooms();
@@ -5373,7 +5374,7 @@ var RoomAssignmentHandler = (function () {
         _.forEach(_.filter(this.rooms, this.roomFilter.bind(this)), function (x) { return _this.roomsToAssign[x.name] = x; });
     }
     RoomAssignmentHandler.prototype.roomFilter = function (myRoom) {
-        return _.every(this.forbidden, function (x) { return x != myRoom.name; }) && _.size(myRoom.mySources) > 0 && !myRoom.memory.fO && !myRoom.memory.fR && _.min(myRoom.memory.mrd, function (x) { return x.d; }).d <= MAXDISTANCE;
+        return _.every(this.forbidden, function (x) { return x != myRoom.name; }) && (!_.any(myRoom.mySources, function (s) { return s.hasKeeper; }) || Colony.memory.harvestKeeperRooms) && !Game.map.isRoomProtected(myRoom.name) && _.size(myRoom.mySources) > 0 && !myRoom.memory.fO && !myRoom.memory.fR && _.min(myRoom.memory.mrd, function (x) { return x.d; }).d <= MAXDISTANCE;
     };
     RoomAssignmentHandler.prototype.assignRoomsByMinDistance = function () {
         var _this = this;
@@ -5448,6 +5449,7 @@ var RoomAssignmentHandler = (function () {
         }), function (x) { return x.mainRoom.name; });
     };
     RoomAssignmentHandler.prototype.assignRooms = function () {
+        var _this = this;
         try {
             var assignments = this.getAssignments();
             var stringResult = _.map(assignments, function (x) {
@@ -5458,12 +5460,12 @@ var RoomAssignmentHandler = (function () {
                 };
             });
             console.log('Assigning Rooms');
-            //_.forEach(this.rooms, (x) => x.mainRoom = null);
-            //_.forEach(assignments, (assignment) => _.forEach(assignment.myRooms, (myRoom) =>myRoom.mainRoom = assignment.mainRoom));
-            //_.forEach(_.filter(this.rooms, room => room.mainRoom == null && _.any(room.memory.mainRoomDistanceDescriptions, x => x.distance == 1) && !room.memory.foreignOwner && !room.memory.foreignReserver), room => {
-            //    let mainRoom = this.mainRooms[_.min(room.memory.mainRoomDistanceDescriptions, x => x.distance).roomName];
-            //    room.mainRoom = mainRoom;
-            //});
+            _.forEach(this.rooms, function (x) { return x.mainRoom = null; });
+            _.forEach(assignments, function (assignment) { return _.forEach(assignment.myRooms, function (myRoom) { return myRoom.mainRoom = assignment.mainRoom; }); });
+            _.forEach(_.filter(this.rooms, function (room) { return (!_.any(room.mySources, function (s) { return s.hasKeeper; }) || Colony.memory.harvestKeeperRooms) && room.mainRoom == null && _.any(room.memory.mrd, function (x) { return x.d == 1; }) && !room.memory.fO && !room.memory.fR; }), function (room) {
+                var mainRoom = _this.mainRooms[_.min(room.memory.mrd, function (x) { return x.d; }).n];
+                room.mainRoom = mainRoom;
+            });
             myMemory['RoomAssignment'] = stringResult;
         }
         catch (e) {
@@ -6922,7 +6924,7 @@ var HostileScan = (function () {
         if (this.myRoom.room) {
             this._allCreeps = { time: Game.time, creeps: {} };
             this.memory.creeps = { time: Game.time, creeps: {} };
-            this._allCreeps.creeps = _.indexBy(_.map(this.myRoom.room.find(FIND_HOSTILE_CREEPS), function (creep) { return new CreepInfo(creep.id, _this); }), function (x) { return x.id; });
+            this._allCreeps.creeps = _.indexBy(_.map(this.myRoom.room.find(FIND_HOSTILE_CREEPS, { filter: function (c) { return !c.owner || c.owner.username != 'MarkusF'; } }), function (creep) { return new CreepInfo(creep.id, _this); }), function (x) { return x.id; });
         }
     };
     return HostileScan;

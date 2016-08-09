@@ -30,6 +30,13 @@ class KeeperBuster extends MyCreep<KeeperBusterMemory> {
             return;
         }
 
+        if (_.size(this.myRoom.hostileScan.creeps) > 0) {
+            let creep = _.sortBy(_.map(this.myRoom.hostileScan.creeps, x => x.creep), x => (x.pos.x - this.creep.pos.x) ** 2 + (x.pos.y - this.creep.pos.y) ** 2)[0];
+            if (this.creep.rangedAttack(creep) == ERR_NOT_IN_RANGE)
+                this.creep.moveTo(creep);
+            return;
+        }
+
         if (this.memory.targetId != null) {
             var keeper = Game.getObjectById<Creep>(this.memory.targetId);
             if (keeper == null || keeper.hits <= 100) {
@@ -63,11 +70,7 @@ class KeeperBuster extends MyCreep<KeeperBusterMemory> {
                     this.creep.rangedAttack(keeperCreep);
             }
 
-            else if (_.size(this.myRoom.hostileScan.creeps) > 0) {
-                let creep = _.sortBy(_.map(this.myRoom.hostileScan.creeps, x => x.creep), x => (x.pos.x - this.creep.pos.x) ** 2 + (x.pos.y - this.creep.pos.y) ** 2)[0];
-                if (this.creep.rangedAttack(creep) == ERR_NOT_IN_RANGE)
-                    this.creep.moveTo(creep);
-            }
+            
 
 
             else {

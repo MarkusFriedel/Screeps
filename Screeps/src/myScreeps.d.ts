@@ -46,6 +46,8 @@ interface ColonyMemory {
     useKeeperMatrix?: boolean;
     createPathTime?: number;
     pathSliceTime?: number;
+    harvestKeeperRooms?: boolean;
+    forbiddenRooms?: string[];
 }
 
 interface ReactionManagerMemory {

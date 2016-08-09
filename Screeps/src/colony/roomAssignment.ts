@@ -66,14 +66,14 @@ class RoomAssignment implements RoomAssignmentInterface {
 }
 class RoomAssignmentHandler implements RoomAssignmentHandlerInterface {
 
-    forbidden: Array<string> = [];
+    forbidden: Array<string> = Colony.memory.forbiddenRooms || [];
 
     private assignments: { [mainRoomName: string]: RoomAssignmentInterface } = {};
 
     private roomsToAssign: { [roomName: string]: MyRoomInterface } = {};
 
     private roomFilter(myRoom: MyRoom) {
-        return _.every(this.forbidden, x => x != myRoom.name) && /*!Game.map.isRoomProtected(myRoom.name) &&*/ _.size(myRoom.mySources) > 0 && !myRoom.memory.fO && !myRoom.memory.fR && _.min(myRoom.memory.mrd, x => x.d).d <= MAXDISTANCE;
+        return _.every(this.forbidden, x => x != myRoom.name) && (!_.any(myRoom.mySources, s => s.hasKeeper) || Colony.memory.harvestKeeperRooms) && !Game.map.isRoomProtected(myRoom.name) && _.size(myRoom.mySources) > 0 && !myRoom.memory.fO && !myRoom.memory.fR && _.min(myRoom.memory.mrd, x => x.d).d <= MAXDISTANCE;
     }
 
     private rooms: { [roomName: string]: MyRoomInterface };
@@ -184,14 +184,14 @@ class RoomAssignmentHandler implements RoomAssignmentHandlerInterface {
 
             console.log('Assigning Rooms');
 
-            //_.forEach(this.rooms, (x) => x.mainRoom = null);
+            _.forEach(this.rooms, (x) => x.mainRoom = null);
 
-            //_.forEach(assignments, (assignment) => _.forEach(assignment.myRooms, (myRoom) =>myRoom.mainRoom = assignment.mainRoom));
+            _.forEach(assignments, (assignment) => _.forEach(assignment.myRooms, (myRoom) =>myRoom.mainRoom = assignment.mainRoom));
 
-            //_.forEach(_.filter(this.rooms, room => room.mainRoom == null && _.any(room.memory.mainRoomDistanceDescriptions, x => x.distance == 1) && !room.memory.foreignOwner && !room.memory.foreignReserver), room => {
-            //    let mainRoom = this.mainRooms[_.min(room.memory.mainRoomDistanceDescriptions, x => x.distance).roomName];
-            //    room.mainRoom = mainRoom;
-            //});
+            _.forEach(_.filter(this.rooms, room => (!_.any(room.mySources, s => s.hasKeeper) || Colony.memory.harvestKeeperRooms) && room.mainRoom == null && _.any(room.memory.mrd, x => x.d == 1) && !room.memory.fO && !room.memory.fR), room => {
+                let mainRoom = this.mainRooms[_.min(room.memory.mrd, x => x.d).n];
+                room.mainRoom = mainRoom;
+            });
 
             myMemory['RoomAssignment'] = stringResult;
         }
