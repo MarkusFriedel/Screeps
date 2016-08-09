@@ -16,7 +16,9 @@ class RoadConstructionManager  implements RoadConstructionManagerInterface {
   
 
     constructor(public mainRoom: MainRoom) {
-        this.tick = profiler.registerFN(this.tick, 'RoadConstructionManager.tick');
+        if (myMemory['profilerActive']) {
+            this.tick = profiler.registerFN(this.tick, 'RoadConstructionManager.tick');
+        }
     }
 
     buildExtensionRoads() {

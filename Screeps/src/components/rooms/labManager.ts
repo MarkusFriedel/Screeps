@@ -88,7 +88,10 @@ class LabManager implements LabManagerInterface {
 
     constructor(public mainRoom: MainRoom) {
         Colony.reactionManager.registerLabManager(this);
-        this.preTick = profiler.registerFN(this.preTick, 'LabManager.preTick');
+        if (myMemory['profilerActive']) {
+            this.preTick = profiler.registerFN(this.preTick, 'LabManager.preTick');
+            this.tick = profiler.registerFN(this.tick, 'LabManager.tick');
+        }
     }
 
     private bestLabForReaction(resource: string): { lab: MyLab, requiredLabs: number } {
@@ -153,7 +156,7 @@ class LabManager implements LabManagerInterface {
         this.setupPublishs();
         this.restorePublishs();
 
-        _.forEach(this.creeps, x => new LabCarrier(x, this).tick());
+        _.forEach(this.creeps, x => new LabCarrier(x.name, this).tick());
 
 
         _.forEach(this.myLabs, x => x.tick());

@@ -42,7 +42,10 @@ interface ColonyMemory {
         [roomName: string]: { [direction: string]: string }
     };
     creepIdx?: number;
-    useCompressedCostMatrix: boolean;
+    useCompressedCostMatrix?: boolean;
+    useKeeperMatrix?: boolean;
+    createPathTime?: number;
+    pathSliceTime?: number;
 }
 
 interface ReactionManagerMemory {
@@ -76,7 +79,9 @@ interface MainRoomMemory {
     extractorContainerId?: { time: number, id: string };
     myObserver?: MyObserverMemory;
     harvestingActive?: boolean;
-
+    powerBanks?: { [id: string]: MyPowerBankMemory };
+    connectedRooms?: string[];
+    nukerId?: { time: number, id: string };
 }
 
 interface RoomPositionMemory {
@@ -89,38 +94,140 @@ interface LabManagerMemory {
     labs: { [id: string]: LabMemory };
 }
 
-interface HarvestingSiteMemory {
+interface HarvestingSiteMemoryOld {
     id: string;
     pos?: RoomPositionMemory;
     keeper?: boolean;
     lairId?: string;
     lairPos?: RoomPosition;
     harvestingSpots?: number;
+    /**
+    * roadBuiltToRoom
+    **/
     roadBuiltToRoom?: string;
+    /**
+    * Container Id
+    **/
+    cId?: string;
+    /**
+    * Container Id
+    **/
+    cPos?: RoomPosition;
+
+    /**
+    * Resource type
+    **/
+    rt?: string;
+    /**
+    * Resource amount
+    **/
+    amount?: number;
+    /**
+    * PathLengthToMainContainer
+    **/
+
+    pl?: { time: number, length: number };
+}
+
+interface HarvestingSiteMemory {
+    id: string;
+    pos?: RoomPositionMemory;
+    keeper?: boolean;
+    lairId?: string;
+    lairPos?: RoomPosition;
+    /**
+    * Harvesting spot count
+    **/
+    hs?: number;
+    /**
+    * roadBuiltToRoom
+    **/
+    rbtr?: string;
+    /**
+    * Container Id
+    **/
+    cId?: string;
+    /**
+    * Container Id
+    **/
+    cPos?: RoomPosition;
+
+    /**
+    * Resource type
+    **/
+    rt?: string;
+    /**
+    * Resource amount
+    **/
+    a?: number;
+    /**
+    * PathLengthToMainContainer
+    **/
+
+    pl?: { time: number, length: number };
+}
+
+interface MyMineralMemoryOld extends HarvestingSiteMemoryOld {
+
+
+    pathLengthToTerminal?: { time: number, length: number };
+
+    hasExtractor?: { time: number, hasExtractor: boolean };
+
+    refreshTime: number;
+
+    terminalRoadBuiltTo: string;
+    containerId: { time: number, id: string }
 }
 
 interface MyMineralMemory extends HarvestingSiteMemory {
-    
-    amount?: number;
-    refreshTime?: number;
-    terminalRoadBuiltTo?: string;
-    //containerId: { time: number, id: string };
-    pathLengthToTerminal?: { time: number, length: number };
-    resource?: string;
-    hasExtractor?: { time: number, hasExtractor: boolean };
+
+    /**
+    * Has Extractor
+    **/
+    e?: { time: number, hasExtractor: boolean };
+
+    /**
+    * Refresh time
+    **/
+    rti?: number;
+
 }
 
-interface MySourceMemory extends HarvestingSiteMemory {
-    
-    capacity?: number;
-    
-    
-    //hasSourceDropOff: boolean;
+interface MySourceMemoryOld extends HarvestingSiteMemoryOld {
+    /**
+    * Capacity
+    **/
+    energyCapacity?: number;
+
+
+    /**
+    * Link Id
+    **/
     linkId?: { time: number, id: string };
     //dropOffStructure: cachedProperty<{ id: string, pos: RoomPosition }>;
     //sourceDropOffContainer: cachedProperty<{ id: string, pos: RoomPosition }>;
-    containerId?: string;
     pathLengthToMainContainer?: { time: number, length: number };
+
+
+}
+
+interface MySourceMemory extends HarvestingSiteMemory {
+    /**
+    * Capacity
+    **/
+    c?: number;
+
+
+
+    /**
+    * Link Id
+    **/
+    lId?: { time: number, id: string };
+    //dropOffStructure: cachedProperty<{ id: string, pos: RoomPosition }>;
+    //sourceDropOffContainer: cachedProperty<{ id: string, pos: RoomPosition }>;
+
+
 }
 
 interface MyContainerMemory {
@@ -134,10 +241,13 @@ interface RepairStructure {
     hits: number;
     hitsMax: number;
     pos: RoomPosition;
-    structureType: string;
+    /**
+    * StructureType
+    **/
+    sT: string;
 }
 
-interface MyRoomMemory {
+interface MyRoomMemoryOld {
     name: string;
     lastScanTime: number;
     sources: {
@@ -154,11 +264,82 @@ interface MyRoomMemory {
     hasController: boolean;
     controllerPosition: RoomPosition;
     costMatrix?: { time: number, matrix: number[] };
+    avoidKeeperMatrix?: { time: number, matrix: number[] };
     compressedCostMatrix?: { time: number, matrix: CompressedCostMatrix };
     myMineral?: MyMineralMemory;
+    rsUT?: number;
     repairStructures?: { time: number, structures: { [id: string]: RepairStructure } };
     repairWalls?: { time: number, structures: { [id: string]: RepairStructure } };
     emergencyRepairStructures?: { time: number, structures: Array<RepairStructure> };
+
+}
+
+interface MyRoomMemory {
+    name?: string;
+    lst?: number;
+    /**
+    * Sources
+    **/
+    srcs?: {
+        [id: string]: MySourceMemory;
+    }
+    /**
+    * MainRoom name
+    **/
+    mrn?: string;
+    /**
+    * Foreign owner
+    **/
+    fO?: boolean;
+    /**
+    * Foreign reserver
+    **/
+    fR?: boolean;
+    /**
+    * Hostile Scan
+    **/
+    hs?: HostileScanMemory;
+    /**
+    * Distances to MainRooms
+    **/
+    mrd?: MainRoomDistanceDescriptions;
+    /**
+    * Controller position
+    **/
+    ctrlPos?: RoomPosition;
+    /**
+    * Cost matrix
+    **/
+    cm?: { time: number, matrix: number[] };
+    /**
+    * Avoid Keeper Matrix
+    **/
+    aKM?: { time: number, matrix: number[] };
+    /**
+    * Compressed cost matrix
+    **/
+    ccm?: { time: number, matrix: CompressedCostMatrix };
+    /**
+    * Mineral
+    **/
+    min?: MyMineralMemory;
+    /**
+    * RepairStructures Update time
+    **/
+    rsUT?: number;
+    /**
+    * RepairStructures
+    **/
+    rs?: { time: number, structures: { [id: string]: RepairStructure } };
+    /**
+    * RepairWalls
+    **/
+    rw?: { time: number, structures: { [id: string]: RepairStructure } };
+    /**
+    * Emergency RepairStructures
+    **/
+    ers?: { time: number, structures: Array<RepairStructure> };
+
 }
 
 interface HostilesInformationMemory {
@@ -181,7 +362,7 @@ interface EnergyHarvestingManagerMemory {
     debug: boolean,
     verbose: boolean,
     sleepUntil?: { [sourceId: string]: number, sleepUntil?: number };
-    creepCounts?: { [sourceId: string]:  {harvesters:number, carriers:number} };
+    creepCounts?: { [sourceId: string]: { harvesters: number, carriers: number, harvesterRequirements: number, carrierRequirements: number } };
 }
 
 interface RepairTarget {
@@ -237,11 +418,11 @@ interface CreepMemory {
     handledByColony?: boolean;
     role: string;
     path?: { path: RoomPosition[], ops: number };
-    autoFlee?: boolean;
+    af?: boolean;
     fleeing?: boolean;
     requiredBoosts?: { [compound: string]: { compound: string, amount: number } };
     pathMovement?: PathMovement;
-    recycle?: { spawnId: string };
+    recycle?: { spawnId: string } | boolean;
 }
 
 interface ScoutMemory extends CreepMemory {
@@ -359,9 +540,16 @@ interface CreepTarget {
 
 }
 
-interface DistanceDescription {
+interface DistanceDescriptionOld {
     roomName: string;
     distance: number;
+    n: string;
+    d: number;
+}
+
+interface DistanceDescription {
+    n: string;
+    d: number;
 }
 
 interface MainRoomDistanceDescriptions {
@@ -389,6 +577,13 @@ interface HarvestingSiteInterface {
     keeper: KeeperInterface;
     usable: boolean;
     lairPosition: RoomPosition;
+    resourceType: string;
+    container: StructureContainer;
+    containerPosition: RoomPosition;
+    link: Link;
+    site: Source | Mineral;
+    amount: number;
+    keeperIsAlive: boolean;
 }
 
 interface MyMineralInterface extends HarvestingSiteInterface {
@@ -396,19 +591,16 @@ interface MyMineralInterface extends HarvestingSiteInterface {
     amount: number;
     refreshTime: number;
     hasExtractor: boolean;
-    resource: string;
     maxHarvestingSpots: number;
-    
+
 }
 
 interface MySourceInterface extends HarvestingSiteInterface {
     source: Source;
     capacity: number;
-    link: Link,
-    container: StructureContainer;
+
     maxHarvestingSpots: number;
     rate: number;
-    
 }
 
 
@@ -509,6 +701,7 @@ interface MainRoomInterface {
     //extractor: StructureExtractor,
     //extractorContainer: Container,
     terminal: Terminal,
+    nuker: StructureNuker,
     tick();
     managers: {
         constructionManager: ConstructionManagerInterface,
@@ -524,6 +717,8 @@ interface MainRoomInterface {
         mineralHarvestingManager: MineralHarvestingManagerInterface,
         sourceKeeperManager: SourceKeeperManagerInterface,
         labManager: LabManagerInterface,
+        powerManager: PowerManagerInterface;
+        nukeManager: NukeManagerInterface;
     };
     invalidateSources();
     getResourceAmount(resource: string): number,
@@ -531,6 +726,7 @@ interface MainRoomInterface {
     harvestersShouldDeliver: boolean;
     myObserver: MyObserverInterface;
     harvestingActive: boolean;
+    harvestingSites: { [id: string]: HarvestingSiteInterface };
 }
 
 interface ClaimingManagerInterface {
@@ -547,7 +743,7 @@ interface ConstructionManagerInterface {
 
 interface RepairManagerInterface {
     creeps: Array<Creep>;
-    
+
 }
 interface UpgradeManagerInterface {
 
@@ -583,8 +779,19 @@ interface BodyInterface {
     costs: number;
     getBody(): Array<string>;
     energyHarvestingRate: number;
+    mineralHarvestingRate: number;
+    getHarvestingRate(resource: string): number;
+    healRate: number;
     isMilitaryDefender: boolean;
     isMilitaryAttacker: boolean;
+    move: number;
+    work: number;
+    attack: number;
+    carry: number;
+    heal: number;
+    ranged_attack: number;
+    tough: number;
+    claim: number;
 }
 
 interface RoomAssignmentHandlerInterface {
@@ -734,8 +941,8 @@ interface MyObserverMemory {
 }
 
 interface KeeperBusterMemory extends CreepMemory {
-    roomName: string;
-    targetId: string;
+    roomName?: string;
+    targetId?: string;
 }
 
 interface SourceKeeperManagerMemory {
@@ -785,6 +992,10 @@ declare const enum ArmyMission {
     Attack = 3
 }
 
+interface PowerManagerInterface {
+
+}
+
 interface MyPowerBankInterface {
 
 }
@@ -792,6 +1003,8 @@ interface MyPowerBankInterface {
 interface MyPowerBankMemory {
     id: string;
     pos: RoomPosition;
+    decaysAt: number;
+    power: number;
 }
 
 interface ArmyMemory {
@@ -802,7 +1015,7 @@ interface ArmyMemory {
 }
 
 interface MissionPowerHarvestingMemory {
-    
+
 
 }
 
@@ -852,3 +1065,160 @@ interface CostMatrixOpts {
     ignoreKeeperSourceId?: string;
     avoidCreeps?: boolean;
 }
+
+declare const enum HarvesterState {
+    harvest = 0,
+    deliver = 1
+}
+declare const enum HarvestingCarrierState {
+    pickup = 0,
+    deliver
+}
+
+interface HarvestingCarrierMemory extends CreepMemory {
+    /**
+    * Harvesting Site Id
+    **/
+    sId: string;
+    /**
+    * State
+    **/
+    st: HarvestingCarrierState;
+}
+
+interface HarvesterMemory extends CreepMemory {
+    /**
+    * Harvesting Site Id
+    **/
+    sId: string;
+    /**
+    * State
+    **/
+    st: HarvesterState;
+}
+
+interface NukeManagerInterface {
+    preTick(),
+    tick(),
+    isReady: boolean
+}
+
+interface StructureLab {
+    cooldown: number
+}
+
+declare var BOOSTS: {
+    work: {
+        UO: {
+            harvest: number
+        },
+        UHO2: {
+            harvest: number
+        },
+        XUHO2: {
+            harvest: number
+        },
+        LH: {
+            build: number,
+            repair: number
+        },
+        LH2O: {
+            build: number,
+            repair: number
+        },
+        XLH2O: {
+            build: number,
+            repair: number
+        },
+        ZH: {
+            dismantle: number
+        },
+        ZH2O: {
+            dismantle: number
+        },
+        XZH2O: {
+            dismantle: number
+        },
+        GH: {
+            upgradeController: number
+        },
+        GH2O: {
+            upgradeController: number
+        },
+        XGH2O: {
+            upgradeController: number
+        }
+    },
+    attack: {
+        UH: {
+            attack: number
+        },
+        UH2O: {
+            attack: number
+        },
+        XUH2O: {
+            attack: number
+        }
+    },
+    ranged_attack: {
+        KO: {
+            rangedAttack: number,
+            rangedMassAttack: number
+        },
+        KHO2: {
+            rangedAttack: number,
+            rangedMassAttack: number
+        },
+        XKHO2: {
+            rangedAttack: number,
+            rangedMassAttack: number
+        }
+    },
+    heal: {
+        LO: {
+            heal: number,
+            rangedHeal: number
+        },
+        LHO2: {
+            heal: number,
+            rangedHeal: number
+        },
+        XLHO2: {
+            heal: number,
+            rangedHeal: number
+        }
+    },
+    carry: {
+        KH: {
+            capacity: number
+        },
+        KH2O: {
+            capacity: number
+        },
+        XKH2O: {
+            capacity: number
+        }
+    },
+    move: {
+        ZO: {
+            fatigue: number
+        },
+        ZHO2: {
+            fatigue: number
+        },
+        XZHO2: {
+            fatigue: number
+        }
+    },
+    tough: {
+        GO: {
+            damage: number
+        },
+        GHO2: {
+            damage: number
+        },
+        XGHO2: {
+            damage: number
+        }
+    }
+};

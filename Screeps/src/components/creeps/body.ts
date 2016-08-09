@@ -13,7 +13,11 @@
         return Body.getFromBodyArray(creep.body);
     }
 
-
+    constructor() {
+        if (myMemory['profilerActive']) {
+            this.getHarvestingRate = profiler.registerFN(this.getHarvestingRate, 'Body.getHarvestingRate');
+        }
+    }
 
     public get costs() {
         let costs = 0;
@@ -39,11 +43,29 @@
     tough: number = 0;
     claim: number = 0;
 
+   
+    public getHarvestingRate(resource: string) {
+        if (resource == RESOURCE_ENERGY)
+            return this.energyHarvestingRate;
+        else
+            return this.mineralHarvestingRate;
+    }
+
     public get energyHarvestingRate() {
         let rate = this.work * HARVEST_POWER;
         _.forEach(this.boosts, b => {
             if (BOOSTS.work[b.compound] && BOOSTS.work[b.compound].harvest)
                 rate += HARVEST_POWER * (BOOSTS.work[b.compound].harvest - 1) * b.amount;
+        });
+
+        return rate;
+    }
+
+    public get healRate() {
+        let rate = this.heal * HEAL_POWER;
+        _.forEach(this.boosts, b => {
+            if (BOOSTS.heal[b.compound] && BOOSTS.work[b.compound].heal)
+                rate += HEAL_POWER * (BOOSTS.work[b.compound].heal - 1) * b.amount;
         });
 
         return rate;
@@ -61,7 +83,7 @@
         return (this.heal + this.ranged_attack + this.attack + this.work) > 0;
     }
 
-
+    
 
     public getBody() {
         let body: string[] = [];

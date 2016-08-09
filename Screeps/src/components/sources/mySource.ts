@@ -13,15 +13,15 @@ class MySource implements MySourceInterface {
 
 
     private accessMemory() {
-        if (this.myRoom.memory.sources == null)
-            this.myRoom.memory.sources = {};
-        if (this.myRoom.memory.sources[this.id] == null) {
-            this.myRoom.memory.sources[this.id] = {
+        if (this.myRoom.memory.srcs == null)
+            this.myRoom.memory.srcs = {};
+        if (this.myRoom.memory.srcs[this.id] == null) {
+            this.myRoom.memory.srcs[this.id] = {
                 id: this.id,
                 pos: this.source.pos
             }
         }
-        return this.myRoom.memory.sources[this.id];
+        return this.myRoom.memory.srcs[this.id];
     }
 
     private _room: { time: number, room: Room } = { time: -1, room: null };
@@ -36,13 +36,32 @@ class MySource implements MySourceInterface {
 
     }
 
-    private _source: { time: number, source: Source } = { time: -1, source: null }
+    private _keeperIsAlive: { time: number, isAlive: boolean };
+    public get keeperIsAlive() {
+        if (!this.hasKeeper)
+            return false;
+        if (this._keeperIsAlive == null || this._keeperIsAlive.time < Game.time) {
+            this._keeperIsAlive = { time: Game.time, isAlive: this.keeper && (this.keeper.lair.ticksToSpawn < 20 || this.keeper.creep && this.keeper.creep.hits > 100) }
+        }
+        return this._keeperIsAlive.isAlive;
+    }
+
+    private _source: { time: number, source: Source };
     public get source(): Source {
         //let trace = this.tracer.start('Property source');
-        if (this._source.time < Game.time)
+        if (this._source == null || this._source.time < Game.time)
             this._source = { time: Game.time, source: Game.getObjectById<Source>(this.id) }
         //trace.stop();
         return this._source.source;
+    }
+
+    public get containerPosition() {
+        if (this.container) {
+            this.memory.cPos = this.container.pos;
+            return this.memory.cPos;
+        }
+        else
+            return RoomPos.fromObj(this.memory.cPos);
     }
 
     private _container: { time: number, container: StructureContainer };
@@ -50,17 +69,17 @@ class MySource implements MySourceInterface {
         if (this.link || this.hasKeeper)
             return null;
         if ((this._container == null || this._container.time < Game.time) && this.room) {
-            if (this.memory.containerId) {
-                let container = Game.getObjectById<StructureContainer>(this.memory.containerId);
+            if (this.memory.cId) {
+                let container = Game.getObjectById<StructureContainer>(this.memory.cId);
                 if (container == null)
-                    this.memory.containerId = null;
+                    this.memory.cId = null;
                 this._container = { time: Game.time, container: container };
             }
-            if (this.memory.containerId == null) {
-                let container = this.source.pos.findInRange<StructureContainer>(FIND_STRUCTURES, 1, { filter: (s: Structure) => s.structureType == STRUCTURE_CONTAINER })[0];
-                if (container) {
-                    this.memory.containerId = container.id;
-                    this._container = { time: Game.time, container: container };
+            if (this.memory.cId == null && !this.link && !this.hasKeeper) {
+                let containerLook = _.filter(<LookAtResultWithPos[]>this.source.room.lookForAtArea(LOOK_STRUCTURES, this.pos.y - 1, this.pos.x - 1, this.pos.y + 1, this.pos.x + 1, true), s => s.structure.structureType == STRUCTURE_CONTAINER)[0];
+                if (containerLook) {
+                    this.memory.cId = containerLook.structure.id;
+                    this._container = { time: Game.time, container: <Container>containerLook.structure };
                 }
             }
         }
@@ -140,17 +159,24 @@ class MySource implements MySourceInterface {
 
     public get maxHarvestingSpots(): number {
         //let trace = this.tracer.start('Property maxHarvestingSpots');
-        if (this.memory.harvestingSpots != null || this.source == null) {
+        if (this.memory.hs != null || this.source == null) {
             //trace.stop();
-            return this.memory.harvestingSpots;
+            return this.memory.hs;
         }
         else {
             let pos = this.source.pos;
             let spots = _.filter((<LookAtResultWithPos[]>this.source.room.lookForAtArea(LOOK_TERRAIN, pos.y - 1, pos.x - 1, pos.y + 1, pos.x + 1, true)), x => x.terrain == 'swamp' || x.terrain == 'plain').length;
-            this.memory.harvestingSpots = spots;
+            this.memory.hs = spots;
             //trace.stop();
             return spots;
         }
+    }
+
+    private _site: { time: number, site: Source };
+    public get site() {
+        if (this._site == null || this._site.time < Game.time)
+            this._site = { time: Game.time, site: Game.getObjectById<Source>(this.id) };
+        return this._site.site;
     }
 
     public get usable() {
@@ -161,15 +187,17 @@ class MySource implements MySourceInterface {
         if (!this.memory.lairPos && this.keeper && this.keeper.lair)
             this.memory.lairPos = this.keeper.lair.pos;
         return RoomPos.fromObj(this.memory.lairPos);
-    }   
+    }
 
     private _keeper: { time: number, keeper: KeeperInterface };
     public get keeper() {
+        if (!this.hasKeeper || !this.room)
+            return null;
         if (this.room && (this._keeper == null || this._keeper.time < Game.time)) {
             if (this.memory.lairId)
                 var lair = Game.getObjectById<StructureKeeperLair>(this.memory.lairId);
             if (!lair) {
-                lair = this.source.pos.findInRange<StructureKeeperLair>(FIND_HOSTILE_STRUCTURES, 5, { filter: (s: Structure) => s.structureType == STRUCTURE_KEEPER_LAIR })[0];
+                lair = this.pos.findInRange<StructureKeeperLair>(FIND_HOSTILE_STRUCTURES, 5, { filter: (s: Structure) => s.structureType == STRUCTURE_KEEPER_LAIR })[0];
                 if (lair) {
                     this.memory.lairId = lair.id;
                     this.memory.lairPos = lair.pos;
@@ -190,16 +218,19 @@ class MySource implements MySourceInterface {
     }
 
     public get hasKeeper(): boolean {
-        //let trace = this.tracer.start('Property keeper');
         if (this.memory.keeper != null || !this.room) {
-            //trace.stop();
             return this.memory.keeper;
         }
         else {
             this.memory.keeper = this.source.pos.findInRange(FIND_STRUCTURES, 5, { filter: (s) => s.structureType == STRUCTURE_KEEPER_LAIR }).length > 0;
-            //trace.stop();
             return this.memory.keeper;
         }
+    }
+
+    public get amount() {
+        if (this.source)
+            this.memory.a = this.source.energy;
+        return this.memory.a;
     }
 
     public get rate() {
@@ -207,23 +238,23 @@ class MySource implements MySourceInterface {
     }
 
     public get roadBuiltToRoom() {
-        return this.memory.roadBuiltToRoom;
+        return this.memory.rbtr;
     }
     public set roadBuiltToRoom(value: string) {
-        this.memory.roadBuiltToRoom = value;
+        this.memory.rbtr = value;
     }
     _pathLengthToMainContainer: { time: number, length: number };
     public get pathLengthToDropOff() {
-        if ((this._pathLengthToMainContainer == null || this._pathLengthToMainContainer.time + 500 < Game.time) && this.source)
-            if (this.memory.pathLengthToMainContainer && this.memory.pathLengthToMainContainer.time + 500 < Game.time) {
-                this._pathLengthToMainContainer = this.memory.pathLengthToMainContainer;
+        if ((this._pathLengthToMainContainer == null || this._pathLengthToMainContainer.time + 1500 < Game.time) && this.source)
+            if (this.memory.pl && this.memory.pl.time + 1500 < Game.time) {
+                this._pathLengthToMainContainer = this.memory.pl;
             }
             else {
                 this._pathLengthToMainContainer = {
                     time: Game.time,
-                    length: PathFinder.search(this.myRoom.mainRoom.spawns[0].pos, { pos: this.source.pos, range: 4 }, { roomCallback: Colony.getTravelMatrix }).path.length
+                    length: PathFinder.search(this.myRoom.mainRoom.spawns[0].pos, { pos: this.source.pos, range: 1 }, { roomCallback: Colony.getCustomMatrix({ ignoreKeeperSourceId: this.id }), plainCost: 2, swampCost: 10, maxOps: 20000 }).path.length
                 };
-                this.memory.pathLengthToMainContainer = this._pathLengthToMainContainer;
+                this.memory.pl = this._pathLengthToMainContainer;
             }
 
         if (this._pathLengthToMainContainer == null)
@@ -253,38 +284,45 @@ class MySource implements MySourceInterface {
     public get capacity() {
         //let trace = this.tracer.start('Property energyCapacity');
         if (this.source && (this._capacityLastFresh == null || this._capacityLastFresh + 50 < Game.time)) {
-            this.memory.capacity = this.source.energyCapacity;
+            this.memory.c = this.source.energyCapacity;
             this._capacityLastFresh = Game.time;
         }
         //trace.stop();
-        return this.memory.capacity;
+        return this.memory.c;
+    }
+
+    private _loadLink() {
+        if (!this.myRoom.mainRoom || this.myRoom.name != this.myRoom.mainRoom.name) {
+            if (this.memory.lId)
+                delete this.memory.lId;
+            return null;
+        }
+
+        if (this._link == null || this._link.time < Game.time) {
+            if (this.memory.lId) {
+                let link = Game.getObjectById<Link>(this.memory.lId.id);
+                if (link)
+                    this._link = { time: Game.time, link: link };
+                else
+                    this.memory.lId = null;
+            }
+            if (this.memory.lId == null || this.memory.lId.time + 100 < Game.time) {
+                let link = this.source.pos.findInRange<Link>(FIND_MY_STRUCTURES, 4, { filter: (x: Structure) => x.structureType == STRUCTURE_LINK })[0];
+                if (link) {
+                    this._link = { time: Game.time, link: link };
+                    this.memory.lId = { time: Game.time, id: link.id };
+                }
+                else
+                    this.memory.lId = { time: Game.time, id: null };
+            }
+        }
     }
 
     private _link: { time: number, link: Link };
 
     public get link() {
-        //let trace = this.tracer.start('Property link');
-        if (!this.myRoom.mainRoom || this.myRoom.name != this.myRoom.mainRoom.name)
-            return null;
-        if (this._link == null || this._link.time < Game.time) {
-            if (this.memory.linkId) {
-                let link = Game.getObjectById<Link>(this.memory.linkId.id);
-                if (link)
-                    this._link = { time: Game.time, link: link };
-                else
-                    this.memory.linkId = null;
-            }
-            if (this.memory.linkId == null || this.memory.linkId.time + 100 < Game.time) {
-                let link = this.source.pos.findInRange<Link>(FIND_MY_STRUCTURES, 4, { filter: (x: Structure) => x.structureType == STRUCTURE_LINK })[0];
-                if (link) {
-                    this._link = { time: Game.time, link: link };
-                    this.memory.linkId = { time: Game.time, id: link.id };
-                }
-                else
-                    this.memory.linkId = { time: Game.time, id: null };
-            }
-        }
-        //trace.stop();
+        this._loadLink();
+
         if (this._link)
             return this._link.link;
         else
@@ -294,9 +332,34 @@ class MySource implements MySourceInterface {
     constructor(public id: string, public myRoom: MyRoom) {
 
 
+        //this.accessMemory();
+
+        let oldMemory = <MySourceMemoryOld>this.memory;
+        let memory = this.memory;
+
+        if (oldMemory.linkId)
+            delete oldMemory.linkId;
+        if (oldMemory.energyCapacity)
+            delete oldMemory.energyCapacity;
+
+        //if (oldMemory.capacity) memory.c = oldMemory.capacity;
+        //if (oldMemory.harvestingSpots) memory.hs = oldMemory.harvestingSpots;
+        //if (oldMemory.pathLengthToMainContainer) memory.pl = oldMemory.pathLengthToMainContainer;
+        //if (oldMemory.roadBuiltToRoom) memory.rbtr = oldMemory.roadBuiltToRoom;
+
+        //delete oldMemory.capacity;
+        //delete oldMemory.harvestingSpots;
+        //delete oldMemory.pathLengthToMainContainer;
+        //delete oldMemory.roadBuiltToRoom;
 
         this.hasKeeper;
         this.maxHarvestingSpots;
+        if (myMemory['profilerActive']) {
+            this._loadLink = profiler.registerFN(this._loadLink, 'MySource.link');
+            this.getHarvestingSpots = profiler.registerFN(this.getHarvestingSpots, 'MySource.getHarvestingSpots');
+        }
+
+
     }
 
     getHarvestingSpots(source) {
@@ -313,79 +376,5 @@ class MySource implements MySourceInterface {
         return 9 - walls;
     }
 
-    //public get containerMissing() {
-    //    let trace = this.tracer.start('Property containerMissing');
-    //    if (this.requiresCarrier || this.hasLink) {
-    //        trace.stop();
-    //        return false;
-    //    }
-
-    //    let result = this.pos.findInRange<ConstructionSite>(FIND_CONSTRUCTION_SITES, 4, {
-    //        filter: (s: Structure) => (s.structureType == STRUCTURE_CONTAINER || s.structureType == STRUCTURE_STORAGE || s.structureType == STRUCTURE_LINK)
-    //    }).length == 0;
-    //    trace.stop();
-    //    return result;
-    //}
-
-    //public get hasCarrier() {
-    //    if (!this.myRoom.mainRoom)
-    //        return false;
-    //    return _.any(this.myRoom.mainRoom.creepManagers.harvestingManager.sourceCarrierCreeps, x => (<SourceCarrierMemory>x.memory).sourceId == this.id);
-    //}
-
-    //private getSourceDropOffContainer() {
-    //    //if (this.myRoom.mainRoom.creepManagers.harvestingManager.sourceCarrierCreeps.length == 0)
-    //    //    return null;
-    //    let containerCandidate = this.pos.findInRange<Container | Storage>(FIND_STRUCTURES, 4, {
-    //        filter: (s: Structure) => (s.structureType == STRUCTURE_CONTAINER || s.structureType == STRUCTURE_STORAGE) && s.isActive()
-    //    })[0];
-
-    //    return containerCandidate;
-    //}
-
-    //private getDropOffStructure(): Storage | Container | Link | Spawn {
-
-    //    let linkCandidate = this.pos.findInRange<Link>(FIND_MY_STRUCTURES, 4, {
-    //        filter: (s: Structure) => s.structureType == STRUCTURE_LINK && s.isActive()
-    //    })[0];
-
-    //    if (this.myRoom.mainRoom.mainContainer && this.myRoom.mainRoom.creepManagers.harvestingManager.sourceCarrierCreeps.length > 0) {
-
-
-    //        let sourceDropOff = this.getSourceDropOffContainer();
-    //        if (sourceDropOff && sourceDropOff.structureType == STRUCTURE_STORAGE)
-    //            return sourceDropOff;
-    //        else if (linkCandidate)
-    //            return linkCandidate;
-    //        else if (sourceDropOff)
-    //            return sourceDropOff;
-    //    }
-
-    //    if (linkCandidate)
-    //        return linkCandidate;
-    //    if (this.myRoom.mainRoom.creepManagers.spawnFillManager.creeps.length > 0) {
-    //        if (this.myRoom.mainRoom.mainContainer)
-    //            return this.myRoom.mainRoom.mainContainer;
-    //    }
-
-    //    if (this.myRoom.mainRoom.spawns[0])
-    //        return this.myRoom.mainRoom.spawns[0];
-
-    //    return null;
-    //}
-
-    //initializeMemory(): MySourceMemory {
-    //    //var mem: MySourceMemory = new MySourceMemory();
-    //    //mem.id = this.source.id;
-    //    //mem.pos = this.source.pos;
-    //    //mem.energyCapacity = this.source.energyCapacity;
-    //    //mem.keeper = this.keeper;
-    //    //mem.harvestingSpots = this.maxHarvestingSpots;
-    //    //mem.mainContainerRoadBuiltTo = null;
-    //    //mem.mainContainerPathLength = this.pathLengthToMainContainer;
-    //    //mem.hasSourceDropOff = this.hasSourceDropOff;
-    //    //mem.hasLink = this.hasLink;
-
-    //    return mem;
-    //}
+    public resourceType = RESOURCE_ENERGY;
 }

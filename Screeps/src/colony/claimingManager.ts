@@ -33,7 +33,7 @@ class ClaimingManager implements ClaimingManagerInterface {
     }
 
     tickSpawnConstructors(creep: Creep) {
-        new SpawnConstructor(creep).tick();
+        new SpawnConstructor(creep.name).tick();
     }
 
     tickClaimer(creep: Creep) {
@@ -48,9 +48,7 @@ class ClaimingManager implements ClaimingManagerInterface {
     }
 
     checkScouts(myRoom: MyRoomInterface) {
-        if (Memory['verbose'] || this.memory.verbose)
-            console.log('Claiming Manager[' + this.roomName + '].checkScouts()');
-        if (myRoom == null || myRoom.memory.lastScanTime < Game.time - 500) {
+        if (myRoom == null || myRoom.memory.lst < Game.time - 500) {
             if (this.scouts.length == 0) {
                 let mainRoom: MainRoomInterface = null;
                 if (myRoom == null)
@@ -78,8 +76,6 @@ class ClaimingManager implements ClaimingManagerInterface {
     }
 
     checkSpawnConstructors(myRoom: MyRoomInterface) {
-        if (Memory['verbose'] || this.memory.verbose)
-            console.log('Claiming Manager[' + this.roomName + '].checkSpawnConstructors()');
         if (myRoom == null)
             return false;
         let mainRoom = myRoom.closestMainRoom;
@@ -104,8 +100,8 @@ class ClaimingManager implements ClaimingManagerInterface {
         Colony.mainRooms[this.roomName] = mainRoom;
         let myRoom = Colony.getRoom(this.roomName);
         myRoom.mainRoom = mainRoom;
-        myRoom.memory.mainRoomName = this.roomName;
-        myRoom.memory.mainRoomDistanceDescriptions[this.roomName] = { roomName: this.roomName, distance: 0 };
+        myRoom.memory.mrn = this.roomName;
+        myRoom.memory.mrd[this.roomName] = { n: this.roomName, d: 0 };
 
         for (let idx in this.scouts)
             this.scouts[idx].suicide();
@@ -140,19 +136,12 @@ class ClaimingManager implements ClaimingManagerInterface {
         if (Colony.getRoom(this.roomName))
             Colony.getRoom(this.roomName).mainRoom = null;
 
-        if (Memory['verbose'] || this.memory.verbose)
-            console.log('Claiming Manager[' + this.roomName + '].tick');
         this.creeps = _.filter(Game.creeps, (x) => x.memory.handledByColony == true && x.memory.claimingManager == this.roomName);
 
         this.scouts = _.filter(this.creeps, (x) => x.memory.targetPosition.roomName == this.targetPosition.roomName && x.memory.role == 'scout');
         this.spawnConstructors = _.filter(this.creeps, (x) => x.memory.role == 'spawnConstructor');
         this.claimers = _.filter(this.creeps, (x) => x.memory.role == 'claimer');
 
-        if (Memory['verbose'] || this.memory.verbose) {
-            console.log('Claiming Manager[' + this.roomName + '] Scouts: ' + this.scouts.length);
-            console.log('Claiming Manager[' + this.roomName + '] Spawn Constructors: ' + this.spawnConstructors.length);
-            console.log('Claiming Manager[' + this.roomName + '] Claimers: ' + this.claimers.length);
-        }
 
         if (room && _.size(room.find(FIND_MY_SPAWNS)) > 0) {
             this.finishClaimingManager();

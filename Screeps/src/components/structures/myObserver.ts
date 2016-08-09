@@ -57,7 +57,7 @@
     }
 
     private shouldScanRoom(roomName: string) {
-        if (Colony.memory.rooms[roomName] && Colony.memory.rooms[roomName].mainRoomName || _.any(Game.flags, f => f.pos.roomName == roomName)) {
+        if (Colony.memory.rooms[roomName] && Colony.memory.rooms[roomName].mrn || _.any(Game.flags, f => f.pos.roomName == roomName)) {
             return true;
         }
         if (Colony.memory.exits == null)
@@ -78,7 +78,7 @@
 
         for (let direction in Colony.memory.exits[roomName]) {
             let exit = Colony.memory.exits[roomName][direction];
-            if (Colony.memory.rooms[exit] && Colony.memory.rooms[exit].mainRoomName) {
+            if (Colony.memory.rooms[exit] && Colony.memory.rooms[exit].mrn) {
                 return true;
             }
 
@@ -93,7 +93,7 @@
         if (this.memory.scanTime == Game.time - 1) {
             let roomName = this.getRoomName(this.roomIndex.x + this.memory.scannedX, this.roomIndex.y + this.memory.scannedY);
             let myRoom = Colony.getRoom(roomName);
-            if (myRoom.memory.lastScanTime + 100 < Game.time) {
+            if (myRoom && myRoom.memory.lst + 100 < Game.time) {
 
                 myRoom.refresh();
 

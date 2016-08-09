@@ -1,11 +1,11 @@
 ﻿/// <reference path="../myCreep.ts" />
-class LabCarrier extends MyCreep {
+class LabCarrier extends MyCreep<LabCarrierMemory>{
 
-    public get memory(): LabCarrierMemory { return this.creep.memory; }
-
-    constructor(public creep: Creep, public labManager: LabManagerInterface) {
-        super(creep);
-        this.myTick = profiler.registerFN(this.myTick, 'LabCarrier.tick');
+    constructor(public name: string, public labManager: LabManagerInterface) {
+        super(name);
+        if (myMemory['profilerActive']) {
+            this.myTick = profiler.registerFN(this.myTick, 'LabCarrier.tick');
+        }
     }
 
     private dropOffEnergy() {

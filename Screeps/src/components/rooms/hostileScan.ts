@@ -7,13 +7,13 @@ class HostileScan implements HostileScanInterface {
     }
 
     private accessMemory() {
-        if (this.myRoom.memory.hostileScan == null)
-            this.myRoom.memory.hostileScan = {
+        if (this.myRoom.memory.hs == null)
+            this.myRoom.memory.hs = {
                 creeps: null,
                 scanTime: null
             };
 
-        return this.myRoom.memory.hostileScan;
+        return this.myRoom.memory.hs;
     }
 
     public get scanTime() {
@@ -46,7 +46,7 @@ class HostileScan implements HostileScanInterface {
 
     private _allCreeps: { time: number, creeps: { [id: string]: CreepInfoInterface } }
     public get allCreeps() {
-        if (this.myRoom.room && (this._allCreeps == null || this._allCreeps.time < Game.time)) {
+        if (this.myRoom.room && (this._allCreeps == null || this._allCreeps.time +10 < Game.time)) {
             this.refreshCreeps();
         }
         else if (this.memory.creeps) {
@@ -67,7 +67,7 @@ class HostileScan implements HostileScanInterface {
         if (this.myRoom.room) {
             this._allCreeps = { time: Game.time, creeps: {} };
             this.memory.creeps = { time: Game.time, creeps: {} };
-            this._allCreeps.creeps = _.indexBy(_.map(this.myRoom.room.find<Creep>(FIND_HOSTILE_CREEPS), creep => new CreepInfo(creep.id, this)), x => x.id);
+            this._allCreeps.creeps = _.indexBy(_.map(this.myRoom.room.find<Creep>(FIND_HOSTILE_CREEPS, { filter: (c: Creep) => !c.owner || c.owner.username != 'MarkusF' }), creep => new CreepInfo(creep.id, this)), x => x.id);
         }
     }
 

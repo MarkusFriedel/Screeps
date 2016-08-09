@@ -16,7 +16,7 @@
             return { count: 0, body: baseBody };
 
         let workBody = new Body();
-        workBody.work = ['H', 'O', 'X'].indexOf(myMineral.resource) >= 0 ? 20 : 10;
+        workBody.work = ['H', 'O', 'X'].indexOf(myMineral.resourceType) >= 0 ? 20 : 10;
 
         if (myMineral.hasKeeper)
             workBody.work *= 1;

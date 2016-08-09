@@ -80,7 +80,7 @@ class ReactionManager implements ReactionManagerInterface {
         if (amount != null)
             requiredAmount = amount;
         if (this.ingredients[resource] == null)
-            return _.any(Colony.mainRooms, mainRoom => _.any(mainRoom.minerals, m => m.resource == resource) && mainRoom.room.controller.level >= 6) || this.getAvailableResourceAmount(resource) > requiredAmount;
+            return _.any(Colony.mainRooms, mainRoom => _.any(mainRoom.minerals, m => m.resourceType == resource) && mainRoom.room.controller.level >= 6) || this.getAvailableResourceAmount(resource) > requiredAmount;
         else if (this.totalStorage(resource) >= requiredAmount)
             return true;
         else
@@ -275,7 +275,7 @@ class ReactionManager implements ReactionManagerInterface {
                 console.log('reactionManager.sendResourcesUsingTerminals  LabManager: ' + labManager.mainRoom.name + ', imports: ' + labManager.imports.join(','));
                 _.forEach(_.filter(labManager.imports, x => !labManager.mainRoom.terminal.store[x] || labManager.mainRoom.terminal.store[x] < 2000), resource => {
                     console.log('reactionManager.sendResourcesUsingTerminals  Resource: ' + resource);
-                    let otherRoom = _.sortBy(_.filter(Colony.mainRooms, mainRoom => mainRoom.terminal && (mainRoom.terminal.store[resource] >= 4000 || (!mainRoom.managers.labManager || !(resource in mainRoom.managers.labManager.imports)) && mainRoom.terminal.store[resource] >= 2000)), x => labManager.mainRoom.myRoom.memory.mainRoomDistanceDescriptions[x.name])[0];
+                    let otherRoom = _.sortBy(_.filter(Colony.mainRooms, mainRoom => mainRoom.terminal && (mainRoom.terminal.store[resource] >= 4000 || (!mainRoom.managers.labManager || !(resource in mainRoom.managers.labManager.imports)) && mainRoom.terminal.store[resource] >= 2000)), x => labManager.mainRoom.myRoom.memory.mrd[x.name])[0];
                     if (otherRoom) {
                         console.log('reactionManager.sendResourcesUsingTerminals  otherRoom: ' + otherRoom.name);
                         otherRoom.terminal.send(resource, 2000, labManager.mainRoom.name);

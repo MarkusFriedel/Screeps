@@ -1,15 +1,13 @@
 ﻿/// <reference path="../myCreep.ts" />
 
-class TowerFiller extends MyCreep {
+class TowerFiller extends MyCreep<CreepMemory> {
 
-    creep: Creep;
-    mainRoom: MainRoomInterface;
 
-    constructor(creep: Creep, mainRoom: MainRoomInterface) {
-        super(creep);
-        this.creep = creep;
-        this.mainRoom = mainRoom;
-        this.myTick = profiler.registerFN(this.myTick, 'TowerFiller.tick');
+    constructor(public name: string, public mainRoom: MainRoomInterface) {
+        super(name);
+        if (myMemory['profilerActive']) {
+            this.myTick = profiler.registerFN(this.myTick, 'TowerFiller.tick');
+        }
     }
 
     public myTick() {

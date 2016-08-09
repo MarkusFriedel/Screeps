@@ -1,15 +1,14 @@
 ﻿/// <reference path="../myCreep.ts" />
 
-class Scout extends MyCreep {
+class Scout extends MyCreep<ScoutMemory> {
 
-    memory: ScoutMemory;
+    constructor(public name: string) {
+        super(name);
 
-    constructor(creep: Creep) {
-        super(creep);
-        this.memory = <ScoutMemory>creep.memory;
-
-        this.memory.autoFlee = true;
-        this.myTick = profiler.registerFN(this.myTick, 'Scout.tick');
+        this.autoFlee = true;
+        if (myMemory['profilerActive']) {
+            this.myTick = profiler.registerFN(this.myTick, 'Scout.tick');
+        }
     }
 
     public myTick() {
@@ -18,7 +17,7 @@ class Scout extends MyCreep {
 
             this.memory = <ScoutMemory>this.creep.memory;
             if (!this.memory.path) {
-                let path = PathFinder.search(this.creep.pos, { pos: RoomPos.fromObj(this.memory.targetPosition), range: 10 }, { roomCallback: Colony.getTravelMatrix, plainCost:1, swampCost:1 });
+                let path = PathFinder.search(this.creep.pos, { pos: RoomPos.fromObj(this.memory.targetPosition), range: 10 }, { roomCallback: Colony.getTravelMatrix, plainCost: 1, swampCost: 1 });
                 path.path.unshift(this.creep.pos);
                 this.memory.path = path;
             }
@@ -38,7 +37,7 @@ class Scout extends MyCreep {
             if (this.memory.targetPosition && this.creep.pos.roomName == this.memory.targetPosition.roomName) {
 
                 let myRoom = Colony.getRoom(this.creep.pos.roomName);
-                if (myRoom.memory.lastScanTime < Game.time - 100)
+                if (myRoom.memory.lst < Game.time - 100)
                     myRoom.refresh();
 
             }

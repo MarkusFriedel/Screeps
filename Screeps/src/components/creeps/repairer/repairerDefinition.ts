@@ -3,7 +3,7 @@
     export function getDefinition(maxEnergy: number) {
         let body = new Body();
 
-        let remainingEnergy = Math.min(maxEnergy, 2250);
+        let remainingEnergy = Math.min(maxEnergy, 3500);
 
         if (remainingEnergy < 350) {
             body.work = 1;
@@ -13,8 +13,8 @@
         else {
 
             var basicModulesCount = ~~(remainingEnergy / 350); //work,carry,carry,move,move
-            if (basicModulesCount > 5)
-                basicModulesCount = 5;
+            if (basicModulesCount > 8)
+                basicModulesCount = 8;
 
             body.work = 1 * basicModulesCount;
             body.carry = 3 * basicModulesCount;

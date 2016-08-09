@@ -8,10 +8,12 @@
     constructor(tower: Tower, mainRoom: MainRoom) {
         this.tower = tower;
         this.mainRoom = mainRoom;
-        this.tick = profiler.registerFN(this.tick, 'MyTower.tick');
-        this.handleHostiles = profiler.registerFN(this.handleHostiles, 'MyTower.handleHostiles');
-        this.handleWounded = profiler.registerFN(this.handleWounded, 'MyTower.handleWounded');
-        this.repairEmergencies = profiler.registerFN(this.repairEmergencies, 'MyTower.repairEmergencies');
+        if (myMemory['profilerActive']) {
+            this.tick = profiler.registerFN(this.tick, 'MyTower.tick');
+            this.handleHostiles = profiler.registerFN(this.handleHostiles, 'MyTower.handleHostiles');
+            this.handleWounded = profiler.registerFN(this.handleWounded, 'MyTower.handleWounded');
+            this.repairEmergencies = profiler.registerFN(this.repairEmergencies, 'MyTower.repairEmergencies');
+        }
     }
 
     private handleHostiles() {
@@ -61,7 +63,7 @@
                 return true;
             }
             else {
-                delete this.mainRoom.myRoom.memory.repairStructures[repairTarget.id];
+                delete this.mainRoom.myRoom.memory.rs[repairTarget.id];
             }
         }
         return false;

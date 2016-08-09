@@ -1,4 +1,4 @@
-﻿/// <reference path="../../components/creeps/military/armyCreep.ts" />
+﻿/// <reference path="./armyCreep.ts" />
 
 class Army implements ArmyInterface {
 

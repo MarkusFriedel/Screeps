@@ -16,7 +16,10 @@ class CarrierManager {
   
 
     constructor(public mainRoom: MainRoomInterface) {
-        this.preTick = profiler.registerFN(this.preTick, 'CarrierManager.preTick');
+        if (myMemory['profilerActive']) {
+            this.preTick = profiler.registerFN(this.preTick, 'CarrierManager.preTick');
+            this.tick = profiler.registerFN(this.tick, 'CarrierManager.tick');
+        }
     }
 
     preTick() {
@@ -26,10 +29,13 @@ class CarrierManager {
         if (_.any(this.carrierCreeps, c => c.pos.isNearTo(this.mainRoom.mainContainer)))
             return;
 
-        let closestMainRoomName = _.min(_.filter(this.mainRoom.myRoom.memory.mainRoomDistanceDescriptions, d => d.distance != 0 && Colony.mainRooms[d.roomName].mainContainer && Colony.mainRooms[d.roomName].mainContainer.store.energy >= 5 * Colony.mainRooms[d.roomName].maxSpawnEnergy && !Colony.mainRooms[d.roomName].spawnManager.isBusy), d => d.distance).roomName;
+        let closestMainRoomName = _.min(_.filter(this.mainRoom.myRoom.memory.mrd, d => d.d != 0 && Colony.mainRooms[d.n].mainContainer && Colony.mainRooms[d.n].mainContainer.store.energy >= 5 * Colony.mainRooms[d.n].maxSpawnEnergy), d => d.d).n;
         if (!closestMainRoomName)
             return;
         let closestMainRoom = Colony.mainRooms[closestMainRoomName];
+
+        if (closestMainRoom.spawnManager.isBusy)
+            return;
 
         let memory = <CarrierMemory>{
             targetRoomName: this.mainRoom.name,
@@ -39,7 +45,7 @@ class CarrierManager {
             mainRoomName: this.mainRoom.name
         };
 
-        let definition = SourceCarrierDefinition.getDefinition(closestMainRoom.maxSpawnEnergy, 2 * this.mainRoom.maxSpawnEnergy * this.mainRoom.myRoom.memory.mainRoomDistanceDescriptions[closestMainRoomName].distance);
+        let definition = SourceCarrierDefinition.getDefinition(closestMainRoom.maxSpawnEnergy, 2 * this.mainRoom.maxSpawnEnergy * this.mainRoom.myRoom.memory.mrd[closestMainRoomName].d);
 
         console.log('Carriers required: ' + definition.count);
         console.log('Carriers existing: ' + this.carrierCreeps.length);
@@ -52,7 +58,7 @@ class CarrierManager {
     }
 
     tick() {
-        _.forEach(this.carrierCreeps, c => new Carrier(c).tick());
+        _.forEach(this.carrierCreeps, c => new Carrier(c.name).tick());
     }
 
 }

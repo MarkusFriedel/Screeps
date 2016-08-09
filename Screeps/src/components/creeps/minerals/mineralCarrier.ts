@@ -1,6 +1,5 @@
 ﻿/// <reference path="../myCreep.ts" />
-class MineralCarrier extends MyCreep {
-    public get memory(): MineralCarrierMemory { return this.creep.memory; }
+class MineralCarrier extends MyCreep<MineralCarrierMemory> {
 
     _mineral: { time: number, mineral: Mineral };
     public get mineral(): Mineral {
@@ -20,15 +19,17 @@ class MineralCarrier extends MyCreep {
         return this._myMineral.myMineral;
     }
 
-    constructor(public creep: Creep, public mainRoom: MainRoomInterface) {
-        super(creep);
-        this.memory.autoFlee = true;
-        this.myTick = profiler.registerFN(this.myTick, 'MineralCarrier.tick');
+    constructor(public name: string, public mainRoom: MainRoomInterface) {
+        super(name);
+        this.autoFlee = true;
+        if (myMemory['profilerActive']) {
+            this.myTick = profiler.registerFN(this.myTick, 'MineralCarrier.tick');
+        }
 
     }
 
     pickUpMineral(): boolean {
-        let resources = _.filter(Colony.getRoom(this.creep.room.name).resourceDrops, r => r.resourceType == this.myMineral.resource);
+        let resources = _.filter(Colony.getRoom(this.creep.room.name).resourceDrops, r => r.resourceType == this.myMineral.resourceType);
         let resource = _.filter(resources, r => ((r.pos.x - this.creep.pos.x) ** 2 + (r.pos.y - this.creep.pos.y) ** 2) <= 16)[0];
         if (resource != null) {
             if (this.creep.pickup(resource) == ERR_NOT_IN_RANGE)
@@ -50,7 +51,7 @@ class MineralCarrier extends MyCreep {
             return;
         }
 
-        if (this.memory.state == null || this.memory.state == MineralCarrierState.Deliver && (this.creep.carry[this.myMineral.resource]==null ||  this.creep.carry[this.myMineral.resource] == 0)) {
+        if (this.memory.state == null || this.memory.state == MineralCarrierState.Deliver && (this.creep.carry[this.myMineral.resourceType]==null ||  this.creep.carry[this.myMineral.resourceType] == 0)) {
 
             this.memory.path = PathFinder.search(this.creep.pos, { pos: this.myMineral.pos, range: 6 }, { roomCallback: Colony.getTravelMatrix, plainCost: 1, swampCost: 1 });
             this.memory.path.path.unshift(this.creep.pos);
@@ -92,7 +93,7 @@ class MineralCarrier extends MyCreep {
                 this.moveByPath();
             }
             else {
-                if (this.creep.transfer(this.mainRoom.terminal, this.myMineral.resource) == ERR_NOT_IN_RANGE)
+                if (this.creep.transfer(this.mainRoom.terminal, this.myMineral.resourceType) == ERR_NOT_IN_RANGE)
                     this.creep.moveTo(this.mainRoom.terminal);
             }
         }

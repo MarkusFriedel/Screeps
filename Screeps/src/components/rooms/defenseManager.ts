@@ -18,20 +18,23 @@ class DefenseManager  implements DefenseManagerInterface {
    
 
     constructor(public mainRoom: MainRoom) {
-        this.preTick = profiler.registerFN(this.preTick, 'DefenseManager.preTick');
+        if (myMemory['profilerActive']) {
+            this.preTick = profiler.registerFN(this.preTick, 'DefenseManager.preTick');
+            this.tick = profiler.registerFN(this.tick, 'DefenseManager.tick');
+        }
 
     }
 
     public preTick() {
         if (this.mainRoom.spawnManager.isBusy)
             return;
-        if (_.filter(this.mainRoom.allRooms, (r) => !r.memory.foreignOwner && !r.memory.foreignReserver && r.requiresDefense && r.canHarvest).length > 0 && this.creeps.length < this.maxCreeps) {
+        if (_.filter(this.mainRoom.allRooms, (r) => !r.memory.fO && !r.memory.fR && r.requiresDefense && r.canHarvest).length > 0 && this.creeps.length < this.maxCreeps) {
             this.mainRoom.spawnManager.addToQueue(DefenderDefinition.getDefinition(this.mainRoom.maxSpawnEnergy).getBody(), { role: 'defender' }, this.maxCreeps - this.creeps.length,true);
         }
     }
 
     public tick() {
-        this.creeps.forEach((c) => new Defender(c, this.mainRoom).tick());
+        this.creeps.forEach((c) => new Defender(c.name, this.mainRoom).tick());
     }
 
 }

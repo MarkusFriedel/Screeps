@@ -1,11 +1,11 @@
 ﻿/// <reference path="../myCreep.ts" />
-class SpawnConstructor extends MyCreep {
+class SpawnConstructor extends MyCreep<SpawnConstructorMemory> {
 
-    public get memory(): SpawnConstructorMemory { return this.creep.memory; }
-
-    constructor(creep: Creep) {
-        super(creep);
-        this.myTick = profiler.registerFN(this.myTick, 'SpawnConstructor.tick');
+    constructor(public name: string) {
+        super(name);
+        if (myMemory['profilerActive']) {
+            this.myTick = profiler.registerFN(this.myTick, 'SpawnConstructor.tick');
+        }
     }
 
     myTick() {

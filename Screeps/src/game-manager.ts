@@ -18,11 +18,10 @@ namespace GameManager {
 
         console.log('Global reset');
         let startCpu = Game.cpu.getUsed();
-        if (!Memory['colony'])
-            Memory['colony'] = {};
+        if (!myMemory['colony'])
+            myMemory['colony'] = {};
 
-        var colonyMemory = <ColonyMemory>Memory['colony'];
-
+        var colonyMemory = (<ColonyMemory>(<any>myMemory).colony);
         Colony.initialize(colonyMemory);
 
         let endCpu = Game.cpu.getUsed();
@@ -44,17 +43,17 @@ namespace GameManager {
         //var a = 1;
         //if (a == 1)
         //    return;
-
+        console.log('Game manager loop start: ' + Game.cpu.getUsed().toFixed(2));
 
         let startCpu = Game.cpu.getUsed();
         if (Game.time % 100 == 0)
-            for (var name in Memory.creeps) {
+            for (var name in myMemory.creeps) {
                 if (!Game.creeps[name]) {
-                    delete Memory.creeps[name];
+                    delete myMemory.creeps[name];
                 }
             }
 
-        if (Memory['verbose'])
+        if (myMemory['verbose'])
             console.log('MainLoop');
 
         Colony.tick();
@@ -71,13 +70,13 @@ namespace GameManager {
         let endCpu = Game.cpu.getUsed();
         console.log('Time: ' + Game.time + ' Measured CPU: ' + (endCpu - startCpu).toFixed(2) + ', CPU: ' + endCpu.toFixed(2) + ' Bucket: ' + Game.cpu.bucket);
 
-        if (Memory['cpuStat'] == null)
-            Memory['cpuStat'] = [];
+        if (myMemory['cpuStat'] == null)
+            myMemory['cpuStat'] = [];
 
-        Memory['cpuStat'].push(endCpu);
-        if (Memory['cpuStat'].length > 100)
-            (<Array<number>>Memory['cpuStat']).shift();
-        console.log('100Avg: ' + (_.sum(Memory['cpuStat']) / Memory['cpuStat'].length).toFixed(2) + ' CPU');
+        myMemory['cpuStat'].push(endCpu);
+        if (myMemory['cpuStat'].length > 100)
+            (<Array<number>>myMemory['cpuStat']).shift();
+        console.log('100Avg: ' + (_.sum(myMemory['cpuStat']) / myMemory['cpuStat'].length).toFixed(2) + ' CPU');
     }
 
 }

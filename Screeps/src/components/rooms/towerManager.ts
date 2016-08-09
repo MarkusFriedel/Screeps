@@ -28,7 +28,10 @@ class TowerManager implements TowerManagerInterface {
    
 
     constructor(public mainRoom: MainRoom) {
-        this.preTick = profiler.registerFN(this.preTick, 'TowerManager.preTick');
+        if (myMemory['profilerActive']) {
+            this.preTick = profiler.registerFN(this.preTick, 'TowerManager.preTick');
+            this.tick = profiler.registerFN(this.tick, 'TowerManager.tick');
+        }
 
     }
 
@@ -43,6 +46,6 @@ class TowerManager implements TowerManagerInterface {
     }
 
     public tick() {
-        this.creeps.forEach((c) => new TowerFiller(c, this.mainRoom).tick());
+        this.creeps.forEach((c) => new TowerFiller(c.name, this.mainRoom).tick());
     }
 }

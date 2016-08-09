@@ -2,8 +2,7 @@
 /// <reference path="../myCreep.ts" />
 
 
-class EnergyHarvester extends MyCreep {
-    public get memory(): EnergyHarvesterMemory { return this.creep.memory; }
+class EnergyHarvester extends MyCreep<EnergyHarvesterMemory> {
 
     _source: { time: number, source: Source } = { time: -1, source: null };
     public get source(): Source {
@@ -33,17 +32,19 @@ class EnergyHarvester extends MyCreep {
     }
 
 
-    constructor(public creep: Creep, public mainRoom: MainRoomInterface) {
-        super(creep);
+    constructor(public name: string, public mainRoom: MainRoomInterface) {
+        super(name);
 
-        this.memory.autoFlee = true;
-
-        this.myTick = profiler.registerFN(this.myTick, 'EnergyHarvester.tick');
-        this.construct = profiler.registerFN(this.construct, 'EnergyHarvester.construct');
-        this.repair = profiler.registerFN(this.repair, 'EnergyHarvester.repair');
-        this.harvest = profiler.registerFN(this.harvest, 'EnergyHarvester.harvest');
-        this.deliver = profiler.registerFN(this.deliver, 'EnergyHarvester.deliver');
-
+        this.autoFlee = true;
+        if (myMemory['profilerActive']) {
+            this.myTick = profiler.registerFN(this.myTick, 'EnergyHarvester.tick');
+            this.construct = profiler.registerFN(this.construct, 'EnergyHarvester.construct');
+            this.repair = profiler.registerFN(this.repair, 'EnergyHarvester.repair');
+            this.harvest = profiler.registerFN(this.harvest, 'EnergyHarvester.harvest');
+            this.tryMoveNearSource = profiler.registerFN(this.tryMoveNearSource, 'EnergyHarvester.tryMoveNearSource');
+            this.tryMoveOnContainer = profiler.registerFN(this.tryMoveOnContainer, 'EnergyHarvester.tryMoveOnContainer');
+            this.tryTransfer = profiler.registerFN(this.tryTransfer, 'EnergyHarvester.tryTransfer');
+        }
     }
 
 
@@ -101,6 +102,9 @@ class EnergyHarvester extends MyCreep {
         if (this.mySource.container || this.mySource.link || this.mySource.hasKeeper)
             return false;
         else if (this.creep.carry.energy >= _.filter(this.creep.body, b => b.type == WORK).length * BUILD_POWER) {
+            let pos = this.mySource.pos;
+            //let constructions = <LookAtResultWithPos[]>this.mySource.room.lookForAtArea(LOOK_CONSTRUCTION_SITES, pos.y - 1, pos.x - 1, pos.y + 1, pos.x + 1, true);
+            //console.log(JSON.stringify(constructions));
             let construction = this.mySource.pos.findInRange<ConstructionSite>(FIND_CONSTRUCTION_SITES, 1)[0];
             if (construction) {
                 this.creep.build(construction);
@@ -114,52 +118,50 @@ class EnergyHarvester extends MyCreep {
         return false;
     }
 
+    private tryMoveOnContainer() {
+        if (this.mySource.container && !this.creep.pos.isEqualTo(this.mySource.container.pos) && this.mySource.container.pos.lookFor<Creep>(LOOK_CREEPS).length == 0) {
+            this.moveTo({ pos: this.mySource.container.pos, range: 1 }, {
+                roomCallback: Colony.getCustomMatrix({ ignoreKeeperSourceId: this.mySource.id })
+            });
+            return true;
+        }
+        return false;
+    }
+
+    private tryMoveNearSource() {
+        if (!this.creep.pos.isNearTo(this.mySource.pos)) {
+            this.moveTo({ pos: this.mySource.pos, range: 1 }, {
+                roomCallback: Colony.getCustomMatrix({ ignoreKeeperSourceId: this.mySource.id })
+            });
+            return true;
+        }
+        return false;
+    }
+
+    private tryTransfer() {
+        if (this.mySource.link && this.creep.carry.energy > this.creep.carryCapacity - 2 * Body.getFromCreep(this.creep).energyHarvestingRate) {
+            //this.creep.say('Link');
+            if (this.creep.transfer(this.mySource.link, RESOURCE_ENERGY) == ERR_NOT_IN_RANGE)
+                this.creep.moveTo(this.mySource.link);
+            return true;
+
+        }
+        return false;
+    }
+
     private harvest() {
         if (!this.healed && !this.repair() && !this.construct()) {
-            if (this.mySource.container && !this.creep.pos.isEqualTo(this.mySource.container.pos) && this.mySource.container.pos.lookFor<Creep>(LOOK_CREEPS).length == 0)
-                this.moveTo({ pos: this.mySource.container.pos, range: 0 }, {
-                    roomCallback: Colony.getCustomMatrix({ ignoreKeeperSourceId: this.mySource.id })
-                });
 
-            else if (!this.creep.pos.isNearTo(this.mySource.pos)) {
-                this.moveTo({ pos: this.mySource.pos, range: 1 }, {
-                    roomCallback: Colony.getCustomMatrix({ ignoreKeeperSourceId: this.mySource.id })
-                });
-            }
-            else {
-                this.creep.harvest(this.mySource.source);
-            }
+            this.tryMoveOnContainer() || this.tryMoveNearSource() || this.creep.harvest(this.mySource.source);
 
-            if (this.creep.carry.energy > this.creep.carryCapacity - 2* Body.getFromCreep(this.creep).energyHarvestingRate) {
-                if (this.mySource.link) {
-                    //this.creep.say('Link');
-                    if (this.creep.transfer(this.mySource.link, RESOURCE_ENERGY) == ERR_NOT_IN_RANGE)
-                        this.creep.moveTo(this.mySource.link);
-
-                }
-                else if (this.mainRoom.harvestersShouldDeliver) {
-                    //this.creep.say('Deliver');
-                    if (this.memory.path == null) {
-                        this.memory.path = PathFinder.search(this.creep.pos, { pos: this.mainRoom.mainContainer.pos, range: 5 }, { roomCallback: Colony.getTravelMatrix, plainCost: 2, swampCost: 10 });
-                        this.memory.path.path.unshift(this.creep.pos);
-                    }
-                    if (this.memory.path && this.memory.path.path.length > 2)
-                        this.moveByPath();
-                    else if (this.creep.transfer(this.mainRoom.energyDropOffStructure, RESOURCE_ENERGY) == ERR_NOT_IN_RANGE)
-                        this.creep.moveTo(this.mainRoom.energyDropOffStructure);
-                }
-
-            }
+            this.tryTransfer();
         }
     }
 
     private deliver() {
-        if (this.memory.path && this.memory.path.path.length > 2)
-            this.moveByPath();
-        else {
-            if (this.creep.transfer(this.mainRoom.energyDropOffStructure, RESOURCE_ENERGY) == ERR_NOT_IN_RANGE)
-                this.creep.moveTo(this.mainRoom.energyDropOffStructure);
-        }
+
+        if (this.creep.transfer(this.mainRoom.energyDropOffStructure, RESOURCE_ENERGY) == ERR_NOT_IN_RANGE)
+            this.moveTo({ pos: this.mainRoom.energyDropOffStructure.pos, range: 1 });
     }
 
     public myTick() {
@@ -190,17 +192,13 @@ class EnergyHarvester extends MyCreep {
         //}
 
         if (this.memory.state == null || this.memory.path == null || this.memory.state == EnergyHarvesterState.Delivering && this.creep.carry.energy == 0) {
-            
+
             this.memory.state = EnergyHarvesterState.Harvesting;
         }
         else if (this.memory.state == EnergyHarvesterState.Harvesting && _.sum(this.creep.carry) == this.creep.carryCapacity && !this.mySource.link && this.mainRoom.harvestersShouldDeliver) {
             if (!this.mainRoom.energyDropOffStructure) {
                 return;
             }
-
-            this.memory.path = PathFinder.search(this.creep.pos, { pos: this.mainRoom.energyDropOffStructure.pos, range: 2 }, { roomCallback: Colony.getTravelMatrix, plainCost: 2, swampCost: 10 });
-
-
             this.memory.state = EnergyHarvesterState.Delivering;
         }
 

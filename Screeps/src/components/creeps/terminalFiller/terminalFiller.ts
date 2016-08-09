@@ -1,9 +1,7 @@
 ﻿/// <reference path="../myCreep.ts" />
 
 
-class TerminalFiller extends MyCreep {
-
-    public get memory(): TerminalFillerMemory { return this.creep.memory; }
+class TerminalFiller extends MyCreep<TerminalFillerMemory> {
 
     private get mainContainer() {
         return this.mainRoom.mainContainer;
@@ -15,10 +13,11 @@ class TerminalFiller extends MyCreep {
 
 
 
-    constructor(public creep: Creep, public mainRoom: MainRoomInterface) {
-        super(creep);
-       
-        this.myTick = profiler.registerFN(this.myTick, 'TerminalFiller.tick');
+    constructor(public name: string, public mainRoom: MainRoomInterface) {
+        super(name);
+        if (myMemory['profilerActive']) {
+            this.myTick = profiler.registerFN(this.myTick, 'TerminalFiller.tick');
+        }
     }
 
     private saveBeforeDeath() {
@@ -31,7 +30,12 @@ class TerminalFiller extends MyCreep {
     }
 
     private transferCompounds(): boolean {
-        let publishableCompounds = _.indexBy(Colony.reactionManager.publishableCompounds, x => x);
+        let compounds = Colony.reactionManager.publishableCompounds;
+        if (this.mainRoom.nuker)
+            compounds.push(RESOURCE_GHODIUM);
+        let publishableCompounds = _.indexBy(compounds, x => x);
+        
+            
 
         if (_.sum(this.creep.carry) > this.creep.carry.energy) {
             for (let resource in this.creep.carry) {

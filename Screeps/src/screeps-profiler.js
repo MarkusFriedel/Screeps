@@ -124,7 +124,7 @@ const Profiler = {
           `Total: ${Memory.profiler.totalTime.toFixed(2)}`,
           `Ticks: ${elapsedTicks}`,
         ].join('\t');
-        return [].concat(header, Profiler.lines().slice(0, Memory.profileLines ? Memory.profileLines : 20), footer).join('\n');
+        return [].concat(header, Profiler.lines().slice(0, 50), footer).join('\n');
     },
 
     lines() {

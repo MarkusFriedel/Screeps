@@ -39,7 +39,10 @@ class ConstructionManager implements ConstructionManagerInterface {
     
 
     constructor(public mainRoom: MainRoom) {
-        this.preTick = profiler.registerFN(this.preTick, 'ConstructionManager.preTick');
+        if (myMemory['profilerActive']) {
+            this.preTick = profiler.registerFN(this.preTick, 'ConstructionManager.preTick');
+            this.tick = profiler.registerFN(this.tick, 'ConstructionManager.tick');
+        }
         this.maxCreeps = 2;
     }
 
@@ -85,7 +88,7 @@ class ConstructionManager implements ConstructionManagerInterface {
             this.idleCreeps = [];
 
             if (this.mainRoom.mainContainer == null && this.mainRoom.room.energyAvailable == this.mainRoom.room.energyCapacityAvailable && this.mainRoom.spawnManager.queue.length < 1)
-                var maxCreeps = Math.min(this.creeps.length + 1, 5);
+                var maxCreeps = Math.min(this.creeps.length + 1, 2);
             else
                 maxCreeps = this.maxCreeps;
 
@@ -94,6 +97,6 @@ class ConstructionManager implements ConstructionManagerInterface {
     }
 
     public tick() {
-        try { this.creeps.forEach((c) => new Builder(c, this.mainRoom).tick()) } catch (e) { console.log(e.stack); };
+        try { this.creeps.forEach((c) => new Builder(c.name, this.mainRoom).tick()) } catch (e) { console.log(e.stack); };
     }
 }

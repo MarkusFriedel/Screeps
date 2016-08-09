@@ -29,7 +29,10 @@ class SourceKeeperManager implements SourceKeeperManagerInterface {
 
 
     constructor(public mainRoom: MainRoom) {
-        this.preTick = profiler.registerFN(this.preTick, 'SourceKeeperManager.preTick');
+        if (myMemory['profilerActive']) {
+            this.preTick = profiler.registerFN(this.preTick, 'SourceKeeperManager.preTick');
+            this.tick = profiler.registerFN(this.tick, 'SourceKeeperManager.tick');
+        }
     }
 
     private sleep(myRoom: MyRoomInterface) {
@@ -65,15 +68,9 @@ class SourceKeeperManager implements SourceKeeperManagerInterface {
 
                 let memory: KeeperBusterMemory = {
                     role: 'keeperBuster',
-                    autoFlee: false,
                     requiredBoosts: definition.boosts,
-                    handledByColony: false,
                     mainRoomName: this.mainRoom.name,
                     roomName: myRoom.name,
-                    path: undefined,
-                    fleeing: undefined,
-                    targetId: undefined,
-                    recycle: undefined
                 }
                 console.log('Trying to build KeeperBuster');
 
@@ -84,7 +81,7 @@ class SourceKeeperManager implements SourceKeeperManagerInterface {
     }
 
     public tick() {
-        _.forEach(this.creeps, c => new KeeperBuster(this.mainRoom, c).tick());
+        _.forEach(this.creeps, c => new KeeperBuster(c.name, this.mainRoom).tick());
     }
 
 }

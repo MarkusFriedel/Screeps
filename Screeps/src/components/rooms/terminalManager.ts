@@ -27,11 +27,13 @@ class TerminalManager implements TerminalManagerInterface {
 
     maxCreeps = 1;
 
-  
+
 
     constructor(public mainRoom: MainRoom) {
-        this.preTick = profiler.registerFN(this.preTick, 'TerminalManager.preTick');
-        this.tick = profiler.registerFN(this.tick, 'TerminalManager.tick');
+        if (myMemory['profilerActive']) {
+            this.preTick = profiler.registerFN(this.preTick, 'TerminalManager.preTick');
+            this.tick = profiler.registerFN(this.tick, 'TerminalManager.tick');
+        }
     }
 
     public preTick() {
@@ -46,7 +48,7 @@ class TerminalManager implements TerminalManagerInterface {
         if (!this.mainRoom.room || !this.mainRoom.mainContainer || !this.mainRoom.room.terminal || !this.mainRoom.room.terminal.isActive()) {
             return;
         }
-        _.forEach(this.creeps, x => new TerminalFiller(x, this.mainRoom).tick());
+        _.forEach(this.creeps, x => new TerminalFiller(x.name, this.mainRoom).tick());
         this.handleTerminal(this.mainRoom.room.terminal);
     }
 
@@ -131,9 +133,12 @@ class TerminalManager implements TerminalManagerInterface {
     }
 
     handleMineralBalance(terminal: Terminal) {
-        _.forEach(_.filter(_.uniq(Colony.reactionManager.highestPowerCompounds.concat(this.mainRoom.managers.labManager.imports)), x => x != RESOURCE_ENERGY && this.mainRoom.getResourceAmount(x) <= 5000), resource => {
+        let resources = _.filter(_.uniq(Colony.reactionManager.highestPowerCompounds.concat(this.mainRoom.managers.labManager.imports)), x => x != RESOURCE_ENERGY && this.mainRoom.getResourceAmount(x) <= 5000);
+        if (this.mainRoom.nuker)
+            resources.push(RESOURCE_GHODIUM);
+        _.forEach(resources, resource => {
             if (this.mainRoom.mainContainer && this.mainRoom.mainContainer.structureType == STRUCTURE_STORAGE && _.size(this.mainRoom.managers.labManager.myLabs) > 0) {
-  
+
                 let requiredAmount = 5000 - this.mainRoom.getResourceAmount(resource);
                 if (requiredAmount > 0) {
 

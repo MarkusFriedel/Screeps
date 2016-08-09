@@ -16,7 +16,10 @@ class UpgradeManager implements UpgradeManagerInterface {
     
 
     constructor(public mainRoom: MainRoom) {
-        this.preTick = profiler.registerFN(this.preTick, 'UpgradeManager.preTick');
+        if (myMemory['profilerActive']) {
+            this.preTick = profiler.registerFN(this.preTick, 'UpgradeManager.preTick');
+            this.tick = profiler.registerFN(this.tick, 'UpgradeManager.tick');
+        }
     }
 
 
@@ -30,7 +33,7 @@ class UpgradeManager implements UpgradeManagerInterface {
     }
 
     public tick() {
-        this.creeps.forEach((c) => new Upgrader(c, this.mainRoom).tick());
+        this.creeps.forEach((c) => new Upgrader(c.name, this.mainRoom).tick());
     }
 
 }

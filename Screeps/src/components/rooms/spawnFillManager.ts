@@ -16,7 +16,10 @@ class SpawnFillManager implements SpawnFillManagerInterface {
     
 
     constructor(public mainRoom: MainRoom) {
-        this.preTick = profiler.registerFN(this.preTick, 'SpawnFillManager.preTick');
+        if (myMemory['profilerActive']) {
+            this.preTick = profiler.registerFN(this.preTick, 'SpawnFillManager.preTick');
+            this.tick = profiler.registerFN(this.tick, 'SpawnFillManager.tick');
+        }
     }
 
     public preTick() {
@@ -28,7 +31,7 @@ class SpawnFillManager implements SpawnFillManagerInterface {
     }
 
     public tick() {
-        this.creeps.forEach((c) => new SpawnFiller(c, this.mainRoom).tick());
+        this.creeps.forEach((c) => new SpawnFiller(c.name, this.mainRoom).tick());
     }
 
 }

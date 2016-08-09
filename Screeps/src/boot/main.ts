@@ -24,46 +24,58 @@ declare var RawMemory: any;
 
 // Any modules that you use that modify the game's prototypes should be require'd 
 // before you require the profiler. 
+//var myMemory = JSON.parse(RawMemory.get());
+var myMemory = Memory
 
+try {
 
-// This line monkey patches the global prototypes. 
-if (Memory['profilerActive']==true)
-    profiler.enable();
+    // This line monkey patches the global prototypes. 
+    if (myMemory['profilerActive'] == true)
+        profiler.enable();
 
-GameManager.globalBootstrap();
-
-function deleteNulls() {
+    GameManager.globalBootstrap();
 
 }
+catch (e) {
+    console.log(e ? e.stack: '');
+}
+
+//RawMemory.set(JSON.stringify(myMemory));
 
 // This doesn't look really nice, but Screeps' system expects this method in main.js to run the application.
 // If we have this line, we can make sure that globals bootstrap and game loop work.
 // http://support.screeps.com/hc/en-us/articles/204825672-New-main-loop-architecture
 module.exports.loop = function () {
-    let startCPU = Game.cpu.getUsed()
+    let startCPU = Game.cpu.getUsed();
     console.log();
     console.log();
     console.log('Tick Start CPU:' + startCPU.toFixed(2));
+    //myMemory = JSON.parse(RawMemory.get());
+    myMemory = Memory;
+    console.log('Deserialize memory: ' + (Game.cpu.getUsed() - startCPU).toFixed(2));
+    
+    
 
-    if (!Memory['colony'].active) {
+    if (!myMemory['colony'].active) {
         
         return;
     }
-    console.log('Deserialize memory: ' + (Game.cpu.getUsed() - startCPU).toFixed(2));
 
-    
-
-    //console.log('Before parse: CPU:' + Game.cpu.getUsed() + ' Bucket: ' + Game.cpu.bucket);
-    //var myMemory = JSON.parse((<any>RawMemory).get());
-    //console.log('After parse: CPU:' + Game.cpu.getUsed() + ' Bucket: ' + Game.cpu.bucket);
-    if (Memory['profilerActive'] == true) {
-        profiler.wrap(function () {
+    try {
+        if (myMemory['profilerActive'] == true) {
+            profiler.wrap(function () {
+                console.log();
+                GameManager.loop();
+            });
+        }
+        else {
             console.log();
             GameManager.loop();
-        });
+        }
     }
-    else {
-        console.log();
-        GameManager.loop();
+    catch (e) {
+        console.log(e ? e.stack : '');
     }
+
+    //RawMemory.set(JSON.stringify(myMemory));
 };

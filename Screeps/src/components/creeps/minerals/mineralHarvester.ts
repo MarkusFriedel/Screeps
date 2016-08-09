@@ -1,8 +1,6 @@
 ﻿/// <reference path="../myCreep.ts" />
 
-class MineralHarvester extends MyCreep {
-    public get memory(): MineralHarvesterMemory { return this.creep.memory; }
-
+class MineralHarvester extends MyCreep<MineralHarvesterMemory> {
     _mineral: { time: number, mineral: Mineral };
     public get mineral(): Mineral {
         if (this.mineral == null || this._mineral.time < Game.time)
@@ -22,11 +20,12 @@ class MineralHarvester extends MyCreep {
     }
 
 
-    constructor(public creep: Creep, public mainRoom: MainRoomInterface) {
-        super(creep);
-        this.memory.autoFlee = true;
-
-        this.myTick = profiler.registerFN(this.myTick, 'MineralHarvester.tick');
+    constructor(public name: string, public mainRoom: MainRoomInterface) {
+        super(name);
+        this.autoFlee = true;
+        if (myMemory['profilerActive']) {
+            this.myTick = profiler.registerFN(this.myTick, 'MineralHarvester.tick');
+        }
 
     }
 

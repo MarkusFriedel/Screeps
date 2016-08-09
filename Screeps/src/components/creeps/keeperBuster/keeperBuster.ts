@@ -1,8 +1,6 @@
 ﻿/// <reference path="../myCreep.ts" />
 
-class KeeperBuster extends MyCreep {
-
-    public get memory(): KeeperBusterMemory { return this.creep.memory; }
+class KeeperBuster extends MyCreep<KeeperBusterMemory> {
 
     public get harvestingSitesToDefend() {
         return _.filter(_.values<HarvestingSiteInterface>(this.myRoom.mySources).concat(this.myRoom.myMineral), s => s.usable && s.keeper);
@@ -16,9 +14,11 @@ class KeeperBuster extends MyCreep {
         return _.map(this.harvestingSitesToDefend, s => s.keeper.lair);
     }
 
-    constructor(public mainRoom: MainRoom, public creep: Creep) {
-        super(creep);
-        this.myTick = profiler.registerFN(this.myTick, 'KeeperBuster.tick');
+    constructor(public name: string, public mainRoom: MainRoomInterface) {
+        super(name);
+        if (myMemory['profilerActive']) {
+            this.myTick = profiler.registerFN(this.myTick, 'KeeperBuster.tick');
+        }
     }
 
     public myTick() {

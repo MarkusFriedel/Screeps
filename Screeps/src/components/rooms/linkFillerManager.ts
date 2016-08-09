@@ -15,7 +15,10 @@ class LinkFillerManager implements LinkFillerManagerInterface {
   
 
     constructor(public mainRoom: MainRoom) {
-        this.preTick = profiler.registerFN(this.preTick, 'LinkFillerManager.preTick');
+        if (myMemory['profilerActive']) {
+            this.preTick = profiler.registerFN(this.preTick, 'LinkFillerManager.preTick');
+            this.tick = profiler.registerFN(this.tick, 'LinkFillerManager.tick');
+        }
     }
 
     public preTick() {
@@ -28,6 +31,6 @@ class LinkFillerManager implements LinkFillerManagerInterface {
     }
 
     public tick() {
-        this.creeps.forEach((c) => new LinkFiller(c, this.mainRoom).tick());
+        this.creeps.forEach((c) => new LinkFiller(c.name, this.mainRoom).tick());
     }
 }

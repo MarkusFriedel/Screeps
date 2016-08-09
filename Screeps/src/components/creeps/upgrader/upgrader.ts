@@ -1,18 +1,21 @@
 ﻿/// <reference path="../myCreep.ts" />
 
-class Upgrader extends MyCreep {
+class Upgrader extends MyCreep<CreepMemory> {
 
 
-    constructor(public creep: Creep,public mainRoom: MainRoom) {
-        super(creep);
-        this.myTick = profiler.registerFN(this.myTick, 'Upgrader.tick');
+    constructor(public name: string, public mainRoom: MainRoomInterface) {
+        super(name);
+        if (myMemory['profilerActive']) {
+            this.myTick = profiler.registerFN(this.myTick, 'Upgrader.tick');
+        }
     }
 
     upgrade() {
         let result = this.creep.upgradeController(this.creep.room.controller);
         //this.creep.say(result.toString());
-        if (result == ERR_NOT_IN_RANGE)
+        if (result == ERR_NOT_IN_RANGE) {
             this.creep.moveTo(this.creep.room.controller);
+        }
     }
 
     refill() {

@@ -3,7 +3,9 @@
     export function getDefinition(maxEnergy: number, requiredAmount: number, resources?: { [resource: string]: number }) {
         let body = new Body();
 
-        body.carry = requiredAmount / CARRY_CAPACITY;
+        body.carry = (requiredAmount / CARRY_CAPACITY);
+        if (body.carry % 2 == 1)
+            body.carry++;
         body.move = Math.ceil(body.carry/2);
 
         let partDivider = Math.ceil((body.carry + body.move) / 50);
