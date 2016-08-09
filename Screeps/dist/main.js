@@ -1397,7 +1397,7 @@ var UpgradeManager = (function () {
     UpgradeManager.prototype.preTick = function () {
         if (this.mainRoom.spawnManager.isBusy)
             return;
-        if (this.mainRoom.mainContainer != null && this.mainRoom.room.energyAvailable == this.mainRoom.room.energyCapacityAvailable && (this.creeps.length == 0 || (this.mainRoom.mainContainer.store.energy == this.mainRoom.mainContainer.storeCapacity || this.mainRoom.mainContainer.store.energy > 150000 || this.mainRoom.mainContainer.store.energy > 100000 && this.mainRoom.room.controller.level < 6 || this.mainRoom.mainContainer.store.energy > 15000 && this.mainRoom.room.controller.level < 5) && this.creeps.length < 5 && this.mainRoom.room.controller.level < 8)) {
+        if (this.mainRoom.mainContainer != null && this.mainRoom.room.energyAvailable == this.mainRoom.room.energyCapacityAvailable && (this.creeps.length == 0 && (this.mainRoom.mainContainer.structureType != STRUCTURE_STORAGE || this.mainRoom.mainContainer.store.energy >= 10000) || (this.mainRoom.mainContainer.store.energy == this.mainRoom.mainContainer.storeCapacity || this.mainRoom.mainContainer.store.energy > 150000 || this.mainRoom.mainContainer.store.energy > 100000 && this.mainRoom.room.controller.level < 6 || this.mainRoom.mainContainer.store.energy > 15000 && this.mainRoom.room.controller.level < 5) && this.creeps.length < 5 && this.mainRoom.room.controller.level < 8)) {
             var definition = UpgraderDefinition.getDefinition(this.mainRoom.maxSpawnEnergy, _.any(this.mainRoom.links, function (x) { return x.nearController; }), this.mainRoom.room.controller.level == 8 ? 15 : 50, this.mainRoom.managers.labManager.availablePublishResources);
             this.mainRoom.spawnManager.addToQueue(definition.getBody(), { role: 'upgrader', requiredBoosts: definition.boosts }, 1);
         }
@@ -7854,6 +7854,10 @@ var Colony;
                         mainRoom.spawnManager.addToQueue(['work', 'move'], { role: 'dismantler', targetRoomName: myRoom.name, mainRoomName: mainRoom.name });
                     }
                 }
+            }
+            else {
+                var mainRoom = _.min(Colony.mainRooms, function (mr) { return Game.map.getRoomLinearDistance(flag.pos.roomName, mr.name); });
+                mainRoom.spawnManager.addToQueue(['move'], { handledByColony: true, role: 'scout', mainRoomName: null, targetPosition: flag.pos });
             }
         });
         var dismantlers = _.filter(Game.creeps, function (x) { return x.memory.role == 'dismantler'; });

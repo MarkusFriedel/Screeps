@@ -125,8 +125,8 @@ namespace Colony {
                 && (
                     myRoom == null
                     || !myRoom.requiresDefense
-                && !myRoom.memory.fO
-                && !myRoom.memory.fR)
+                    && !myRoom.memory.fO
+                    && !myRoom.memory.fR)
                 || (Game.time % 2000) == 0);
 
         return result;
@@ -207,7 +207,7 @@ namespace Colony {
                 newC.role = 'harvestingCarrier';
                 newC.sId = c.sourceId;
             }
-            
+
         });
 
         Colony.memory = myMemory['colony'];
@@ -318,7 +318,7 @@ namespace Colony {
 
 
     export function tick() {
-        
+
         console.log('Colony loop start: ' + Game.cpu.getUsed().toFixed(2));
         console.log('Tick: ' + (++tickCount));
 
@@ -403,6 +403,11 @@ namespace Colony {
                         mainRoom.spawnManager.addToQueue(['work', 'move'], { role: 'dismantler', targetRoomName: myRoom.name, mainRoomName: mainRoom.name });
                     }
                 }
+
+            }
+            else {
+                let mainRoom = _.min(mainRooms, mr => Game.map.getRoomLinearDistance(flag.pos.roomName, mr.name));
+                mainRoom.spawnManager.addToQueue(['move'], <ScoutMemory>{ handledByColony: true, role: 'scout', mainRoomName: null, targetPosition: flag.pos });
             }
         });
 
