@@ -196,6 +196,9 @@ namespace Colony {
             MyCostMatrix.decompress = profiler.registerFN(MyCostMatrix.decompress, 'MyCostMatrix.decompress');
         }
 
+        global.createRoomAssignments = function () { new RoomAssignmentHandler().createSolution() };
+        global.applyRoomAssignments = function () { new RoomAssignmentHandler().applySolution() };
+
         _.forEach(myMemory.creeps, (c: SourceCarrierMemory) => {
             if (c.role == 'sourceCarrier') {
                 let newC = <HarvestingCarrierMemory><any>c;
@@ -356,11 +359,11 @@ namespace Colony {
         }
 
 
-        if ((Game.time % 2000 == 0) && Game.cpu.bucket > 9000 || myMemory['forceReassignment'] == true || myMemory['forceReassignment'] == 'true') {
-            new RoomAssignmentHandler().assignRooms();
+        //if ((Game.time % 2000 == 0) && Game.cpu.bucket > 9000 || myMemory['forceReassignment'] == true || myMemory['forceReassignment'] == 'true') {
+        //    new RoomAssignmentHandler().createSolution();
 
-            myMemory['forceReassignment'] = false;
-        }
+        //    myMemory['forceReassignment'] = false;
+        //}
 
         let reserveFlags = _.filter(Game.flags, x => x.memory.reserve == true);
 

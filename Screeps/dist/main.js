@@ -1399,7 +1399,7 @@ var UpgradeManager = (function () {
     UpgradeManager.prototype.preTick = function () {
         if (this.mainRoom.spawnManager.isBusy)
             return;
-        if ((this.mainRoom.room.controller.ticksToDowngrade < 2000 || this.mainRoom.mainContainer != null && this.mainRoom.room.energyAvailable == this.mainRoom.room.energyCapacityAvailable) && (this.creeps.length == 0 && (this.mainRoom.mainContainer.structureType != STRUCTURE_STORAGE || this.mainRoom.mainContainer.store.energy >= 10000) || (this.mainRoom.mainContainer.store.energy == this.mainRoom.mainContainer.storeCapacity || this.mainRoom.mainContainer.store.energy > 150000 || this.mainRoom.mainContainer.store.energy > 100000 && this.mainRoom.room.controller.level < 6 || this.mainRoom.mainContainer.store.energy > 15000 && this.mainRoom.room.controller.level < 5) && this.creeps.length < 5 && this.mainRoom.room.controller.level < 8)) {
+        if ((this.mainRoom.room.controller.ticksToDowngrade < 2000 || this.mainRoom.mainContainer != null && this.mainRoom.room.energyAvailable == this.mainRoom.room.energyCapacityAvailable) && (this.creeps.length == 0 && (this.mainRoom.mainContainer.structureType != STRUCTURE_STORAGE || this.mainRoom.mainContainer.store.energy >= 10000) || (_.sum(this.mainRoom.mainContainer.store) == this.mainRoom.mainContainer.storeCapacity || this.mainRoom.mainContainer.store.energy > 150000 || this.mainRoom.mainContainer.store.energy > 100000 && this.mainRoom.room.controller.level < 6 || this.mainRoom.mainContainer.store.energy > 15000 && this.mainRoom.room.controller.level < 5) && this.creeps.length < 5 && this.mainRoom.room.controller.level < 8)) {
             var definition = UpgraderDefinition.getDefinition(this.mainRoom.maxSpawnEnergy, _.any(this.mainRoom.links, function (x) { return x.nearController; }), this.mainRoom.room.controller.level == 8 ? 15 : 50, this.mainRoom.managers.labManager.availablePublishResources);
             this.mainRoom.spawnManager.addToQueue(definition.getBody(), { role: 'upgrader', requiredBoosts: definition.boosts }, 1);
         }
@@ -5234,8 +5234,8 @@ var MainRoom = (function () {
             this.managers.towerManager.preTick();
             this.managers.labManager.preTick();
             this.managers.defenseManager.preTick();
-            //if (this.mainContainer && this.mainContainer.store.energy > 10000 && this.managers.upgradeManager.creeps.length == 0)
-            this.managers.upgradeManager.preTick();
+            if (this.mainContainer && (this.mainContainer.store.energy > 10000 || this.mainContainer.structureType != STRUCTURE_STORAGE && _.sum(this.mainContainer.store) == this.mainContainer.storeCapacity) && this.managers.upgradeManager.creeps.length == 0)
+                this.managers.upgradeManager.preTick();
             if (!this.myRoom.requiresDefense)
                 _.forEach(_.sortByOrder(_.filter(this.allRooms, function (r) { return !r.requiresDefense; }), [function (r) { return _.any(r.mySources, function (s) { return s.hasKeeper ? 1 : 0; }); }, function (r) { return r.memory.mrd[_this.name].d; }, function (r) { return _.size(r.mySources); }], ['asc', 'asc', 'desc']), function (myRoom) {
                     _this.managers.reservationManager.preTick(myRoom);
@@ -5469,25 +5469,27 @@ var RoomAssignmentHandler = (function () {
             };
         }), function (x) { return x.mainRoom.name; });
     };
-    RoomAssignmentHandler.prototype.assignRooms = function () {
-        var _this = this;
+    RoomAssignmentHandler.prototype.applySolution = function () {
+        if (Colony.memory.roomAssignment == null) {
+            console.log('No RoomAssignments found. Execute "createRoomAssignments()" to create');
+            return;
+        }
+        _.forEach(this.rooms, function (x) { return x.mainRoom = null; });
+        _.forEach(Colony.memory.roomAssignment, function (assignment) { return _.forEach(_.map(assignment.rooms, function (r) { return Colony.getRoom(r); }), function (myRoom) { return myRoom.mainRoom = Colony.mainRooms[assignment.mainRoomName]; }); });
+        console.log('RoomAssignment successfull');
+    };
+    RoomAssignmentHandler.prototype.createSolution = function () {
         try {
             var assignments = this.getAssignments();
-            var stringResult = _.map(assignments, function (x) {
+            var result = _.indexBy(_.map(assignments, function (a) {
                 return {
-                    mainRoom: x.mainRoom.name,
-                    rooms: _.map(x.myRooms, function (y) { return y.name; }),
-                    metric: x.metric
+                    rooms: _.map(a.myRooms, function (y) { return y.name; }),
+                    mainRoomName: a.mainRoom.name,
+                    metric: a.metric
                 };
-            });
-            console.log('Assigning Rooms');
-            _.forEach(this.rooms, function (x) { return x.mainRoom = null; });
-            _.forEach(assignments, function (assignment) { return _.forEach(assignment.myRooms, function (myRoom) { return myRoom.mainRoom = assignment.mainRoom; }); });
-            _.forEach(_.filter(this.rooms, function (room) { return _.size(room.mySources) > 0 && (!_.any(room.mySources, function (s) { return s.hasKeeper; }) || Colony.memory.harvestKeeperRooms) && room.mainRoom == null && _.any(room.memory.mrd, function (x) { return x.d == 1; }) && !room.memory.fO && !room.memory.fR; }), function (room) {
-                var mainRoom = _this.mainRooms[_.min(room.memory.mrd, function (x) { return x.d; }).n];
-                room.mainRoom = mainRoom;
-            });
-            myMemory['RoomAssignment'] = stringResult;
+            }), function (x) { return x.mainRoomName; });
+            Colony.memory.roomAssignment = result;
+            console.log('Created RoomAssignmentSolution');
         }
         catch (e) {
             console.log('ERRROR: ROOMASSIGNMENT ' + e.stack);
@@ -7713,6 +7715,8 @@ var Colony;
             MyCostMatrix.compress = Colony.profiler.registerFN(MyCostMatrix.compress, 'MyCostMatrix.compress');
             MyCostMatrix.decompress = Colony.profiler.registerFN(MyCostMatrix.decompress, 'MyCostMatrix.decompress');
         }
+        global.createRoomAssignments = function () { new RoomAssignmentHandler().createSolution(); };
+        global.applyRoomAssignments = function () { new RoomAssignmentHandler().applySolution(); };
         _.forEach(myMemory.creeps, function (c) {
             if (c.role == 'sourceCarrier') {
                 var newC = c;
@@ -7832,10 +7836,10 @@ var Colony;
             if (creep.memory.role == 'scout')
                 new Scout(creep.name).tick();
         }
-        if ((Game.time % 2000 == 0) && Game.cpu.bucket > 9000 || myMemory['forceReassignment'] == true || myMemory['forceReassignment'] == 'true') {
-            new RoomAssignmentHandler().assignRooms();
-            myMemory['forceReassignment'] = false;
-        }
+        //if ((Game.time % 2000 == 0) && Game.cpu.bucket > 9000 || myMemory['forceReassignment'] == true || myMemory['forceReassignment'] == 'true') {
+        //    new RoomAssignmentHandler().createSolution();
+        //    myMemory['forceReassignment'] = false;
+        //}
         var reserveFlags = _.filter(Game.flags, function (x) { return x.memory.reserve == true; });
         reserveFlags.forEach(function (flag) {
             var myRoom = Colony.getRoom(flag.pos.roomName);

@@ -48,6 +48,17 @@ interface ColonyMemory {
     pathSliceTime?: number;
     harvestKeeperRooms?: boolean;
     forbiddenRooms?: string[];
+    roomAssignment?: RoomAssignmentSolution;
+}
+
+interface RoomAssignmentSolution {
+    [mainRoomName: string]: RoomAssignmentEntry
+}
+
+interface RoomAssignmentEntry {
+    mainRoomName: string,
+    metric: number,
+    rooms: string[] 
 }
 
 interface ReactionManagerMemory {

@@ -169,31 +169,44 @@ class RoomAssignmentHandler implements RoomAssignmentHandlerInterface {
         }), x => x.mainRoom.name);
     }
 
-    public assignRooms() {
+    public applySolution() {
+        if (Colony.memory.roomAssignment == null) {
+            console.log('No RoomAssignments found. Execute "createRoomAssignments()" to create');
+            return;
+        }
+        _.forEach(this.rooms, (x) => x.mainRoom = null);
+        _.forEach(Colony.memory.roomAssignment, (assignment) => _.forEach(_.map(assignment.rooms, r => Colony.getRoom(r)), (myRoom) => myRoom.mainRoom = Colony.mainRooms[assignment.mainRoomName]));
+
+        console.log('RoomAssignment successfull');
+    }
+    
+    public createSolution() {
         try {
 
             let assignments = this.getAssignments();
 
-            let stringResult = _.map(assignments, x => {
-                return {
-                    mainRoom: x.mainRoom.name,
-                    rooms: _.map(x.myRooms, y => y.name),
-                    metric: x.metric
+            let result = _.indexBy(_.map(assignments, a => {
+                return <RoomAssignmentEntry>{
+                    rooms: _.map(a.myRooms, y => y.name),
+                    mainRoomName: a.mainRoom.name,
+                    metric: a.metric
                 }
-            });
+            }), x => x.mainRoomName);
 
-            console.log('Assigning Rooms');
+            Colony.memory.roomAssignment = result;
 
-            _.forEach(this.rooms, (x) => x.mainRoom = null);
+            console.log('Created RoomAssignmentSolution');
 
-            _.forEach(assignments, (assignment) => _.forEach(assignment.myRooms, (myRoom) =>myRoom.mainRoom = assignment.mainRoom));
 
-            _.forEach(_.filter(this.rooms, room => _.size(room.mySources)>0 && (!_.any(room.mySources, s => s.hasKeeper) || Colony.memory.harvestKeeperRooms) && room.mainRoom == null && _.any(room.memory.mrd, x => x.d == 1) && !room.memory.fO && !room.memory.fR), room => {
-                let mainRoom = this.mainRooms[_.min(room.memory.mrd, x => x.d).n];
-                room.mainRoom = mainRoom;
-            });
 
-            myMemory['RoomAssignment'] = stringResult;
+            
+
+            //_.forEach(_.filter(this.rooms, room => _.size(room.mySources)>0 && (!_.any(room.mySources, s => s.hasKeeper) || Colony.memory.harvestKeeperRooms) && room.mainRoom == null && _.any(room.memory.mrd, x => x.d == 1) && !room.memory.fO && !room.memory.fR), room => {
+            //    let mainRoom = this.mainRooms[_.min(room.memory.mrd, x => x.d).n];
+            //    room.mainRoom = mainRoom;
+            //});
+
+            //myMemory['RoomAssignment'] = stringResult;
         }
         catch (e) {
             console.log('ERRROR: ROOMASSIGNMENT ' + e.stack);
