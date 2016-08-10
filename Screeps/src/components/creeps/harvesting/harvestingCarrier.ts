@@ -30,7 +30,7 @@ class HarvestingCarrier extends MyCreep<HarvestingCarrierMemory> {
             return;
         if (this.creep.fatigue > 0)
             return;
-        let resource = _.filter(this.myRoom.resourceDrops, r => this.creep.pos.inRangeTo(r.pos, 1))[0];
+        let resource = _.filter(this.myRoom.resourceDrops, r => this.creep.pos.inRangeTo(r.pos, 1) && !this.mainRoom.energyDropOffStructure.pos.isNearTo(r.pos))[0];
         if (resource)
             this.creep.pickup(resource);
         if (this.creep.fatigue > 0)

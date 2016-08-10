@@ -2169,7 +2169,7 @@ var HarvestingCarrier = (function (_super) {
             return;
         if (this.creep.fatigue > 0)
             return;
-        var resource = _.filter(this.myRoom.resourceDrops, function (r) { return _this.creep.pos.inRangeTo(r.pos, 1); })[0];
+        var resource = _.filter(this.myRoom.resourceDrops, function (r) { return _this.creep.pos.inRangeTo(r.pos, 1) && !_this.mainRoom.energyDropOffStructure.pos.isNearTo(r.pos); })[0];
         if (resource)
             this.creep.pickup(resource);
         if (this.creep.fatigue > 0)
