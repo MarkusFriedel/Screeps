@@ -2221,8 +2221,12 @@ var HarvestingCarrier = (function (_super) {
         if (this.creep.carry.energy > 0) {
             if (!this.creep.pos.isNearTo(this.mainRoom.energyDropOffStructure))
                 this.moveTo({ pos: this.mainRoom.energyDropOffStructure.pos, range: 1 }, { plainCost: 2, swampCost: 10, roomCallback: Colony.getCustomMatrix({ ignoreKeeperSourceId: this.harvestingSite.id }) });
-            else
-                this.creep.transfer(this.mainRoom.energyDropOffStructure, RESOURCE_ENERGY);
+            else {
+                if ((this.mainRoom.energyDropOffStructure.structureType == STRUCTURE_CONTAINER || this.mainRoom.energyDropOffStructure.structureType == STRUCTURE_STORAGE) && _.sum(this.mainRoom.energyDropOffStructure.store) == this.mainRoom.energyDropOffStructure.storeCapacity)
+                    this.creep.drop(RESOURCE_ENERGY);
+                else
+                    this.creep.transfer(this.mainRoom.energyDropOffStructure, RESOURCE_ENERGY);
+            }
         }
         else if ((this.mainRoom.terminal || this.mainRoom.mainContainer) && _.sum(this.creep.carry) > 0) {
             var target = this.mainRoom.terminal || this.mainRoom.mainContainer;

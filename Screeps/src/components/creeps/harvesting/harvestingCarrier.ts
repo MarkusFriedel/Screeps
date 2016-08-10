@@ -41,7 +41,7 @@ class HarvestingCarrier extends MyCreep<HarvestingCarrierMemory> {
         else
             target = { pos: this.harvestingSite.pos, range: 2 }
 
-        
+
 
         if (this.harvestingSite.hasKeeper)
             var initialDistance = 6;
@@ -52,7 +52,7 @@ class HarvestingCarrier extends MyCreep<HarvestingCarrierMemory> {
         if (this.harvestingSite.lairPosition)
             minDistanceToSourceAndLair = Math.min(minDistanceToSourceAndLair, this.creep.pos.getRangeTo(this.harvestingSite.lairPosition));
         if (minDistanceToSourceAndLair > initialDistance) {
-            this.moveTo(target, { roomCallback: Colony.getCustomMatrix({ ignoreKeeperSourceId: this.harvestingSite.id }), plainCost: 2, swampCost:10 });
+            this.moveTo(target, { roomCallback: Colony.getCustomMatrix({ ignoreKeeperSourceId: this.harvestingSite.id }), plainCost: 2, swampCost: 10 });
             return;
         }
         else {
@@ -60,19 +60,19 @@ class HarvestingCarrier extends MyCreep<HarvestingCarrierMemory> {
             if ((!this.harvestingSite.hasKeeper || energy || this.harvestingSite.container) && !this.harvestingSite.keeperIsAlive) {
                 if (energy)
                     if (this.creep.pickup(energy) == ERR_NOT_IN_RANGE)
-                        this.moveTo({ pos: energy.pos, range: 1 }, { roomCallback: Colony.getCustomMatrix({ ignoreAllKeepers: true, avoidCreeps: true }), maxOps:100 });
+                        this.moveTo({ pos: energy.pos, range: 1 }, { roomCallback: Colony.getCustomMatrix({ ignoreAllKeepers: true, avoidCreeps: true }), maxOps: 100 });
                     else
-                        this.moveTo(target, { roomCallback: Colony.getCustomMatrix({ ignoreAllKeepers: true, avoidCreeps: true }), maxOps:100 });
+                        this.moveTo(target, { roomCallback: Colony.getCustomMatrix({ ignoreAllKeepers: true, avoidCreeps: true }), maxOps: 100 });
                 else if (this.harvestingSite.container) {
                     if (this.creep.withdraw(this.harvestingSite.container, this.harvestingSite.resourceType) == ERR_NOT_IN_RANGE)
-                        this.moveTo({ pos: this.harvestingSite.container.pos, range: 1 }, { roomCallback: Colony.getCustomMatrix({ ignoreAllKeepers: true, avoidCreeps: true }), maxOps:100 });
+                        this.moveTo({ pos: this.harvestingSite.container.pos, range: 1 }, { roomCallback: Colony.getCustomMatrix({ ignoreAllKeepers: true, avoidCreeps: true }), maxOps: 100 });
                 }
                 return;
             }
             else if (minDistanceToSourceAndLair < initialDistance && this.harvestingSite.keeperIsAlive) {
                 this.creep.say('Uh Oh');
                 delete this.memory.pathMovement;
-                let fleePath = PathFinder.search(this.creep.pos, [{ pos: this.harvestingSite.pos, range: initialDistance + 1 }, { pos: this.harvestingSite.keeper.lair.pos, range: initialDistance + 1 }], { flee: true, roomCallback: Colony.getCustomMatrix({ avoidCreeps:true }), plainCost: 2, swampCost: 10, maxOps: 100 });
+                let fleePath = PathFinder.search(this.creep.pos, [{ pos: this.harvestingSite.pos, range: initialDistance + 1 }, { pos: this.harvestingSite.keeper.lair.pos, range: initialDistance + 1 }], { flee: true, roomCallback: Colony.getCustomMatrix({ avoidCreeps: true }), plainCost: 2, swampCost: 10, maxOps: 100 });
                 if (fleePath.path.length > 0) {
                     this.creep.say('Flee' + fleePath.ops);
                     this.creep.move(this.creep.pos.getDirectionTo(fleePath.path[0]));
@@ -88,8 +88,12 @@ class HarvestingCarrier extends MyCreep<HarvestingCarrierMemory> {
         if (this.creep.carry.energy > 0) {
             if (!this.creep.pos.isNearTo(this.mainRoom.energyDropOffStructure))
                 this.moveTo({ pos: this.mainRoom.energyDropOffStructure.pos, range: 1 }, { plainCost: 2, swampCost: 10, roomCallback: Colony.getCustomMatrix({ ignoreKeeperSourceId: this.harvestingSite.id }) });
-            else
-                this.creep.transfer(this.mainRoom.energyDropOffStructure, RESOURCE_ENERGY);
+            else {
+                if ((this.mainRoom.energyDropOffStructure.structureType == STRUCTURE_CONTAINER || this.mainRoom.energyDropOffStructure.structureType == STRUCTURE_STORAGE) && _.sum((<Storage | Container>this.mainRoom.energyDropOffStructure).store) == (<Storage | Container>this.mainRoom.energyDropOffStructure).storeCapacity)
+                    this.creep.drop(RESOURCE_ENERGY);
+                else
+                    this.creep.transfer(this.mainRoom.energyDropOffStructure, RESOURCE_ENERGY);
+            }
         }
         else if ((this.mainRoom.terminal || this.mainRoom.mainContainer) && _.sum(this.creep.carry) > 0) {
             let target = this.mainRoom.terminal || this.mainRoom.mainContainer;
@@ -100,7 +104,7 @@ class HarvestingCarrier extends MyCreep<HarvestingCarrierMemory> {
 
 
     protected myTick() {
-        
+
         if (this.state == null || this.state == HarvestingCarrierState.deliver && _.sum(this.creep.carry) == 0) {
             if (this.creep.ticksToLive < 3 * this.harvestingSite.pathLengthToDropOff)
                 this.recycle();
