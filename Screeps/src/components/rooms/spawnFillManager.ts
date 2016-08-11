@@ -26,7 +26,7 @@ class SpawnFillManager implements SpawnFillManagerInterface {
         if (this.mainRoom.spawnManager.isBusy)
             return;
         if (this.mainRoom.mainContainer != null && _.size(_.filter(this.mainRoom.creeps, (c) => c.memory.role == 'spawnFiller' && (c.ticksToLive > 70 || c.ticksToLive === undefined))) < 2) {
-            this.mainRoom.spawnManager.addToQueue(SpawnFillerDefinition.getDefinition(this.creeps.length == 0 ? this.mainRoom.room.energyAvailable : this.mainRoom.maxSpawnEnergy).getBody(), { role: 'spawnFiller' }, 1, true);
+            this.mainRoom.spawnManager.addToQueue(SpawnFillerDefinition.getDefinition(this.creeps.length == 0 ? this.mainRoom.room.energyAvailable : Math.min(this.mainRoom.maxSpawnEnergy, 300 * _.size(this.mainRoom.sources))).getBody(), { role: 'spawnFiller' }, 1, true);
         }
     }
 
