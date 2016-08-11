@@ -6976,6 +6976,13 @@ var MyRoom = (function () {
             this.createCostMatrix = profiler.registerFN(this.createCostMatrix, 'MyRoom.createCostMatrix');
             this.createKeeperMatrix = profiler.registerFN(this.createKeeperMatrix, 'MyRoom.createKeeperMatrix');
             this.refresh = profiler.registerFN(this.refresh, 'MyRoom.refresh');
+            if (!Colony.memory.exits)
+                Colony.memory.exits = {};
+            if (!Colony.memory.exits[this.name]) {
+                Colony.memory.exits[this.name] = {};
+                for (var direction in Game.map.describeExits(this.name))
+                    Colony.memory.exits[this.name][direction] = Game.map.describeExits(this.name)[direction];
+            }
         }
         //this.accessMemory();
         //let oldMemory = <MyRoomMemoryOld>this.memory;
