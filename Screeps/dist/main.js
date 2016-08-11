@@ -2450,7 +2450,7 @@ var EnergyHarvestingManager = (function () {
         spawnManager = this.mainRoom.spawnManager;
         if (spawnManager == null || spawnManager.isBusy)
             return;
-        var sources = _.filter(myRoom.mySources, function (s) { return s.usable && (!_this.memory.sleepUntil || !_this.memory.sleepUntil[s.id] || _this.memory.sleepUntil[s.id] < Game.time) && (_this.mainRoom.harvestingActive || s.myRoom.name == _this.mainRoom.name); });
+        var sources = _.sortBy(_.filter(myRoom.mySources, function (s) { return s.usable && (!_this.memory.sleepUntil || !_this.memory.sleepUntil[s.id] || _this.memory.sleepUntil[s.id] < Game.time) && (_this.mainRoom.harvestingActive || s.myRoom.name == _this.mainRoom.name); }), function (x) { return x.link ? 0 : 1; });
         if (sources.length == 0) {
             if (!this.memory.sleepUntil)
                 this.memory.sleepUntil = {};

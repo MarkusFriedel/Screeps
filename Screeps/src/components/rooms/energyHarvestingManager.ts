@@ -201,7 +201,7 @@ class EnergyHarvestingManager implements EnergyHarvestingManagerInterface {
         if (spawnManager == null || spawnManager.isBusy)
             return;
 
-        let sources = _.filter(myRoom.mySources, s => s.usable && (!this.memory.sleepUntil || !this.memory.sleepUntil[s.id] || this.memory.sleepUntil[s.id] < Game.time) && (this.mainRoom.harvestingActive || s.myRoom.name == this.mainRoom.name));
+        let sources = _.sortBy(_.filter(myRoom.mySources, s => s.usable && (!this.memory.sleepUntil || !this.memory.sleepUntil[s.id] || this.memory.sleepUntil[s.id] < Game.time) && (this.mainRoom.harvestingActive || s.myRoom.name == this.mainRoom.name)), x => x.link ? 0 : 1);
 
         if (sources.length == 0) {
             if (!this.memory.sleepUntil)
