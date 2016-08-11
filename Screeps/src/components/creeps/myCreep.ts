@@ -49,7 +49,7 @@ abstract class MyCreep<TMemoryType extends CreepMemory> {
 
     private createPath(target: { pos: RoomPosition, range?: number }, opts?: PathFinderOpts): PathMovement {
         let startCPU = Game.cpu.getUsed();
-        let path = PathFinder.search(this.creep.pos, { pos: target.pos, range: target.range ? target.range : 1 }, { roomCallback: (opts && opts.roomCallback) ? opts.roomCallback : Colony.getTravelMatrix, plainCost: (opts && opts.plainCost) ? opts.plainCost : 2, swampCost: (opts && opts.swampCost) ? opts.swampCost : 10, maxOps: (opts && opts.maxOps) ? opts.maxOps : 10000 });
+        let path = PathFinder.search(this.creep.pos, { pos: target.pos, range: target.range!=null ? target.range : 1 }, { roomCallback: (opts && opts.roomCallback) ? opts.roomCallback : Colony.getTravelMatrix, plainCost: (opts && opts.plainCost) ? opts.plainCost : 2, swampCost: (opts && opts.swampCost) ? opts.swampCost : 10, maxOps: (opts && opts.maxOps) ? opts.maxOps : 10000 });
         path.path.unshift(this.creep.pos);
         let pathMovement: PathMovement = {
             target: {
@@ -78,14 +78,14 @@ abstract class MyCreep<TMemoryType extends CreepMemory> {
         return pathMovement;
     }
 
-    public moveTo(target: { pos: RoomPosition, range?: number }, opts?: PathFinderOpts) {
+    public moveTo(target: { pos: RoomPosition, range?: number }, opts?: MyPathOpts) {
         if (target == null || target.pos == null)
             return ERR_INVALID_ARGS;
         let myTarget = { pos: target.pos, range: target.range != null ? target.range : 1 }
 
 
 
-        if ((this.memory.pathMovement == null || this.memory.pathMovement.path.length < 2 && (!this.creep.pos.inRangeTo(myTarget.pos, myTarget.range)) || !RoomPos.fromObj(this.memory.pathMovement.target.pos).isEqualTo(RoomPos.fromObj(myTarget.pos)) || this.memory.pathMovement.target.range != myTarget.range)) {
+        if (opts && opts.resetPath || (this.memory.pathMovement == null || this.memory.pathMovement.path.length < 2 && (!this.creep.pos.inRangeTo(myTarget.pos, myTarget.range)) || !RoomPos.fromObj(this.memory.pathMovement.target.pos).isEqualTo(RoomPos.fromObj(myTarget.pos)) || this.memory.pathMovement.target.range != myTarget.range)) {
             this.memory.pathMovement = this.createPath(myTarget, opts);
         }
 
@@ -109,8 +109,6 @@ abstract class MyCreep<TMemoryType extends CreepMemory> {
     }
 
     public recycle() {
-        //this.creep.say('Recycle');
-
         let mainRoom = this.myRoom.closestMainRoom;
         if (!mainRoom)
             this.creep.suicide();

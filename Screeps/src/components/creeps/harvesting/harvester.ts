@@ -47,7 +47,7 @@ class Harvester extends MyCreep<HarvesterMemory> {
         if (this.harvestingSite.hasKeeper)
             var initialDistance = 5;
         else
-            initialDistance = 2;
+            initialDistance = 3;
 
         if (this.harvestingSite.containerPosition)
             var target = { pos: this.harvestingSite.containerPosition, range: 0 };
@@ -67,7 +67,7 @@ class Harvester extends MyCreep<HarvesterMemory> {
                 target.pos = this.harvestingSite.pos;
             }
             if (!this.harvestingSite.keeperIsAlive && !this.creep.pos.inRangeTo(target.pos, target.range)) {
-                this.moveTo(target, { roomCallback: Colony.getCustomMatrix({ ignoreAllKeepers: true, avoidCreeps: true }), maxOps:50 });
+                this.moveTo(target, { resetPath:true, roomCallback: Colony.getCustomMatrix({ ignoreAllKeepers: true, avoidCreeps: true }), maxOps:100 });
             }
             else if (minDistanceToSourceAndLair < initialDistance && this.harvestingSite.keeperIsAlive) {
                 delete this.memory.pathMovement;

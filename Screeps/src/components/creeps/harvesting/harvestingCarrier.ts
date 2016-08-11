@@ -46,7 +46,7 @@ class HarvestingCarrier extends MyCreep<HarvestingCarrierMemory> {
         if (this.harvestingSite.hasKeeper)
             var initialDistance = 6;
         else
-            initialDistance = 3;
+            initialDistance = 4;
 
         let minDistanceToSourceAndLair = this.creep.pos.getRangeTo(this.harvestingSite.pos);
         if (this.harvestingSite.lairPosition)

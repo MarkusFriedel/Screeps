@@ -308,6 +308,7 @@ class MyRoom implements MyRoomInterface {
         if ((this._creepAvoidanceMatrix == null || this._creepAvoidanceMatrix.time < Game.time) && this.room) {
             let matrix = (<CostMatrix>this.costMatrix).clone();
             _.forEach(this.room.find<Creep>(FIND_CREEPS), c => matrix.set(c.pos.x, c.pos.y, 255));
+            console.log(this.name + ': Creating creepAvoidanceMatrix');
             this._creepAvoidanceMatrix = { time: Game.time, matrix: matrix }
         }
         return this._creepAvoidanceMatrix.matrix;

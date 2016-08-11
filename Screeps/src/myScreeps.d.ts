@@ -545,6 +545,10 @@ interface LabMemory {
     }
 }
 
+interface MyPathOpts extends PathFinderOpts {
+    resetPath?: boolean;
+}
+
 interface LabManagerMemory {
 
 }

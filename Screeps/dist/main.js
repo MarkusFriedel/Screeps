@@ -189,7 +189,7 @@ var MyCreep = (function () {
     });
     MyCreep.prototype.createPath = function (target, opts) {
         var startCPU = Game.cpu.getUsed();
-        var path = PathFinder.search(this.creep.pos, { pos: target.pos, range: target.range ? target.range : 1 }, { roomCallback: (opts && opts.roomCallback) ? opts.roomCallback : Colony.getTravelMatrix, plainCost: (opts && opts.plainCost) ? opts.plainCost : 2, swampCost: (opts && opts.swampCost) ? opts.swampCost : 10, maxOps: (opts && opts.maxOps) ? opts.maxOps : 10000 });
+        var path = PathFinder.search(this.creep.pos, { pos: target.pos, range: target.range != null ? target.range : 1 }, { roomCallback: (opts && opts.roomCallback) ? opts.roomCallback : Colony.getTravelMatrix, plainCost: (opts && opts.plainCost) ? opts.plainCost : 2, swampCost: (opts && opts.swampCost) ? opts.swampCost : 10, maxOps: (opts && opts.maxOps) ? opts.maxOps : 10000 });
         path.path.unshift(this.creep.pos);
         var pathMovement = {
             target: {
@@ -215,7 +215,7 @@ var MyCreep = (function () {
         if (target == null || target.pos == null)
             return ERR_INVALID_ARGS;
         var myTarget = { pos: target.pos, range: target.range != null ? target.range : 1 };
-        if ((this.memory.pathMovement == null || this.memory.pathMovement.path.length < 2 && (!this.creep.pos.inRangeTo(myTarget.pos, myTarget.range)) || !RoomPos.fromObj(this.memory.pathMovement.target.pos).isEqualTo(RoomPos.fromObj(myTarget.pos)) || this.memory.pathMovement.target.range != myTarget.range)) {
+        if (opts && opts.resetPath || (this.memory.pathMovement == null || this.memory.pathMovement.path.length < 2 && (!this.creep.pos.inRangeTo(myTarget.pos, myTarget.range)) || !RoomPos.fromObj(this.memory.pathMovement.target.pos).isEqualTo(RoomPos.fromObj(myTarget.pos)) || this.memory.pathMovement.target.range != myTarget.range)) {
             this.memory.pathMovement = this.createPath(myTarget, opts);
         }
         if (this.memory.pathMovement == null)
@@ -236,7 +236,6 @@ var MyCreep = (function () {
         return OK;
     };
     MyCreep.prototype.recycle = function () {
-        //this.creep.say('Recycle');
         var mainRoom = this.myRoom.closestMainRoom;
         if (!mainRoom)
             this.creep.suicide();
@@ -2046,7 +2045,7 @@ var Harvester = (function (_super) {
         if (this.harvestingSite.hasKeeper)
             var initialDistance = 5;
         else
-            initialDistance = 2;
+            initialDistance = 3;
         if (this.harvestingSite.containerPosition)
             var target = { pos: this.harvestingSite.containerPosition, range: 0 };
         else
@@ -2063,7 +2062,7 @@ var Harvester = (function (_super) {
                 target.pos = this.harvestingSite.pos;
             }
             if (!this.harvestingSite.keeperIsAlive && !this.creep.pos.inRangeTo(target.pos, target.range)) {
-                this.moveTo(target, { roomCallback: Colony.getCustomMatrix({ ignoreAllKeepers: true, avoidCreeps: true }), maxOps: 50 });
+                this.moveTo(target, { resetPath: true, roomCallback: Colony.getCustomMatrix({ ignoreAllKeepers: true, avoidCreeps: true }), maxOps: 100 });
             }
             else if (minDistanceToSourceAndLair < initialDistance && this.harvestingSite.keeperIsAlive) {
                 delete this.memory.pathMovement;
@@ -2181,7 +2180,7 @@ var HarvestingCarrier = (function (_super) {
         if (this.harvestingSite.hasKeeper)
             var initialDistance = 6;
         else
-            initialDistance = 3;
+            initialDistance = 4;
         var minDistanceToSourceAndLair = this.creep.pos.getRangeTo(this.harvestingSite.pos);
         if (this.harvestingSite.lairPosition)
             minDistanceToSourceAndLair = Math.min(minDistanceToSourceAndLair, this.creep.pos.getRangeTo(this.harvestingSite.lairPosition));
@@ -7277,6 +7276,7 @@ var MyRoom = (function () {
             if ((this._creepAvoidanceMatrix == null || this._creepAvoidanceMatrix.time < Game.time) && this.room) {
                 var matrix_1 = this.costMatrix.clone();
                 _.forEach(this.room.find(FIND_CREEPS), function (c) { return matrix_1.set(c.pos.x, c.pos.y, 255); });
+                console.log(this.name + ': Creating creepAvoidanceMatrix');
                 this._creepAvoidanceMatrix = { time: Game.time, matrix: matrix_1 };
             }
             return this._creepAvoidanceMatrix.matrix;
