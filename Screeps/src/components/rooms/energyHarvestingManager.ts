@@ -1,7 +1,6 @@
 ﻿/// <reference path="../creeps/energyHarvester/energyHarvesterDefinition.ts" />
-/// <reference path="../creeps/energyHarvester/energyHarvester.ts" />
+
 /// <reference path="../creeps/sourceCarrier/sourceCarrierDefinition.ts" />
-/// <reference path="../creeps/sourceCarrier/sourceCarrier.ts" />
 /// <reference path="./manager.ts" />
 /// <reference path="../creeps/harvesting/harvester.ts" />
 /// <reference path="../creeps/harvesting/harvestingCarrier.ts" />
@@ -49,9 +48,9 @@ class EnergyHarvestingManager implements EnergyHarvestingManagerInterface {
 
     _harvesterCreeps: { time: number, creeps: Array<Creep> };
     public get harvesterCreeps(): Array<Creep> {
-        if (this._harvesterCreeps==null || this._harvesterCreeps.time < Game.time)
+        if (this._harvesterCreeps == null || this._harvesterCreeps.time < Game.time)
             this._harvesterCreeps = {
-                time: Game.time, creeps: _.filter(this.mainRoom.creepsByRole('harvester'), c => this.mainRoom.sources[c.memory.sId])
+                time: Game.time, creeps: _.filter(this.mainRoom.creepsByRole('harvester'), c => this.mainRoom.sources[c.memory.sId] || c.memory.min === false)
             };
         return this._harvesterCreeps.creeps;
     }
@@ -60,7 +59,7 @@ class EnergyHarvestingManager implements EnergyHarvestingManagerInterface {
     public get sourceCarrierCreeps(): Array<Creep> {
         if (this._sourceCarrierCreeps == null || this._sourceCarrierCreeps.time < Game.time)
             this._sourceCarrierCreeps = {
-                time: Game.time, creeps: _.filter(this.mainRoom.creepsByRole('harvestingCarrier'), c => this.mainRoom.sources[c.memory.sId])
+                time: Game.time, creeps: _.filter(this.mainRoom.creepsByRole('harvestingCarrier'), c => this.mainRoom.sources[c.memory.sId] || c.memory.min === false)
             };
         return this._sourceCarrierCreeps.creeps;
     }
@@ -101,7 +100,7 @@ class EnergyHarvestingManager implements EnergyHarvestingManagerInterface {
 
     getSourceCarrierBodyAndCount(sourceInfo: MySourceInterface, maxMiningRate?: number) {
         let useRoads = (this.mainRoom.mainContainer && sourceInfo.roadBuiltToRoom == this.mainRoom.name);
-        let pathLengh = (sourceInfo.pathLengthToDropOff + 10) * 1.1;
+        let pathLengh = (sourceInfo.getPathLengthToDropOff(this.mainRoom.name) + 10) * 1.1;
 
         if (pathLengh == null)
             pathLengh = 50;
@@ -116,7 +115,7 @@ class EnergyHarvestingManager implements EnergyHarvestingManagerInterface {
 
     }
 
-    private createCreep(sourceInfo: MySourceInterface, spawnManager: SpawnManagerInterface) {
+    private createCreep(sourceInfo: MySourceInterface, spawnManager: SpawnManagerInterface, dropOffRoom: MainRoomInterface) {
         //var harvesters = _.filter(this.harvesterCreeps, (c) => (<EnergyHarvesterMemory>c.memory).sourceId == sourceInfo.id);
         {
             let carrierCount = this.carriersBySource[sourceInfo.id] ? this.carriersBySource[sourceInfo.id].length : 0;
@@ -143,9 +142,9 @@ class EnergyHarvestingManager implements EnergyHarvestingManagerInterface {
             //    requestedCreep = Colony.spawnCreep(this.mainRoom.myRoom, requestHarvesterRequirements.body, { role: 'harvester', state: EnergyHarvesterState.Harvesting, sourceId: sourceInfo.id, mainRoomName: this.mainRoom.name, requiredBoosts: requestHarvesterRequirements.body.boosts, }, requestHarvesterRequirements.count - (harvesters ? harvesters.length : 0));
             //}
             if (!requestedCreep) {
-                let livingHarvesters = _.filter(harvesters, x => ((x.ticksToLive > sourceInfo.pathLengthToDropOff + harvesterRequirements.body.getBody().length * 3) || x.spawning));
+                let livingHarvesters = _.filter(harvesters, x => ((x.ticksToLive > sourceInfo.getPathLengthToDropOff(this.mainRoom.name) + harvesterRequirements.body.getBody().length * 3) || x.spawning));
                 var harvesterCount = harvesterRequirements.count - livingHarvesters.length;
-                spawnManager.addToQueue(harvesterRequirements.body.getBody(), { role: 'harvester', st: HarvesterState.harvest, sId: sourceInfo.id, mainRoomName: this.mainRoom.name, requiredBoosts: harvesterRequirements.body.boosts }, harvesterCount);
+                spawnManager.addToQueue(harvesterRequirements.body.getBody(), { role: 'harvester', st: HarvesterState.harvest, sId: sourceInfo.id, mainRoomName: this.mainRoom.name, dor: dropOffRoom.name, min: false, requiredBoosts: harvesterRequirements.body.boosts }, harvesterCount);
             }
 
             if (sourceInfo.link == null && this.mainRoom.mainContainer) {
@@ -154,8 +153,8 @@ class EnergyHarvestingManager implements EnergyHarvestingManagerInterface {
                 //var sourceCarriers = _.filter(this.sourceCarrierCreeps, (c) => (<SourceCarrierMemory>c.memory).sourceId == sourceInfo.id);
                 let sourceCarriers = this.carriersBySource[sourceInfo.id];
                 var carrierRequirements = this.getSourceCarrierBodyAndCount(sourceInfo, miningRate);
-                var carrierCount = carrierRequirements.count- (sourceCarriers ? sourceCarriers.length : 0);
-                spawnManager.addToQueue(carrierRequirements.body.getBody(), { role: 'harvestingCarrier', sId: sourceInfo.id, mainRoomName: this.mainRoom.name }, carrierCount);
+                var carrierCount = carrierRequirements.count - (sourceCarriers ? sourceCarriers.length : 0);
+                spawnManager.addToQueue(carrierRequirements.body.getBody(), { role: 'harvestingCarrier', sId: sourceInfo.id, mainRoomName: this.mainRoom.name, dor: dropOffRoom.name, min: false }, carrierCount);
             }
         }
         if (!this.memory.creepCounts)
@@ -201,7 +200,16 @@ class EnergyHarvestingManager implements EnergyHarvestingManagerInterface {
         if (spawnManager == null || spawnManager.isBusy)
             return;
 
-        let sources = _.sortBy(_.filter(myRoom.mySources, s => s.usable && (!this.memory.sleepUntil || !this.memory.sleepUntil[s.id] || this.memory.sleepUntil[s.id] < Game.time) && (this.mainRoom.harvestingActive || s.myRoom.name == this.mainRoom.name)), x => x.link ? 0 : 1);
+        if (this.mainRoom.harvestingActive)
+            var dropOffRoom: MainRoomInterface = this.mainRoom;
+        else {
+            dropOffRoom = _.map(_.sortBy(_.filter(myRoom.memory.mrd, mrd => mrd.d <= 3 && Colony.mainRooms[mrd.n].harvestingActive), mrd => mrd.d), mrd => Colony.mainRooms[mrd.n])[0];
+        }
+
+        if (this.mainRoom.name != myRoom.name && !this.mainRoom.harvestingActive && !dropOffRoom)
+            return;
+
+        let sources = _.sortBy(_.filter(myRoom.mySources, s => s.usable && (!this.memory.sleepUntil || !this.memory.sleepUntil[s.id] || this.memory.sleepUntil[s.id] < Game.time)), x => x.link ? 0 : 1);
 
         if (sources.length == 0) {
             if (!this.memory.sleepUntil)
@@ -213,7 +221,7 @@ class EnergyHarvestingManager implements EnergyHarvestingManagerInterface {
             if (spawnManager.isBusy)
                 break;
 
-            this.createCreep(sources[idx], spawnManager);
+            this.createCreep(sources[idx], spawnManager, this.mainRoom.name == myRoom.name ? this.mainRoom : dropOffRoom);
 
         }
     }

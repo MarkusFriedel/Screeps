@@ -84,7 +84,7 @@
     public get keeper() {
         if (!this.hasKeeper)
             return null;
-        if (this.room && (this._keeper == null || this._keeper.time < Game.time)) {
+        if (this.mineral && (this._keeper == null || this._keeper.time < Game.time)) {
             if (this.memory.lairId)
                 var lair = Game.getObjectById<StructureKeeperLair>(this.memory.lairId);
             if (!lair) {
@@ -109,7 +109,7 @@
     }
 
     public get hasKeeper(): boolean {
-        if (this.memory.keeper == null && this.room) {
+        if (this.memory.keeper == null && this.mineral) {
             this.memory.keeper = this.pos.findInRange(FIND_HOSTILE_STRUCTURES, 5, { filter: (x: Structure) => x.structureType == STRUCTURE_KEEPER_LAIR }).length > 0;
         }
         if (this.memory.keeper != null)
@@ -150,24 +150,19 @@
         return this._keeperIsAlive.isAlive;
     }
 
-    _pathLengthToTerminal: { time: number, length: number };
-    public get pathLengthToDropOff() {
-        if ((this._pathLengthToTerminal == null || this._pathLengthToTerminal.time + 1500 < Game.time) && this.mineral)
-            if (this.memory.pl && this.memory.pl.time + 1500 < Game.time) {
-                this._pathLengthToTerminal = this.memory.pl;
-            }
-            else {
-                this._pathLengthToTerminal = {
-                    time: Game.time,
-                    length: PathFinder.search(this.myRoom.mainRoom.spawns[0].pos, { pos: this.mineral.pos, range: 1 }, { roomCallback: Colony.getCustomMatrix({ ignoreKeeperSourceId: this.id }), plainCost: 2, swampCost: 10, maxOps: 20000 }).path.length
-                };
-                this.memory.pl = this._pathLengthToTerminal;
-            }
+    public getPathLengthToDropOff(mainRoomName: string) {
+        if (!this.memory.pl || (<any>this.memory.pl).time)
+            this.memory.pl = {};
+        if ((this.memory.pl[mainRoomName] == null || this.memory.pl[mainRoomName].time + 1500 < Game.time) && this.mineral)
+            this.memory.pl[mainRoomName] = {
+                time: Game.time,
+                length: PathFinder.search(this.myRoom.mainRoom.spawns[0].pos, { pos: this.mineral.pos, range: 1 }, { roomCallback: Colony.getCustomMatrix({ ignoreKeeperSourceId: this.id }), plainCost: 2, swampCost: 10, maxOps: 20000 }).path.length
+            };
 
-        if (this._pathLengthToTerminal == null)
+        if (this.memory.pl[mainRoomName] == null)
             return 50;
         else
-            return this._pathLengthToTerminal.length;
+            return this.memory.pl[mainRoomName].length;
     }
 
     public get lairPosition() {
@@ -230,7 +225,7 @@
     //}
 
     public get hasExtractor() {
-        if ((this.memory.e == null || this.memory.e.time + 100 < Game.time) && this.room) {
+        if ((this.memory.e == null || this.memory.e.time + 100 < Game.time) && this.mineral) {
             let extractor = _.filter(this.pos.lookFor<StructureExtractor>(LOOK_STRUCTURES), s => s.structureType == STRUCTURE_EXTRACTOR && (s.my && s.isActive() || s.owner == null))[0];
             this.memory.e = { time: Game.time, hasExtractor: extractor != null };
         }
@@ -255,7 +250,7 @@
     public get container() {
         if (this.link || this.hasKeeper)
             return null;
-        if ((this._container == null || this._container.time < Game.time) && this.room) {
+        if ((this._container == null || this._container.time < Game.time) && this.mineral) {
             if (this.memory.cId) {
                 let container = Game.getObjectById<StructureContainer>(this.memory.cId);
                 if (container == null)

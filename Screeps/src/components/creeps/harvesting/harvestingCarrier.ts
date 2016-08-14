@@ -12,11 +12,22 @@ class HarvestingCarrier extends MyCreep<HarvestingCarrierMemory> {
         this.memory.st = value;
     }
 
+    private dropOffRoom: MainRoomInterface;
+
+
+
     constructor(public name: string, public mainRoom: MainRoomInterface) {
         super(name);
 
-        this.harvestingSite = this.mainRoom.harvestingSites[this.memory.sId];
+       
         this.autoFlee = true;
+
+        if (this.memory.dor && Colony.mainRooms[this.memory.dor])
+            this.dropOffRoom = Colony.mainRooms[this.memory.dor];
+        else
+            this.dropOffRoom = this.mainRoom;
+
+        this.harvestingSite = this.mainRoom.harvestingSites[this.memory.sId];
 
         if (myMemory['profilerActive']) {
             this.stateDeliver = profiler.registerFN(this.stateDeliver, 'HarvestingCarrier.stateDeliver');
@@ -86,17 +97,17 @@ class HarvestingCarrier extends MyCreep<HarvestingCarrierMemory> {
         if (this.creep.fatigue > 0)
             return;
         if (this.creep.carry.energy > 0) {
-            if (!this.creep.pos.isNearTo(this.mainRoom.energyDropOffStructure))
-                this.moveTo({ pos: this.mainRoom.energyDropOffStructure.pos, range: 1 }, { plainCost: 2, swampCost: 10, roomCallback: Colony.getCustomMatrix({ ignoreKeeperSourceId: this.harvestingSite.id }) });
+            if (!this.creep.pos.isNearTo(this.dropOffRoom.energyDropOffStructure))
+                this.moveTo({ pos: this.dropOffRoom.energyDropOffStructure.pos, range: 1 }, { plainCost: 2, swampCost: 10, roomCallback: Colony.getCustomMatrix({ ignoreKeeperSourceId: this.harvestingSite.id }) });
             else {
-                if ((this.mainRoom.energyDropOffStructure.structureType == STRUCTURE_CONTAINER || this.mainRoom.energyDropOffStructure.structureType == STRUCTURE_STORAGE) && _.sum((<Storage | Container>this.mainRoom.energyDropOffStructure).store) == (<Storage | Container>this.mainRoom.energyDropOffStructure).storeCapacity)
+                if ((this.dropOffRoom.energyDropOffStructure.structureType == STRUCTURE_CONTAINER || this.dropOffRoom.energyDropOffStructure.structureType == STRUCTURE_STORAGE) && _.sum((<Storage | Container>this.dropOffRoom.energyDropOffStructure).store) == (<Storage | Container>this.dropOffRoom.energyDropOffStructure).storeCapacity)
                     this.creep.drop(RESOURCE_ENERGY);
                 else
-                    this.creep.transfer(this.mainRoom.energyDropOffStructure, RESOURCE_ENERGY);
+                    this.creep.transfer(this.dropOffRoom.energyDropOffStructure, RESOURCE_ENERGY);
             }
         }
-        else if ((this.mainRoom.terminal || this.mainRoom.mainContainer) && _.sum(this.creep.carry) > 0) {
-            let target = this.mainRoom.terminal || this.mainRoom.mainContainer;
+        else if ((this.dropOffRoom.terminal || this.dropOffRoom.mainContainer) && _.sum(this.creep.carry) > 0) {
+            let target = this.dropOffRoom.terminal || this.dropOffRoom.mainContainer;
             if (this.transferAny(target) == ERR_NOT_IN_RANGE)
                 this.moveTo({ pos: target.pos, range: 1 }, { plainCost: 2, swampCost: 10, roomCallback: Colony.getCustomMatrix({ ignoreKeeperSourceId: this.harvestingSite.id }) });
         }
@@ -106,13 +117,13 @@ class HarvestingCarrier extends MyCreep<HarvestingCarrierMemory> {
     protected myTick() {
 
         if (this.state == null || this.state == HarvestingCarrierState.deliver && _.sum(this.creep.carry) == 0) {
-            if (this.creep.ticksToLive < 3 * this.harvestingSite.pathLengthToDropOff)
+            if (this.creep.ticksToLive < 3 * this.harvestingSite.getPathLengthToDropOff(this.mainRoom.name))
                 this.recycle();
             else
                 this.state = HarvestingCarrierState.pickup;
         }
-        else if (this.state == HarvestingCarrierState.pickup && _.sum(this.creep.carry) == this.creep.carryCapacity || this.creep.ticksToLive < 1.5 * this.harvestingSite.pathLengthToDropOff && _.sum(this.creep.carry) > 0) {
-            if (this.creep.ticksToLive < 1.5 * this.harvestingSite.pathLengthToDropOff) {
+        else if (this.state == HarvestingCarrierState.pickup && _.sum(this.creep.carry) == this.creep.carryCapacity || this.creep.ticksToLive < 1.5 * this.harvestingSite.getPathLengthToDropOff(this.mainRoom.name) && _.sum(this.creep.carry) > 0) {
+            if (this.creep.ticksToLive < 1.5 * this.harvestingSite.getPathLengthToDropOff(this.mainRoom.name)) {
                 this.recycle();
                 return;
             }

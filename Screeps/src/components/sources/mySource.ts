@@ -18,21 +18,28 @@ class MySource implements MySourceInterface {
         if (this.myRoom.memory.srcs[this.id] == null) {
             this.myRoom.memory.srcs[this.id] = {
                 id: this.id,
-                pos: this.source.pos
+                pos: this.source!=null ? this.source.pos : null
             }
         }
         return this.myRoom.memory.srcs[this.id];
     }
 
-    private _room: { time: number, room: Room } = { time: -1, room: null };
+    private _room: { time: number, room: Room };
     public get room(): Room {
         //let trace = this.tracer.start('Property room');
-        if (this._room.time < Game.time)
+        if ((this._room == null || this._room.time < Game.time) && this.source)
             this._room = {
-                time: Game.time, room: Game.rooms[this.pos.roomName]
+                time: Game.time, room: Game.rooms[this.source.pos.roomName]
             };
+        else if (!this.source) {
+            this._room = {
+                time: Game.time, room: null
+            };
+        }
         //trace.stop();
-        return this._room.room;
+        if (this._room)
+            return this._room.room;
+        else return null;
 
     }
 
@@ -154,7 +161,9 @@ class MySource implements MySourceInterface {
     public get pos(): RoomPosition {
         //let trace = this.tracer.start('Property pos');
         //trace.stop();
-        return this.source != null ? this.source.pos : RoomPos.fromObj(this.memory.pos);
+        if (this.memory.pos == null && this.source)
+            this.memory.pos = this.source.pos;
+        return RoomPos.fromObj(this.memory.pos);
     }
 
     public get maxHarvestingSpots(): number {
@@ -193,7 +202,7 @@ class MySource implements MySourceInterface {
     public get keeper() {
         if (!this.hasKeeper || !this.room)
             return null;
-        if (this.room && (this._keeper == null || this._keeper.time < Game.time)) {
+        if (this.source && (this._keeper == null || this._keeper.time < Game.time)) {
             if (this.memory.lairId)
                 var lair = Game.getObjectById<StructureKeeperLair>(this.memory.lairId);
             if (!lair) {
@@ -218,7 +227,7 @@ class MySource implements MySourceInterface {
     }
 
     public get hasKeeper(): boolean {
-        if (this.memory.keeper != null || !this.room) {
+        if (this.memory.keeper != null || !this.source) {
             return this.memory.keeper;
         }
         else {
@@ -243,42 +252,21 @@ class MySource implements MySourceInterface {
     public set roadBuiltToRoom(value: string) {
         this.memory.rbtr = value;
     }
-    _pathLengthToMainContainer: { time: number, length: number };
-    public get pathLengthToDropOff() {
-        if ((this._pathLengthToMainContainer == null || this._pathLengthToMainContainer.time + 1500 < Game.time) && this.source)
-            if (this.memory.pl && this.memory.pl.time + 1500 < Game.time) {
-                this._pathLengthToMainContainer = this.memory.pl;
-            }
-            else {
-                this._pathLengthToMainContainer = {
-                    time: Game.time,
-                    length: PathFinder.search(this.myRoom.mainRoom.spawns[0].pos, { pos: this.source.pos, range: 1 }, { roomCallback: Colony.getCustomMatrix({ ignoreKeeperSourceId: this.id }), plainCost: 2, swampCost: 10, maxOps: 20000 }).path.length
-                };
-                this.memory.pl = this._pathLengthToMainContainer;
-            }
 
-        if (this._pathLengthToMainContainer == null)
+    public getPathLengthToDropOff(mainRoomName: string) {
+        if (!this.memory.pl || (<any>this.memory.pl).time)
+            this.memory.pl = {};
+        if ((this.memory.pl[mainRoomName] == null || this.memory.pl[mainRoomName].time + 1500 < Game.time) && this.source)
+            this.memory.pl[mainRoomName] = {
+                time: Game.time,
+                length: PathFinder.search(this.myRoom.mainRoom.spawns[0].pos, { pos: this.source.pos, range: 1 }, { roomCallback: Colony.getCustomMatrix({ ignoreKeeperSourceId: this.id }), plainCost: 2, swampCost: 10, maxOps: 20000 }).path.length
+            };
+
+        if (this.memory.pl[mainRoomName] == null)
             return 50;
         else
-            return this._pathLengthToMainContainer.length;
+            return this.memory.pl[mainRoomName].length;
     }
-
-    //_requiresCarrier: { time: number, value: boolean } = { time: -51, value: false };
-    //public get requiresCarrier() {
-    //    let trace = this.tracer.start('Property requiresCarrier');
-    //    if (this._requiresCarrier.time + 50 < Game.time)
-    //        this._requiresCarrier = {
-    //            time: Game.time,
-    //            value: this.sourceDropOffContainer != null && this.myRoom.mainRoom.mainContainer != null && !this.hasLink
-    //        };
-    //    //console.log('Requires Carrier: sourceDropOff: ' + ((this.sourceDropOffContainer) ? 'true' : 'false'));
-    //    //if (this.room)
-    //    //    console.log('Requires Carrier: getSourceDropOff: ' + (this.getSourceDropOffContainer() ? 'true' : 'false'));
-    //    //console.log('Requires Carrier: mainContainer: ' + (this.myRoom.mainRoom.mainContainer ? 'true' : 'false'));
-    //    //console.log('Requires Carrier: hasLink: ' + (this.hasLink ? 'true' : 'false'));
-    //    trace.stop();
-    //    return this._requiresCarrier.value;
-    //}
 
     private _capacityLastFresh: number;
     public get capacity() {

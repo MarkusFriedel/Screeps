@@ -34,6 +34,7 @@
     <TypeScriptCompile Include="src\components\creeps\harvesting\harvestingCarrier.ts" />
     <TypeScriptCompile Include="src\components\creeps\harvesting\harvester.ts" />
     <TypeScriptCompile Include="src\components\creeps\military\army.ts" />
+    <TypeScriptCompile Include="src\components\creeps\military\dismantler.ts" />
     <TypeScriptCompile Include="src\components\creeps\NukeFiller\nukeFiller.ts" />
     <TypeScriptCompile Include="src\components\creeps\powerHarvester\powerHarvester.ts" />
     <TypeScriptCompile Include="src\components\rooms\nukeManager.ts" />
@@ -59,7 +60,6 @@
     <TypeScriptCompile Include="src\components\creeps\defender\defender.ts" />
     <TypeScriptCompile Include="src\components\creeps\defender\defenderDefinition.ts" />
     <TypeScriptCompile Include="src\components\creeps\energyHarvester\energyHarvesterDefinition.ts" />
-    <TypeScriptCompile Include="src\components\creeps\energyHarvester\energyHarvester.ts" />
     <TypeScriptCompile Include="src\components\creeps\invader\invader.ts" />
     <TypeScriptCompile Include="src\components\creeps\labCarrier\labCarrier.ts" />
     <TypeScriptCompile Include="src\components\creeps\labCarrier\labCarrierDefinition.ts" />
@@ -73,13 +73,10 @@
     <TypeScriptCompile Include="src\components\creeps\military\healerDefinition.ts" />
     <TypeScriptCompile Include="src\components\creeps\military\warrior.ts" />
     <TypeScriptCompile Include="src\components\creeps\military\warriorDefinition.ts" />
-    <TypeScriptCompile Include="src\components\creeps\minerals\mineralCarrier.ts" />
-    <TypeScriptCompile Include="src\components\creeps\minerals\mineralHarvester.ts" />
     <TypeScriptCompile Include="src\components\creeps\repairer\repairerDefinition.ts" />
     <TypeScriptCompile Include="src\components\creeps\repairer\repairer.ts" />
     <TypeScriptCompile Include="src\components\creeps\reserver\reserver.ts" />
     <TypeScriptCompile Include="src\components\creeps\scout\scout.ts" />
-    <TypeScriptCompile Include="src\components\creeps\sourceCarrier\sourceCarrier.ts" />
     <TypeScriptCompile Include="src\components\creeps\sourceCarrier\sourceCarrierDefinition.ts" />
     <TypeScriptCompile Include="src\components\creeps\spawnFiller\spawnFiller.ts" />
     <TypeScriptCompile Include="src\components\creeps\spawnFiller\spawnFillerDefinition.ts" />

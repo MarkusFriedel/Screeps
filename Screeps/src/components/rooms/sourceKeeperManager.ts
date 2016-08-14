@@ -60,7 +60,7 @@ class SourceKeeperManager implements SourceKeeperManagerInterface {
             this.sleep(myRoom);
             return;
         }
-        if (_.filter(this.creeps, c => c.memory.roomName == myRoom.name && !c.memory.recycle && (c.spawning || (c.ticksToLive != null && c.ticksToLive > _.min(myRoom.mySources, x => x.pathLengthToDropOff).pathLengthToDropOff + 50 + definition.getBody().length * 3))).length == 0) {
+        if (_.filter(this.creeps, c => c.memory.roomName == myRoom.name && !c.memory.recycle && (c.spawning || (c.ticksToLive != null && c.ticksToLive > _.min(myRoom.mySources, x => x.getPathLengthToDropOff(this.mainRoom.name)).getPathLengthToDropOff(this.mainRoom.name) + 50 + definition.getBody().length * 3))).length == 0) {
 
 
             if (definition != null) {

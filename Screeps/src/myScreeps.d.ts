@@ -139,7 +139,7 @@ interface HarvestingSiteMemoryOld {
     * PathLengthToMainContainer
     **/
 
-    pl?: { time: number, length: number };
+    //pl?: { time: number, length: number };
 }
 
 interface HarvestingSiteMemory {
@@ -177,7 +177,7 @@ interface HarvestingSiteMemory {
     * PathLengthToMainContainer
     **/
 
-    pl?: { time: number, length: number };
+    pl?: {[mainRoomName:string]: { time: number, length: number }};
 }
 
 interface MyMineralMemoryOld extends HarvestingSiteMemoryOld {
@@ -589,7 +589,7 @@ interface HarvestingSiteInterface {
     hasKeeper: boolean;
     pos: RoomPosition;
     roadBuiltToRoom: string;
-    pathLengthToDropOff: number;
+    getPathLengthToDropOff(mainRoomName:string): number;
     myRoom: MyRoomInterface;
     keeper: KeeperInterface;
     usable: boolean;
@@ -865,7 +865,7 @@ interface LabManagerInterface {
     preTick();
     backup();
     restore();
-
+    requestPublish(compound: string);
     availablePublishResources: { [resource: string]: number };
 }
 
@@ -1039,6 +1039,7 @@ interface MissionPowerHarvestingMemory {
 interface ArmyCreepMemory extends CreepMemory {
     armyId: number;
     followingCreepId: string;
+    
 }
 
 interface ArmyHealerMemory extends ArmyCreepMemory {
@@ -1098,9 +1099,17 @@ interface HarvestingCarrierMemory extends CreepMemory {
     **/
     sId: string;
     /**
+   * Is Mineral
+   **/
+    min: boolean;
+    /**
     * State
     **/
     st: HarvestingCarrierState;
+    /**
+    * DropOffRoom
+    **/
+    dor: string;
 }
 
 interface HarvesterMemory extends CreepMemory {
@@ -1109,9 +1118,17 @@ interface HarvesterMemory extends CreepMemory {
     **/
     sId: string;
     /**
+    * Is Mineral
+    **/
+    min: boolean;
+    /**
     * State
     **/
     st: HarvesterState;
+    /**
+    * DropOffRoom
+    **/
+    dor: string;
 }
 
 interface NukeManagerInterface {

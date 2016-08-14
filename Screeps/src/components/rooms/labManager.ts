@@ -143,7 +143,8 @@ class LabManager implements LabManagerInterface {
     public tick() {
         
 
-        this.requiredPublishs = [];
+        if (this.requiredPublishs == null)
+            this.requiredPublishs = [];
 
         _.forEach(_.map(_.filter(this.mainRoom.creeps, c => (<CreepMemory>c.memory).requiredBoosts && _.size((<CreepMemory>c.memory).requiredBoosts) > 0), c => (<CreepMemory>c.memory).requiredBoosts), c => {
             for (let resource in c) {
@@ -163,6 +164,14 @@ class LabManager implements LabManagerInterface {
     }
 
     private requiredPublishs: Array<string>;
+
+    public requestPublish(compound: string) {
+        if (this.requiredPublishs == null)
+            this.requiredPublishs = [];
+
+        if (this.requiredPublishs.indexOf(compound) < 0)
+            this.requiredPublishs.push(compound);
+    }
 
     private setupPublishs() {
         for (let resource of this.requiredPublishs) {

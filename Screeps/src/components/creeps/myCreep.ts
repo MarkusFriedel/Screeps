@@ -49,7 +49,7 @@ abstract class MyCreep<TMemoryType extends CreepMemory> {
 
     private createPath(target: { pos: RoomPosition, range?: number }, opts?: PathFinderOpts): PathMovement {
         let startCPU = Game.cpu.getUsed();
-        let path = PathFinder.search(this.creep.pos, { pos: target.pos, range: target.range!=null ? target.range : 1 }, { roomCallback: (opts && opts.roomCallback) ? opts.roomCallback : Colony.getTravelMatrix, plainCost: (opts && opts.plainCost) ? opts.plainCost : 2, swampCost: (opts && opts.swampCost) ? opts.swampCost : 10, maxOps: (opts && opts.maxOps) ? opts.maxOps : 10000 });
+        let path = PathFinder.search(this.creep.pos, { pos: target.pos, range: target.range != null ? target.range : 1 }, { roomCallback: (opts && opts.roomCallback) ? opts.roomCallback : Colony.getTravelMatrix, plainCost: (opts && opts.plainCost) ? opts.plainCost : 2, swampCost: (opts && opts.swampCost) ? opts.swampCost : 10, maxOps: (opts && opts.maxOps) ? opts.maxOps : 10000 });
         path.path.unshift(this.creep.pos);
         let pathMovement: PathMovement = {
             target: {
@@ -71,7 +71,7 @@ abstract class MyCreep<TMemoryType extends CreepMemory> {
         }
         let usedCPU = Game.cpu.getUsed() - startCPU;
         if (usedCPU > 5)
-            console.log('Create path: cpu: ' + usedCPU.toFixed(2)+', ops: ' + pathMovement.ops + ', Role: ' + this.memory.role + ', state: ' + this.memory['st'] + ', pos: ' + this.creep.pos.x + ':' + this.creep.pos.y + ':' + this.creep.pos.roomName + ', Remaining length: ' + pathMovement.path.length);
+            console.log('Create path: cpu: ' + usedCPU.toFixed(2) + ', ops: ' + pathMovement.ops + ', Role: ' + this.memory.role + ', state: ' + this.memory['st'] + ', pos: ' + this.creep.pos.x + ':' + this.creep.pos.y + ':' + this.creep.pos.roomName + ', Remaining length: ' + pathMovement.path.length);
 
         Colony.memory.createPathTime += usedCPU;
 
@@ -276,11 +276,20 @@ abstract class MyCreep<TMemoryType extends CreepMemory> {
         if (this.memory.recycle) {
             this.recycle();
         }
+
+        //_.forEach(_.map(_.filter(this.mainRoom.creeps, c => (<CreepMemory>c.memory).requiredBoosts && _.size((<CreepMemory>c.memory).requiredBoosts) > 0), c => (<CreepMemory>c.memory).requiredBoosts), c => {
+        //    for (let resource in c) {
+        //        
+
+        //    }
+        //});
+
         else if (this.myRoom.mainRoom && this.memory.requiredBoosts != null && _.size(this.memory.requiredBoosts) > 0) {
             for (let resource in this.memory.requiredBoosts) {
                 this.creep.say(resource);
                 let boost = this.memory.requiredBoosts[resource];
-
+                if (boost.amount > 0)
+                    this.myRoom.mainRoom.managers.labManager.requestPublish(resource);
                 let lab = _.filter(this.myRoom.mainRoom.managers.labManager.myLabs, l => l.memory.resource == boost.compound && l.memory.mode & LabMode.publish && l.lab.mineralType == boost.compound && l.lab.mineralAmount >= boost.amount * LAB_BOOST_MINERAL && l.lab.energy >= boost.amount * LAB_BOOST_ENERGY)[0];
                 if (lab) {
                     let result = lab.lab.boostCreep(this.creep, boost.amount);

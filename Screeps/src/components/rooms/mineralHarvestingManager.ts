@@ -1,7 +1,7 @@
 ﻿/// <reference path="../creeps/minerals/mineralHarvesterDefinition.ts" />
-/// <reference path="../creeps/minerals/mineralHarvester.ts" />
+// <reference path="../creeps/minerals/mineralHarvester.ts" />
 /// <reference path="../creeps/sourceCarrier/sourceCarrierDefinition.ts" />
-/// <reference path="../creeps/minerals/mineralCarrier.ts" />
+// <reference path="../creeps/minerals/mineralCarrier.ts" />
 /// <reference path="./manager.ts" />
 
 class MineralHarvestingManager implements MineralHarvestingManagerInterface {
@@ -108,7 +108,7 @@ class MineralHarvestingManager implements MineralHarvestingManagerInterface {
                 if (harvesterCount == 0) {
                     //      console.log('MineralHarvestingManager.checkCreeps - 4');
                     let definition = MineralHarvesterDefinition.getDefinition(this.mainRoom.maxSpawnEnergy, myMineral, this.mainRoom.managers.labManager.availablePublishResources);
-                    this.mainRoom.spawnManager.addToQueue(definition.body.getBody(), { role: 'mineralHarvester', sId: myMineral.id }, definition.count);
+                    this.mainRoom.spawnManager.addToQueue(definition.body.getBody(), { role: 'mineralHarvester', sId: myMineral.id, requiredBoosts: definition.body.boosts }, definition.count);
                 }
 
                 let carriers = this.carriersByMineral[myMineral.id];
@@ -116,7 +116,7 @@ class MineralHarvestingManager implements MineralHarvestingManagerInterface {
 
                 //        console.log('MineralHarvestingManager.checkCreeps - 5');
                 //let pathLength = PathFinder.search(this.mainRoom.extractor.pos, { pos: this.mainRoom.terminal.pos, range: 2 }).path.length;
-                let pathLength = (myMineral.pathLengthToDropOff + 10) * 1.1;
+                let pathLength = (myMineral.getPathLengthToDropOff(this.mainRoom.name) + 10) * 1.1;
                 let requiredCapacity = Math.ceil(pathLength * 2 * 10 * (['O', 'H'].indexOf(myMineral.resourceType) >= 0 ? 2 : 1) / (myMineral.hasKeeper ? 2 : 1));
                 //console.log('Mineral Carrier: required capacits' + requiredCapacity);
                 let definition = SourceCarrierDefinition.getDefinition(this.mainRoom.maxSpawnEnergy, requiredCapacity, this.mainRoom.managers.labManager.availablePublishResources);

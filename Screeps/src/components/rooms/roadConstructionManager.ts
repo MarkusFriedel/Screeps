@@ -74,7 +74,7 @@ class RoadConstructionManager  implements RoadConstructionManagerInterface {
             mySource.roadBuiltToRoom = this.mainRoom.name;
         }
 
-        _.forEach(_.filter(this.mainRoom.minerals, m => m.roadBuiltToRoom != this.mainRoom.name), myMineral => {
+        _.forEach(_.filter(this.mainRoom.minerals, m => m.hasExtractor && m.roadBuiltToRoom != this.mainRoom.name), myMineral => {
             if (_.size(Game.constructionSites) == 100)
                 return;
             if (this.mainRoom.terminal) {

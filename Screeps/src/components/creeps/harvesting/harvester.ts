@@ -12,8 +12,15 @@ class Harvester extends MyCreep<HarvesterMemory> {
         this.memory.st = value;
     }
 
+    private dropOffRoom: MainRoomInterface;
+
     constructor(public name: string, public mainRoom: MainRoomInterface) {
         super(name);
+
+        if (this.memory.dor && Colony.mainRooms[this.memory.dor])
+            this.dropOffRoom = Colony.mainRooms[this.memory.dor];
+        else
+            this.dropOffRoom = this.mainRoom;
 
         this.harvestingSite = this.mainRoom.harvestingSites[this.memory.sId];
         this.autoFlee = true;
@@ -128,13 +135,13 @@ class Harvester extends MyCreep<HarvesterMemory> {
 
     private stateDeliver() {
         if (this.creep.carry.energy > 0) {
-            if (!this.creep.pos.isNearTo(this.mainRoom.energyDropOffStructure))
-                this.moveTo(this.mainRoom.energyDropOffStructure, { plainCost: 2, swampCost: 10, roomCallback: Colony.getCustomMatrix({ ignoreKeeperSourceId: this.harvestingSite.id }) });
+            if (!this.creep.pos.isNearTo(this.dropOffRoom.energyDropOffStructure))
+                this.moveTo(this.dropOffRoom.energyDropOffStructure, { plainCost: 2, swampCost: 10, roomCallback: Colony.getCustomMatrix({ ignoreKeeperSourceId: this.harvestingSite.id }) });
             else
-                this.creep.transfer(this.mainRoom.energyDropOffStructure, RESOURCE_ENERGY);
+                this.creep.transfer(this.dropOffRoom.energyDropOffStructure, RESOURCE_ENERGY);
         }
-        else if ((this.mainRoom.terminal || this.mainRoom.mainContainer) && _.sum(this.creep.carry) > 0) {
-            let target = this.mainRoom.terminal || this.mainRoom.mainContainer;
+        else if ((this.dropOffRoom.terminal || this.dropOffRoom.mainContainer) && _.sum(this.creep.carry) > 0) {
+            let target = this.dropOffRoom.terminal || this.dropOffRoom.mainContainer;
             if (this.transferAny(target) == ERR_NOT_IN_RANGE)
                 this.moveTo(target, { plainCost: 2, swampCost: 10, roomCallback: Colony.getCustomMatrix({ ignoreKeeperSourceId: this.harvestingSite.id }) });
         }

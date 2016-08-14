@@ -124,6 +124,8 @@ class MyRoom implements MyRoomInterface {
 
     public get mySources(): { [id: string]: MySourceInterface; } {
         //let trace = this.tracer.start('Property mySources');
+        //if (this.memory.srcs && _.any(this.memory.srcs, s => s.pos == null))
+        //    delete this.memory.srcs;
         if (this._mySources == null) {
             if (this.memory.srcs == null && this.room) {
                 this._mySources = { time: Game.time, mySources: _.indexBy(_.map(this.room.find<Source>(FIND_SOURCES), x => new MySource(x.id, this)), (x) => x.id) };
